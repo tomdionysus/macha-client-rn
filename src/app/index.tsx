@@ -1,98 +1,108 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Redirect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
+import { newestCatalogueFirst } from '../api/media';
+import { useAsync } from '../hooks/useAsync';
+import { useMacha } from '../providers/MachaProvider';
+import { usePlayback } from '../providers/PlaybackProvider';
+import type { MediaSummary, PlaybackProgress } from '../types';
+import { HeaderButton, Screen } from '../ui/Screen';
+import { ErrorState, InlineError, Loading } from '../ui/Status';
+import { MediaRow } from '../ui/MediaRow';
+import { MachaLogo } from '../ui/Logo';
+import { SettingsIcon } from '../ui/Icons';
+import { describeError } from '../api/errors';
+import { useOpenMedia } from '../ui/navigation';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+/** How many of each kind the Home rails show before "See all" takes over. */
+const RAIL_LIMIT = 14;
 
 export default function HomeScreen() {
+  const { media, endpoints, continueWatching, generation } = useMacha();
+  const { playItem } = usePlayback();
+  const router = useRouter();
+  const openMedia = useOpenMedia();
+
+  const home = useAsync((signal) => media.home(signal), [media, generation]);
+  const [resumable, setResumable] = useState<PlaybackProgress[]>(() => continueWatching.list());
+
+  const refresh = useCallback(() => {
+    setResumable(continueWatching.list());
+    home.refresh();
+  }, [continueWatching, home]);
+
+  const progressByItem = useMemo(
+    () => new Map(resumable.map((entry) => [entry.mediaId, entry])),
+    [resumable],
+  );
+  const resumableItems = useMemo(
+    () => resumable.flatMap((entry) => (entry.media ? [entry.media] : [])),
+    [resumable],
+  );
+
+  const resume = useCallback(
+    (item: MediaSummary) => {
+      void playItem(item);
+      router.navigate('/play');
+    },
+    [playItem, router],
+  );
+
+  const removeResumable = useCallback(
+    (item: MediaSummary) => setResumable(continueWatching.clear(item.id)),
+    [continueWatching],
+  );
+
+  if (endpoints.length === 0) return <Redirect href="/connect" />;
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <Screen
+      title="Macha"
+      leading={<MachaLogo size={34} />}
+      onRefresh={refresh}
+      refreshing={home.refreshing}
+      headerRight={
+        <HeaderButton label="Settings" onPress={() => router.navigate('/settings')}>
+          <SettingsIcon size={20} />
+        </HeaderButton>
+      }>
+      {!home.value && home.loading ? <Loading /> : null}
+      {!home.value && home.error ? <ErrorState error={home.error} onRetry={home.refresh} /> : null}
+      {home.value && home.error ? <InlineError message={`Refresh failed: ${describeError(home.error)}`} /> : null}
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+      {home.value ? (
+        <>
+          {resumableItems.length > 0 ? (
+            <MediaRow
+              title="Continue watching"
+              items={resumableItems}
+              onOpen={resume}
+              progress={progressByItem}
+              onRemove={removeResumable}
+            />
+          ) : null}
+          <MediaRow
+            title="Films"
+            items={newestCatalogueFirst(home.value.movies).slice(0, RAIL_LIMIT)}
+            onOpen={openMedia}
+            onSeeAll={() => router.navigate('/movies')}
+            emptyLabel="No films in this catalogue yet."
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
+          <MediaRow
+            title="TV"
+            items={newestCatalogueFirst(home.value.shows).slice(0, RAIL_LIMIT)}
+            onOpen={openMedia}
+            onSeeAll={() => router.navigate('/shows')}
+            emptyLabel="No series in this catalogue yet."
           />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          <MediaRow
+            title="Music"
+            items={newestCatalogueFirst(home.value.albums).slice(0, RAIL_LIMIT)}
+            onOpen={openMedia}
+            onSeeAll={() => router.navigate('/music')}
+            emptyLabel="No albums in this catalogue yet."
+          />
+        </>
+      ) : null}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-});
