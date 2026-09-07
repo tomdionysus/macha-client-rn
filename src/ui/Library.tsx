@@ -6,6 +6,7 @@ import { SearchIcon } from './Icons';
 import { colors, radius, space, type as typography } from './theme';
 import { pluralize } from './format';
 import { EmptyState } from './Status';
+import { useConnectivity } from '../providers/MachaProvider';
 import type { CardShape } from './MediaCard';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
  */
 export function Library({ items, onOpen, noun, shape }: Props) {
   const [filter, setFilter] = useState('');
+  const { offline } = useConnectivity();
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -50,8 +52,20 @@ export function Library({ items, onOpen, noun, shape }: Props) {
       </View>
       {visible.length === 0 ? (
         <EmptyState
-          title={filter ? `No ${noun} match “${filter.trim()}”` : `No ${noun} yet`}
-          detail={filter ? undefined : 'Items appear here as the node indexes your library.'}
+          title={
+            filter
+              ? `No ${noun} match “${filter.trim()}”`
+              : offline
+                ? `No ${noun} downloaded`
+                : `No ${noun} yet`
+          }
+          detail={
+            filter
+              ? undefined
+              : offline
+                ? 'Download these while you are on your network and they will be here when you are not.'
+                : 'Items appear here as the node indexes your library.'
+          }
         />
       ) : (
         <>

@@ -7,15 +7,13 @@ import { Sheet, SheetOption, SheetSection } from './Sheet';
 import { describeStream, formatBitrate, formatChannels, formatLanguage } from './format';
 import { colors, space, type as typography } from './theme';
 
-const MODE_LABELS: Record<PlaybackMode | 'auto', string> = {
-  auto: 'Auto',
+const MODE_LABELS: Record<PlaybackMode, string> = {
   direct: 'Direct play',
   remux: 'Remux',
   transcode: 'Transcode',
 };
 
-const MODE_DETAIL: Record<PlaybackMode | 'auto', string> = {
-  auto: 'Let the node decide from what this device can decode.',
+const MODE_DETAIL: Record<PlaybackMode, string> = {
   direct: 'Send the original file untouched. Fastest, if the device can play it.',
   remux: 'Repackage the original streams. No quality loss.',
   transcode: 'Re-encode on the node. Works with anything, costs the most.',
@@ -45,7 +43,12 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   return (
     <Sheet visible={visible} title="Playback" onClose={onClose}>
       <SheetSection title="Mode">
-        {(['auto', ...options.modes] as Array<PlaybackMode | 'auto'>).map((mode) => (
+        {/*
+          * No Auto. The server no longer chooses: `mode` is required and it
+          * performs exactly what it is told, so the default comes from the
+          * shared chooser and these are overrides on top of it.
+          */}
+        {(options.modes as PlaybackMode[]).map((mode) => (
           <SheetOption
             key={mode}
             label={MODE_LABELS[mode]}

@@ -1,4 +1,7 @@
 import type { ClusterCatalogueApi, CatalogueArtwork, CatalogueItem, CatalogueMediaProfile } from './catalogue';
+import { MachaConnectionError } from './errors';
+import type { Connectivity } from '../state/connectivity';
+import type { OfflineLibrary } from './offlineLibrary';
 import type {
   AlbumDetails,
   ArtistDetails,
@@ -22,7 +25,36 @@ function optional(value: number | null | undefined): number | undefined {
  * so a wire change stays inside `catalogue.ts` and this file.
  */
 export class MediaApi {
-  constructor(private readonly catalogue: ClusterCatalogueApi) {}
+  constructor(
+    private readonly catalogue: ClusterCatalogueApi,
+    private readonly offline?: OfflineLibrary,
+    private readonly connectivity?: Connectivity,
+  ) {}
+
+  /**
+   * Runs a catalogue request, falling back to what is stored on the device
+   * when the cluster cannot be reached.
+   *
+   * Being away from your own network is ordinary for a phone, so an
+   * unreachable node is a state to serve around rather than an error to show.
+   * Only transport failures fall back: a node that answers with a 404 has
+   * genuinely answered, and pretending otherwise would hide real problems.
+   */
+  private async serve<T>(live: () => Promise<T>, stored: (library: OfflineLibrary) => T): Promise<T> {
+    const library = this.offline;
+    if (library && this.connectivity?.isOffline && !this.connectivity.shouldProbe()) return stored(library);
+    try {
+      const result = await live();
+      this.connectivity?.reportReachable();
+      return result;
+    } catch (error) {
+      if (library && error instanceof MachaConnectionError) {
+        this.connectivity?.reportUnreachable();
+        return stored(library);
+      }
+      throw error;
+    }
+  }
 
   status(signal?: AbortSignal) {
     return this.catalogue.status(signal);
@@ -39,29 +71,50 @@ export class MediaApi {
     return [...signed, ...this.catalogue.artworkUrls(ref.id)];
   }
 
-  async home(signal?: AbortSignal): Promise<LibraryHome> {
-    const [movies, shows, albums] = await Promise.all([
-      this.movies(signal),
-      this.shows(signal),
-      this.albums(signal),
-    ]);
-    return { movies, shows, albums };
+  home(signal?: AbortSignal): Promise<LibraryHome> {
+    return this.serve(
+      async () => {
+        const [movies, shows, albums] = await Promise.all([
+          this.catalogue.list('movie', undefined, signal),
+          this.catalogue.list('show', undefined, signal),
+          this.catalogue.list('album', undefined, signal),
+        ]);
+        return {
+          movies: movies.map((item) => this.media(item)),
+          shows: shows.map((item) => this.media(item)),
+          albums: albums.map((item) => this.media(item)),
+        };
+      },
+      (library) => library.home(),
+    );
   }
 
-  async movies(signal?: AbortSignal): Promise<MediaSummary[]> {
-    return (await this.catalogue.list('movie', undefined, signal)).map((item) => this.media(item));
+  movies(signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(
+      async () => (await this.catalogue.list('movie', undefined, signal)).map((item) => this.media(item)),
+      (library) => library.movies(),
+    );
   }
 
-  async shows(signal?: AbortSignal): Promise<MediaSummary[]> {
-    return (await this.catalogue.list('show', undefined, signal)).map((item) => this.media(item));
+  shows(signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(
+      async () => (await this.catalogue.list('show', undefined, signal)).map((item) => this.media(item)),
+      (library) => library.shows(),
+    );
   }
 
-  async artists(signal?: AbortSignal): Promise<MediaSummary[]> {
-    return (await this.catalogue.list('artist', undefined, signal)).map((item) => this.media(item));
+  artists(signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(
+      async () => (await this.catalogue.list('artist', undefined, signal)).map((item) => this.media(item)),
+      (library) => library.artists(),
+    );
   }
 
-  async albums(signal?: AbortSignal): Promise<MediaSummary[]> {
-    return (await this.catalogue.list('album', undefined, signal)).map((item) => this.media(item));
+  albums(signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(
+      async () => (await this.catalogue.list('album', undefined, signal)).map((item) => this.media(item)),
+      (library) => library.albums(),
+    );
   }
 
   /**
@@ -72,7 +125,11 @@ export class MediaApi {
    * artists are small collections next to tracks, so joining them here costs
    * two extra list calls and saves one per row.
    */
-  async tracks(signal?: AbortSignal): Promise<MediaSummary[]> {
+  tracks(signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(() => this.liveTracks(signal), (library) => library.tracks());
+  }
+
+  private async liveTracks(signal?: AbortSignal): Promise<MediaSummary[]> {
     const [trackItems, albumItems, artistItems] = await Promise.all([
       this.catalogue.list('track', undefined, signal),
       this.catalogue.list('album', undefined, signal),
@@ -100,15 +157,30 @@ export class MediaApi {
       .sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  async search(query: string, signal?: AbortSignal): Promise<MediaSummary[]> {
-    return (await this.catalogue.search(query, 50, signal)).map((item) => this.media(item));
+  search(query: string, signal?: AbortSignal): Promise<MediaSummary[]> {
+    return this.serve(
+      async () => (await this.catalogue.search(query, 50, signal)).map((item) => this.media(item)),
+      (library) => library.search(query),
+    );
   }
 
   /**
    * Detail for one item, plus exactly one level of children. Opening a series
    * lists its seasons; it deliberately does not download every episode.
    */
-  async details(id: string, signal?: AbortSignal): Promise<MediaDetails> {
+  details(id: string, signal?: AbortSignal): Promise<MediaDetails> {
+    return this.serve(
+      () => this.liveDetails(id, signal),
+      (library) => {
+        const stored = library.details(id);
+        // Offline, an item that was never downloaded genuinely is not here.
+        if (!stored) throw new MachaConnectionError('This item is not available offline.');
+        return stored;
+      },
+    );
+  }
+
+  private async liveDetails(id: string, signal?: AbortSignal): Promise<MediaDetails> {
     const item = await this.catalogue.get(id, signal);
 
     if (item.kind === 'show') {

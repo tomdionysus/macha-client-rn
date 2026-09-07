@@ -5,7 +5,9 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { useAsync } from '../hooks/useAsync';
-import { ChevronRightIcon, ServerIcon, TrashIcon } from '../ui/Icons';
+import { ChevronRightIcon, DownloadIcon, ServerIcon, TrashIcon } from '../ui/Icons';
+import { useDownloads } from '../hooks/useDownloads';
+import { formatBytes, pluralize } from '../ui/format';
 import { Screen } from '../ui/Screen';
 import { Divider, ListRow, Tag } from '../ui/controls';
 import { colors, space, type as typography } from '../ui/theme';
@@ -15,6 +17,7 @@ export default function SettingsScreen() {
   const { media, endpoints, apiToken, registry, continueWatching, queue, generation } = useMacha();
   const { stop } = usePlayback();
   const [cleared, setCleared] = useState(false);
+  const { complete: downloaded, storedBytes } = useDownloads();
 
   const catalogue = useAsync((signal) => media.status(signal), [media, generation]);
 
@@ -79,6 +82,20 @@ export default function SettingsScreen() {
             {catalogue.error ? 'The node did not report catalogue status.' : 'Reading catalogue status…'}
           </Text>
         )}
+      </Section>
+
+      <Section title="Offline">
+        <ListRow
+          title="Downloads"
+          detail={
+            downloaded.length > 0
+              ? `${pluralize(downloaded.length, 'item')} · ${formatBytes(storedBytes)} stored`
+              : 'Nothing downloaded yet'
+          }
+          leading={<DownloadIcon size={20} color={colors.textDim} />}
+          trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
+          onPress={() => router.navigate('/downloads')}
+        />
       </Section>
 
       <Section title="This device">

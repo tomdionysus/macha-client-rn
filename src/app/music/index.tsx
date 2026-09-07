@@ -10,14 +10,15 @@ import type { MediaSummary } from '../../types';
 import { AddToPlaylistSheet } from '../../ui/AddToPlaylistSheet';
 import { DownloadButton } from '../../ui/DownloadButton';
 import { Artwork } from '../../ui/Artwork';
-import { ChevronRightIcon, HeartFilledIcon, HeartIcon, PlusIcon, ShuffleIcon } from '../../ui/Icons';
+import { ChevronRightIcon, DownloadIcon, HeartFilledIcon, HeartIcon, PlusIcon, ShuffleIcon } from '../../ui/Icons';
 import { Library } from '../../ui/Library';
-import { Screen } from '../../ui/Screen';
+import { HeaderButton, Screen } from '../../ui/Screen';
 import { EmptyState, ErrorState, Loading } from '../../ui/Status';
 import { Button, Segmented } from '../../ui/controls';
 import { pluralize } from '../../ui/format';
 import { useOpenMedia } from '../../ui/navigation';
 import { useBottomChromeInset } from '../../ui/chrome';
+import { usePlaylists, useMusicLibrary } from '../../hooks/usePlaylists';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../../ui/theme';
 
 type MusicView = 'albums' | 'artists' | 'tracks' | 'playlists';
@@ -33,7 +34,8 @@ const FILTERS: Array<{ value: TrackFilter; label: string }> = [
 ];
 
 export default function MusicScreen() {
-  const { media, generation, playlists, musicLibrary } = useMacha();
+  const { media, generation, playlists } = useMacha();
+  const musicLibrary = useMusicLibrary();
   const openMedia = useOpenMedia();
   const router = useRouter();
   const { start, setShuffle, busy } = usePlayback();
@@ -42,7 +44,6 @@ export default function MusicScreen() {
   const [view, setView] = useState<MusicView>('albums');
   const [filter, setFilter] = useState<TrackFilter>('all');
   const [adding, setAdding] = useState<MediaSummary[] | undefined>(undefined);
-  const [nonce, setNonce] = useState(0);
 
   const library = useAsync(
     (signal) =>
@@ -56,7 +57,7 @@ export default function MusicScreen() {
     [media, generation, view],
   );
 
-  const tracks = useMemo(() => {
+  const tracks = ((): MediaSummary[] => {
     const all = library.value ?? [];
     if (view !== 'tracks') return [];
     switch (filter) {
@@ -73,7 +74,9 @@ export default function MusicScreen() {
       default:
         return all;
     }
-  }, [library.value, view, filter, musicLibrary, nonce]);
+  })();
+
+  const closeAdding = useCallback(() => setAdding(undefined), []);
 
   const playTracks = useCallback(
     (items: readonly MediaSummary[], index: number, shuffled = false) => {
@@ -85,7 +88,7 @@ export default function MusicScreen() {
     [router, setShuffle, start],
   );
 
-  const playlistList = useMemo(() => playlists.list(), [playlists, nonce, view]);
+  const playlistList = usePlaylists();
 
   const segments = (
     <View style={{ marginBottom: space.lg }}>
@@ -96,7 +99,7 @@ export default function MusicScreen() {
           { value: 'albums', label: 'Albums' },
           { value: 'artists', label: 'Artists' },
           { value: 'tracks', label: 'Tracks' },
-          { value: 'playlists', label: 'Lists' },
+          { value: 'playlists', label: 'Playlists' },
         ]}
       />
     </View>
@@ -123,7 +126,14 @@ export default function MusicScreen() {
   // of the artwork blank.
   if (view === 'tracks') {
     return (
-      <Screen title="Music" scrollable={false}>
+      <Screen
+        title="Music"
+        scrollable={false}
+        headerRight={
+          <HeaderButton label="Downloads" onPress={() => router.navigate('/downloads')}>
+            <DownloadIcon size={19} />
+          </HeaderButton>
+        }>
         <FlatList
           data={tracks}
           keyExtractor={(item) => item.id}
@@ -168,10 +178,7 @@ export default function MusicScreen() {
               playCount={musicLibrary.playCount(item.id)}
               onPlay={() => playTracks(tracks, index, false)}
               onAdd={() => setAdding([item])}
-              onToggleFavourite={() => {
-                musicLibrary.toggleFavourite(item.id);
-                setNonce((value) => value + 1);
-              }}
+              onToggleFavourite={() => musicLibrary.toggleFavourite(item.id)}
             />
           )}
         />
@@ -181,17 +188,22 @@ export default function MusicScreen() {
   }
 
   return (
-    <Screen title="Music" onRefresh={library.refresh} refreshing={library.refreshing}>
+    <Screen
+      title="Music"
+      onRefresh={library.refresh}
+      refreshing={library.refreshing}
+      headerRight={
+        <HeaderButton label="Downloads" onPress={() => router.navigate('/downloads')}>
+          <DownloadIcon size={19} />
+        </HeaderButton>
+      }>
       {segments}
 
       {view === 'playlists' ? (
         <PlaylistList
           playlists={playlistList}
           onOpen={(id) => router.navigate(`/music/playlists/${encodeURIComponent(id)}` as never)}
-          onCreate={() => {
-            playlists.create('New playlist');
-            setNonce((value) => value + 1);
-          }}
+          onCreate={() => playlists.create('New playlist')}
         />
       ) : library.loading && !library.value ? (
         <Loading />
@@ -201,7 +213,7 @@ export default function MusicScreen() {
         <Library items={library.value ?? []} onOpen={openMedia} noun={view} shape="square" />
       )}
 
-      <AddToPlaylistSheet visible={adding !== undefined} items={adding ?? []} onClose={() => setAdding(undefined)} />
+      <AddToPlaylistSheet visible={adding !== undefined} items={adding ?? []} onClose={closeAdding} />
     </Screen>
   );
 }

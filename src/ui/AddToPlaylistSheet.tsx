@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
+import { usePlaylists } from '../hooks/usePlaylists';
 import type { MediaSummary } from '../types';
 import { PlusIcon } from './Icons';
 import { Sheet, SheetOption } from './Sheet';
@@ -19,8 +20,7 @@ interface Props {
 export function AddToPlaylistSheet({ visible, items, onClose }: Props) {
   const { playlists } = useMacha();
   const [name, setName] = useState('');
-  const [nonce, setNonce] = useState(0);
-  const existing = useMemo(() => playlists.list(), [playlists, nonce, visible]);
+  const existing = usePlaylists();
 
   const label = items.length === 1 ? items[0]?.title : pluralize(items.length, 'track');
 
@@ -42,7 +42,6 @@ export function AddToPlaylistSheet({ visible, items, onClose }: Props) {
   const createAndAdd = () => {
     const created = playlists.create(name, items);
     setName('');
-    setNonce((value) => value + 1);
     onClose();
     Alert.alert('Playlist created', `${created.name} · ${pluralize(created.items.length, 'track')}.`);
   };

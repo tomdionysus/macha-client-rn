@@ -1,9 +1,26 @@
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import type { PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate } from '../api/playback';
-import { describeError } from '../api/errors';
-import { deviceCapabilities } from '../playback/capabilities';
+import type { ClusterPlaybackApi, PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate } from '../api/playback';
+import type { PlaybackMode } from '../types';
+import { describeError, MachaApiError } from '../api/errors';
+import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
+import {
+  choosePlaybackInstruction,
+  degradeInstruction,
+  technicalProfileFromCatalogue,
+  type PlaybackInstruction,
+  type PlaybackMediaFacts,
+} from '@macha/core';
+import {
+  ensureAudioEngine,
+  loadAudioTrack,
+  stopAudio,
+  TrackPlayer,
+  type AudioTrackInfo,
+} from '../playback/AudioEngine';
+import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
+import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
 import { progressFor } from '../state/continueWatching';
 import { PLAY_COUNT_THRESHOLD_MS } from '../state/musicLibrary';
@@ -156,6 +173,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   /** Guards one play-count increment per started item. */
   const countedPlayRef = useRef<string | undefined>(undefined);
   const generationRef = useRef(0);
+  /**
+   * Which engine owns the current item. Music runs on the native audio player
+   * for a real media session — notification transport, headset buttons,
+   * tap-to-open — while video stays on expo-video.
+   */
+  const engineRef = useRef<'video' | 'audio'>('video');
   const lastCheckpointRef = useRef(0);
   const durationRef = useRef(0);
   const positionRef = useRef(0);
@@ -206,6 +229,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     checkpoint(positionRef.current, durationRef.current, true);
     player.pause();
     player.replace(null, true);
+    void stopAudio();
+    engineRef.current = 'video';
     setState((current) => ({ ...IDLE, queue: current.queue, queueIndex: current.queueIndex }));
     await releaseSession(session);
   }, [checkpoint, player, releaseSession]);
@@ -253,12 +278,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
       // The old lease is released before a replacement is requested, so a node
       // never holds two transcode entitlements for one viewer.
+      const audio = media.kind === 'track';
+      engineRef.current = audio ? 'audio' : 'video';
       player.pause();
       player.replace(null, true);
-      // Music is meant to keep playing with the screen off; video playing on
-      // in the background is just a decoder burning battery for nobody.
-      player.staysActiveInBackground = media.kind === 'track';
-      player.showNowPlayingNotification = media.kind === 'track';
+      // The audio engine owns music entirely, notification included, so
+      // expo-video must not also claim a media session or a background slot.
+      player.staysActiveInBackground = false;
+      player.showNowPlayingNotification = false;
+      if (!audio) await stopAudio();
       await releaseSession(previous);
       if (generationRef.current !== myGeneration) return;
 
@@ -270,16 +298,20 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // airplane mode there is nothing to negotiate with.
       const stored = downloads.localFor(media);
       if (stored?.localUri) {
-        player.replace(
-          {
-            uri: stored.localUri,
-            contentType: 'auto',
-            metadata: { title: media.title, artist: nowPlayingArtist(media), artwork: stored.artworkUri },
-          },
-          true,
-        );
-        if (seekMs > 0) player.currentTime = seekMs / 1000;
-        player.play();
+        if (audio) {
+          await loadAudioTrack(audioTrackFor(media, stored.localUri, stored.artworkUri, false), seekMs);
+        } else {
+          player.replace(
+            {
+              uri: stored.localUri,
+              contentType: 'auto',
+              metadata: { title: media.title, artist: nowPlayingArtist(media), artwork: stored.artworkUri },
+            },
+            true,
+          );
+          if (seekMs > 0) player.currentTime = seekMs / 1000;
+          player.play();
+        }
         durationRef.current = media.durationMs ?? 0;
         setState((current) => ({
           ...current,
@@ -294,18 +326,26 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const session = await playbackApi.create(media, deviceCapabilities(), seekMs, options.preferences);
+        const instruction = await chooseInstruction(mediaApi, playbackApi, media, options.preferences?.mode);
+        const session = await createSession(playbackApi, media, instruction, seekMs, options.preferences);
         if (generationRef.current !== myGeneration) {
           // A late lease belonging to a superseded generation is never activated.
           await releaseSession(session);
           return;
         }
         sessionRef.current = session;
-        applySource(player, session, media, nowPlayingArtworkUrl(mediaApi, media));
-        // The returned keyframe-aligned seek is the immutable origin of this
-        // transformed generation; a transformed source already starts there.
-        if (session.mode === 'direct' && seekMs > 0) player.currentTime = seekMs / 1000;
-        player.play();
+        if (audio) {
+          await loadAudioTrack(
+            audioTrackFor(media, session.source.url, nowPlayingArtworkUrl(mediaApi, media), isHlsSession(session)),
+            session.mode === 'direct' ? seekMs : 0,
+          );
+        } else {
+          applySource(player, session, media, nowPlayingArtworkUrl(mediaApi, media));
+          // The returned keyframe-aligned seek is the immutable origin of this
+          // transformed generation; a transformed source already starts there.
+          if (session.mode === 'direct' && seekMs > 0) player.currentTime = seekMs / 1000;
+          player.play();
+        }
         durationRef.current = session.durationMs;
         setState((current) => ({
           ...current,
@@ -487,6 +527,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   const toggle = useCallback(() => {
+    if (engineRef.current === 'audio') {
+      // The engine's own state is authoritative here: the notification and the
+      // headset can change it without React ever hearing about it.
+      void TrackPlayer.getPlaybackState().then(({ state }) =>
+        state === 'playing' ? TrackPlayer.pause() : TrackPlayer.play(),
+      );
+      return;
+    }
     if (player.playing) player.pause();
     else player.play();
   }, [player]);
@@ -495,7 +543,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     (positionMs: number) => {
       const bounded = Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs));
       positionRef.current = bounded;
-      player.currentTime = bounded / 1000;
+      if (engineRef.current === 'audio') void TrackPlayer.seekTo(bounded / 1000);
+      else player.currentTime = bounded / 1000;
       setState((current) => ({ ...current, positionMs: bounded }));
     },
     [player],
@@ -557,6 +606,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const subscriptions = [
       player.addListener('timeUpdate', ({ currentTime, bufferedPosition }) => {
+        // Two engines, one state: stand down unless this one owns playback.
+        if (engineRef.current !== 'video') return;
         const positionMs = Math.max(0, Math.round(currentTime * 1000));
         positionRef.current = positionMs;
         const durationMs = Math.max(0, Math.round((player.duration || durationRef.current / 1000) * 1000));
@@ -577,9 +628,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }
       }),
       player.addListener('playingChange', ({ isPlaying }) => {
+        // Two engines, one state: stand down unless this one owns playback.
+        if (engineRef.current !== 'video') return;
         setState((current) => ({ ...current, playing: isPlaying }));
       }),
       player.addListener('statusChange', ({ status, error }) => {
+        // Two engines, one state: stand down unless this one owns playback.
+        if (engineRef.current !== 'video') return;
         setState((current) => ({
           ...current,
           buffering: status === 'loading',
@@ -588,13 +643,22 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       }),
       player.addListener('sourceLoad', ({ duration }) => {
+        // Two engines, one state: stand down unless this one owns playback.
+        if (engineRef.current !== 'video') return;
         const durationMs = Math.max(0, Math.round(duration * 1000));
         if (durationMs > 0) durationRef.current = durationMs;
         setState((current) => ({ ...current, durationMs: durationMs || current.durationMs }));
       }),
       player.addListener('playToEnd', () => {
+        // Two engines, one state: stand down unless this one owns playback.
+        if (engineRef.current !== 'video') return;
         const media = mediaRef.current;
-        if (media && durationRef.current > 0) {
+        // Tearing down clears the current item before it clears the source, and
+        // replacing a source with null can itself emit playToEnd. Without this
+        // guard, closing the player advanced into the next queue item instead
+        // of stopping.
+        if (!media) return;
+        if (durationRef.current > 0) {
           // Reaching the end retires the item from Continue Watching rather
           // than leaving it parked one second from the credits.
           continueWatching.update(progressFor(media, durationRef.current, durationRef.current));
@@ -615,6 +679,104 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       for (const subscription of subscriptions) subscription.remove();
     };
   }, [advanceBy, checkpoint, continueWatching, musicLibrary, player, stop]);
+
+  // The native audio player is the authority for music transport. Its events
+  // are the only way React learns about a pause from the notification, the
+  // lock screen, a headset button or an audio-focus loss.
+  useEffect(() => {
+    void ensureAudioEngine().catch(() => undefined);
+    const subscriptions = [
+      TrackPlayer.addEventListener(TrackEvent.PlaybackProgressUpdated, ({ position, duration, buffered }) => {
+        if (engineRef.current !== 'audio') return;
+        const positionMs = Math.max(0, Math.round(position * 1000));
+        const durationMs = Math.max(0, Math.round(duration * 1000));
+        positionRef.current = positionMs;
+        if (durationMs > 0) durationRef.current = durationMs;
+        setState((current) => ({
+          ...current,
+          positionMs,
+          durationMs: durationMs || current.durationMs,
+          bufferedMs: Math.max(0, Math.round((buffered ?? 0) * 1000)),
+        }));
+        checkpoint(positionMs, durationMs || durationRef.current);
+        const playing = mediaRef.current;
+        if (playing && positionMs >= PLAY_COUNT_THRESHOLD_MS && countedPlayRef.current !== playing.id) {
+          countedPlayRef.current = playing.id;
+          musicLibrary.recordPlay(playing.id);
+        }
+      }),
+      TrackPlayer.addEventListener(TrackEvent.PlaybackState, ({ state: trackState }) => {
+        if (engineRef.current !== 'audio') return;
+        setState((current) => ({
+          ...current,
+          playing: trackState === TrackState.Playing,
+          buffering: trackState === TrackState.Buffering || trackState === TrackState.Loading,
+          status: trackState === TrackState.Error ? 'failed' : current.status === 'loading' ? 'ready' : current.status,
+        }));
+      }),
+      TrackPlayer.addEventListener(TrackEvent.PlaybackError, ({ message }) => {
+        if (engineRef.current !== 'audio') return;
+        setState((current) => ({ ...current, status: 'failed', buffering: false, error: message }));
+      }),
+      TrackPlayer.addEventListener(TrackEvent.PlaybackQueueEnded, () => {
+        if (engineRef.current !== 'audio') return;
+        const media = mediaRef.current;
+        if (!media) return;
+        if (durationRef.current > 0) {
+          continueWatching.update(progressFor(media, durationRef.current, durationRef.current));
+        }
+        if (repeatRef.current === 'one') {
+          void TrackPlayer.seekTo(0).then(() => TrackPlayer.play());
+          return;
+        }
+        void advanceBy(1).then((moved) => {
+          if (!moved) void stop();
+        });
+      }),
+    ];
+    return () => {
+      for (const subscription of subscriptions) subscription.remove();
+    };
+  }, [advanceBy, checkpoint, continueWatching, musicLibrary, stop]);
+
+  /**
+   * Transport events from the notification, lock screen, headset and Bluetooth.
+   *
+   * These are registered here, not only in the background service: on Android
+   * that service is a headless task the platform may never start while the app
+   * is alive, which left the notification's buttons doing nothing at all.
+   * Pausing on an unplugged headset lives here too — music suddenly playing out
+   * loud on a train is the behaviour nobody wants.
+   */
+  useEffect(() => {
+    const subscriptions = [
+      TrackPlayer.addEventListener(TrackEvent.RemotePlay, () => void TrackPlayer.play()),
+      TrackPlayer.addEventListener(TrackEvent.RemotePause, () => void TrackPlayer.pause()),
+      TrackPlayer.addEventListener(TrackEvent.RemoteStop, () => void stop()),
+      TrackPlayer.addEventListener(TrackEvent.RemoteNext, () => void skipNext()),
+      TrackPlayer.addEventListener(TrackEvent.RemotePrevious, () => void skipPrevious()),
+      TrackPlayer.addEventListener(TrackEvent.RemoteSeek, ({ position }) => seekTo(position * 1000)),
+      TrackPlayer.addEventListener(TrackEvent.RemoteDuck, ({ paused, permanent }) => {
+        if (permanent || paused) void TrackPlayer.pause();
+      }),
+    ];
+    return () => {
+      for (const subscription of subscriptions) subscription.remove();
+    };
+  }, [seekTo, skipNext, skipPrevious, stop]);
+
+  // The headless service reaches the runtime through this table when it does
+  // run, so there is one implementation of what Next means either way.
+  useEffect(() => {
+    setAudioRemoteHandlers({
+      play: () => void TrackPlayer.play(),
+      pause: () => void TrackPlayer.pause(),
+      stop: () => void stop(),
+      next: () => void skipNext(),
+      previous: () => void skipPrevious(),
+      seekTo: (positionMs) => seekTo(positionMs),
+    });
+  }, [seekTo, skipNext, skipPrevious, stop]);
 
   // A background transfer that was killed mid-flight leaves a record marked
   // downloading with nothing running. Requeue those once, at startup.
@@ -730,6 +892,34 @@ function nowPlayingArtist(media: MediaSummary): string {
 }
 
 /**
+ * Describes one track for the native audio player, which owns the notification
+ * and lock-screen presentation. Artist and album are separate fields here —
+ * unlike expo-video's metadata, which only has an artist line to fold them into.
+ */
+function audioTrackFor(
+  media: MediaSummary,
+  url: string,
+  artwork: string | undefined,
+  hls: boolean,
+): AudioTrackInfo {
+  return {
+    id: media.id,
+    url,
+    title: media.title,
+    artist: media.musicContext?.artist?.title,
+    album: media.musicContext?.album.title,
+    artwork,
+    durationMs: media.durationMs,
+    hls,
+  };
+}
+
+/** Remux and transcode always deliver HLS; Direct Play hands over the original bytes. */
+function isHlsSession(session: PlaybackSession): boolean {
+  return session.mode !== 'direct' || (session.mimeType ?? '').includes('mpegurl');
+}
+
+/**
  * A directly loadable artwork URL for the transport notification. Prefers the
  * item's own art, then the album cover a track inherits. The platform fetches
  * this itself, so it must be a plain URL the node will serve.
@@ -741,4 +931,108 @@ function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string |
     media.musicContext?.artwork ??
     media.artwork?.backdrop;
   return ref ? mediaApi.artworkUrls(ref)[0] : undefined;
+}
+
+/**
+ * Decides how to ask for a piece of media.
+ *
+ * The server stopped choosing: it reports what a file is and performs exactly
+ * what it is told, so asking for `direct` on something this device cannot
+ * demux yields the file and a black screen rather than an error. The decision
+ * therefore lives entirely here, and it comes from `@macha/core` so that the
+ * phone, TV and web clients cannot drift apart on the same file.
+ *
+ * Two deliberate points. A user's explicit choice in the playback sheet wins
+ * outright — they may know something the facts do not. And with no technical
+ * facts at all, the answer is transcode: the one instruction that is always
+ * playable, because there is no fallback to recover into.
+ */
+async function chooseInstruction(
+  mediaApi: MediaApi,
+  playbackApi: ClusterPlaybackApi,
+  media: MediaSummary,
+  requested: PlaybackMode | undefined,
+): Promise<PlaybackInstruction> {
+  if (requested) {
+    return {
+      mode: requested,
+      video: requested === 'transcode' ? 'transcode' : 'copy',
+      audio: requested === 'transcode' ? 'transcode' : 'copy',
+      reasons: [],
+      // The viewer said so. Nothing was inferred, so nothing was assumed.
+      assumed: [],
+    };
+  }
+
+  const mediaId = media.mediaIds[0];
+  const capabilities = deviceCapabilities();
+  const overrides = devicePlaybackOverrides();
+
+  const facts = await playbackFacts(playbackApi, media, mediaId);
+  if (facts) {
+    return choosePlaybackInstruction(facts.profile, capabilities, {
+      overrides,
+      operations: facts.operations,
+    });
+  }
+
+  const profile = mediaId ? await mediaApi.mediaProfile(mediaId).catch(() => undefined) : undefined;
+  if (!profile) {
+    // Not an assumption about an optional input: there are no facts at all,
+    // which `reasons` already says plainly.
+    return { mode: 'transcode', video: 'transcode', audio: 'transcode', reasons: ['no-technical-facts'], assumed: [] };
+  }
+  return choosePlaybackInstruction(technicalProfileFromCatalogue(profile), capabilities, { overrides });
+}
+
+/**
+ * The facts for the media this item will actually resolve to, or undefined
+ * when no node can answer.
+ *
+ * Asked by item rather than by media id so the answer describes the same
+ * source session creation will pick. Failure is not fatal: an older node has
+ * no facts endpoint, and the caller still has the catalogue profile to fall
+ * back on.
+ */
+async function playbackFacts(
+  playbackApi: ClusterPlaybackApi,
+  media: MediaSummary,
+  mediaId: string | undefined,
+): Promise<PlaybackMediaFacts | undefined> {
+  const facts = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
+  if (!facts || facts.length === 0) return undefined;
+  return facts.find((entry) => entry.mediaId === mediaId) ?? facts[0];
+}
+
+/**
+ * Creates the session, giving up one ambition at a time if the node refuses.
+ *
+ * `operations` should make this unnecessary — the chooser no longer asks for
+ * what the node cannot perform. It stays because the gate depends on the node
+ * reporting honestly and on the client having reached the node that executes,
+ * and the cost of being wrong is the viewer getting nothing at all. Degrading
+ * is one step and one direction — a copy becomes a transcode, never the
+ * reverse — so it converges and cannot loop.
+ */
+async function createSession(
+  playbackApi: ClusterPlaybackApi,
+  media: MediaSummary,
+  instruction: PlaybackInstruction,
+  seekMs: number | undefined,
+  preferences: PlaybackPreferencesUpdate | undefined,
+): Promise<PlaybackSession> {
+  let attempt: PlaybackInstruction | undefined = instruction;
+  let refusal: unknown;
+  while (attempt) {
+    try {
+      return await playbackApi.create(media, attempt, seekMs, preferences);
+    } catch (error) {
+      // Only a refusal degrades. An unreachable node or a server fault says
+      // nothing about the instruction, and asking for less would not help.
+      if (!(error instanceof MachaApiError) || error.status !== 400) throw error;
+      refusal = error;
+      attempt = degradeInstruction(attempt);
+    }
+  }
+  throw refusal;
 }

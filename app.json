@@ -2,7 +2,7 @@
   "expo": {
     "name": "Macha",
     "slug": "macha-client-rn",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "macha",
@@ -10,7 +10,7 @@
     "backgroundColor": "#0e0e0f",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "nz.co.blackraven.macha.client",
+      "bundleIdentifier": "foundation.macha.client",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "package": "nz.co.blackraven.macha.client",
+      "package": "foundation.macha.client",
       "adaptiveIcon": {
         "backgroundColor": "#0e0e0f",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -69,7 +69,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "./plugins/withMachaNotificationIcon"
     ],
     "experiments": {
       "typedRoutes": true,

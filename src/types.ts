@@ -108,15 +108,9 @@ export interface PlaybackProgress {
 
 export type PlaybackMode = 'direct' | 'remux' | 'transcode';
 
-export interface PlaybackCapabilities {
-  platform: 'ios' | 'android' | 'web';
-  maxWidth?: number;
-  maxHeight?: number;
-  videoCodecs: string[];
-  audioCodecs: string[];
-  containers: string[];
-  hls: boolean;
-}
+// PlaybackCapabilities now comes from @macha/core, so every client describes
+// its decoder to the same chooser rather than to its own local shape.
+export type { PlaybackCapabilities } from '@macha/core';
 
 export interface PlaybackSource {
   mediaId: string;

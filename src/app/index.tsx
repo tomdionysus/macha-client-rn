@@ -2,7 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { newestCatalogueFirst } from '../api/media';
 import { useAsync } from '../hooks/useAsync';
-import { useMacha } from '../providers/MachaProvider';
+import { useConnectivity, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { HeaderButton, Screen } from '../ui/Screen';
@@ -12,12 +12,14 @@ import { MachaLogo } from '../ui/Logo';
 import { SettingsIcon } from '../ui/Icons';
 import { describeError } from '../api/errors';
 import { useOpenMedia } from '../ui/navigation';
+import { offlineMedia } from '../state/downloads';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
 
 export default function HomeScreen() {
-  const { media, endpoints, continueWatching, generation } = useMacha();
+  const { media, endpoints, continueWatching, downloads, generation } = useMacha();
+  const { offline } = useConnectivity();
   const { playItem } = usePlayback();
   const router = useRouter();
   const openMedia = useOpenMedia();
@@ -34,9 +36,24 @@ export default function HomeScreen() {
     () => new Map(resumable.map((entry) => [entry.mediaId, entry])),
     [resumable],
   );
+  /**
+   * Continue watching, narrowed to what can actually be played right now.
+   *
+   * Progress is device-local, so the list survives the network going away and
+   * would otherwise keep offering items whose bytes are on a node that cannot
+   * be reached — an offer that can only fail. Offline it is restricted to
+   * downloads, and each entry is swapped for its stored form so the cover comes
+   * off the disk rather than from the cluster.
+   */
   const resumableItems = useMemo(
-    () => resumable.flatMap((entry) => (entry.media ? [entry.media] : [])),
-    [resumable],
+    () =>
+      resumable.flatMap((entry) => {
+        if (!entry.media) return [];
+        if (!offline) return [entry.media];
+        const stored = downloads.localFor(entry.media);
+        return stored ? [offlineMedia(stored)] : [];
+      }),
+    [resumable, offline, downloads],
   );
 
   const resume = useCallback(

@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { describeError } from '../api/errors';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
-import { deviceCapabilities } from '../playback/capabilities';
+import type { PlaybackInstruction } from '@macha/core';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
 
@@ -18,9 +18,24 @@ const ARTWORK_DIR = `${FileSystem.documentDirectory}macha/artwork/`;
  */
 const CONCURRENCY = 1;
 
+/**
+ * Progress is reported far faster than it is worth reacting to. On a LAN the
+ * node serves direct streams at tens of MB/s, so the callback fires constantly;
+ * persisting and re-rendering on every one starves the very transfer being
+ * measured. These bound that work without hiding real progress.
+ */
+const NOTIFY_INTERVAL_MS = 400;
+const PERSIST_INTERVAL_MS = 2_000;
+
+export interface LiveProgress {
+  bytesWritten: number;
+  bytesTotal?: number;
+}
+
 export interface DownloadProgressSnapshot {
   records: DownloadRecord[];
   active: string | undefined;
+  live: Map<string, LiveProgress>;
 }
 
 /**
@@ -38,6 +53,10 @@ export class DownloadManager {
   private running = false;
   private active: string | undefined;
   private cancelled = new Set<string>();
+  /** In-flight byte counts, held in memory rather than written to storage. */
+  private readonly live = new Map<string, LiveProgress>();
+  private lastNotifyAt = 0;
+  private lastPersistAt = 0;
 
   constructor(
     private readonly store: DownloadStore,
@@ -45,23 +64,56 @@ export class DownloadManager {
     private readonly mediaApi: MediaApi,
   ) {}
 
-  subscribe(listener: () => void): () => void {
+  /**
+   * A value that changes on every mutation, so React can tell that this store
+   * has moved. A subscription alone is not enough: a component that only
+   * increments a discarded counter has no reactive input the React Compiler
+   * can see, and it is entitled to cache the render — which it did, leaving
+   * the download button, the downloads screen and "Clear" all showing state
+   * from whenever the screen was first drawn.
+   */
+  private revision = 0;
+
+  getRevision = (): number => this.revision;
+
+  subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
-  }
+  };
 
   private notify(): void {
+    this.revision += 1;
     for (const listener of this.listeners) listener();
   }
 
   snapshot(): DownloadProgressSnapshot {
-    return { records: this.store.all(), active: this.active };
+    return { records: this.store.all(), active: this.active, live: new Map(this.live) };
   }
 
-  /** Queues items that are not already stored or in flight, then starts the pump. */
-  enqueue(items: readonly MediaSummary[]): void {
+  /** Live bytes for an in-flight transfer, if there is one. */
+  progressFor(mediaId: string): LiveProgress | undefined {
+    return this.live.get(mediaId);
+  }
+
+  /** Coalesces notifications so a fast transfer cannot flood React with renders. */
+  private notifyThrottled(force = false): void {
+    const now = Date.now();
+    if (!force && now - this.lastNotifyAt < NOTIFY_INTERVAL_MS) return;
+    this.lastNotifyAt = now;
+    this.notify();
+  }
+
+  /**
+   * Queues items that are not already stored or in flight, then starts the
+   * pump. Returns how many were actually added, so a caller can tell the
+   * viewer whether anything happened — asking for an album that is already
+   * downloaded is a legitimate thing to do and deserves a different answer
+   * than one that started twelve transfers.
+   */
+  enqueue(items: readonly MediaSummary[]): number {
+    let queued = 0;
     for (const media of items) {
       const mediaId = media.mediaIds[0];
       if (!mediaId) continue;
@@ -69,6 +121,7 @@ export class DownloadManager {
       if (existing && (existing.state === 'complete' || existing.state === 'downloading' || existing.state === 'queued')) {
         continue;
       }
+      queued += 1;
       this.store.put({
         mediaId,
         itemId: media.id,
@@ -79,6 +132,7 @@ export class DownloadManager {
     }
     this.notify();
     void this.pump();
+    return queued;
   }
 
   /** Called at startup: anything interrupted mid-flight goes back on the queue. */
@@ -149,15 +203,26 @@ export class DownloadManager {
     }
     this.active = mediaId;
     this.store.patch(mediaId, { state: 'downloading', error: undefined });
-    this.notify();
+    this.lastPersistAt = Date.now();
+    this.notifyThrottled(true);
 
     let session: PlaybackSession | undefined;
     try {
       await FileSystem.makeDirectoryAsync(MEDIA_DIR, { intermediates: true }).catch(() => undefined);
 
-      // `direct` is the server's explicit byte-stream override, so this stores
-      // the original container untouched rather than a transcode.
-      session = await this.playbackApi.create(record.media, deviceCapabilities(), 0, { mode: 'direct' });
+      // A download always wants the original bytes, whatever this device can
+      // decode: it is a copy of the file, not a viewing decision. Storing a
+      // transcode would mean keeping something strictly worse than the source.
+      const instruction: PlaybackInstruction = {
+        mode: 'direct',
+        video: 'copy',
+        audio: 'copy',
+        reasons: [],
+        // Stated outright rather than chosen, so no optional input was
+        // consulted and none was defaulted behind our back.
+        assumed: [],
+      };
+      session = await this.playbackApi.create(record.media, instruction, 0);
       const fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
       const resumable = FileSystem.createDownloadResumable(
@@ -168,11 +233,17 @@ export class DownloadManager {
         // foreground, which is why the record is the source of truth, not state.
         { sessionType: FileSystem.FileSystemSessionType.BACKGROUND },
         ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
-          this.store.patch(mediaId, {
-            bytesWritten: totalBytesWritten,
-            bytesTotal: totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : session?.source.sizeBytes,
-          });
-          this.notify();
+          const bytesTotal =
+            totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : session?.source.sizeBytes;
+          // Memory only. Storage sees this at most every couple of seconds, and
+          // the UI at most a few times a second.
+          this.live.set(mediaId, { bytesWritten: totalBytesWritten, bytesTotal });
+          const now = Date.now();
+          if (now - this.lastPersistAt >= PERSIST_INTERVAL_MS) {
+            this.lastPersistAt = now;
+            this.store.patch(mediaId, { bytesWritten: totalBytesWritten, bytesTotal });
+          }
+          this.notifyThrottled();
         },
       );
 
@@ -184,6 +255,7 @@ export class DownloadManager {
       }
       if (!result?.uri) throw new Error('The download produced no file.');
 
+      this.live.delete(mediaId);
       const artworkUri = await this.storeArtwork(record.media, mediaId);
       const info = await FileSystem.getInfoAsync(result.uri);
       this.store.patch(mediaId, {
@@ -203,8 +275,9 @@ export class DownloadManager {
       // The lease goes back immediately whether or not the bytes arrived — a
       // download must never hold a session slot it is no longer using.
       if (session) await this.playbackApi.stop(session).catch(() => undefined);
+      this.live.delete(mediaId);
       this.active = undefined;
-      this.notify();
+      this.notifyThrottled(true);
     }
   }
 

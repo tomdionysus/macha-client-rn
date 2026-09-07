@@ -75,6 +75,14 @@ export interface CatalogueMediaStreamProfile {
 export interface CatalogueMediaProfile {
   schema_version: number;
   media_id: string;
+  /**
+   * The resolved container family (`mp4`, `matroska`, `webm`, `mp3`, ...).
+   * Match on this, never on `format`: a demuxer name lists every container it
+   * handles, so a Matroska file reports `matroska,webm` and matching the raw
+   * string hands Matroska to anything that merely supports WebM.
+   */
+  container?: string;
+  /** The raw libavformat demuxer name list. Diagnostic only. */
   format: string;
   duration_ms: number;
   bitrate: number;
@@ -161,7 +169,16 @@ export class NodeCatalogueApi {
       );
       if (profile === undefined || profilePending(profile)) return undefined;
       const candidate = profile as CatalogueMediaProfile;
-      if (candidate.schema_version !== 1 || candidate.media_id !== mediaId || !Array.isArray(candidate.streams)) {
+      // Any schema the node emits is accepted, not one pinned version. Pinning
+      // to 1 silently discarded every profile once the server moved to 2 —
+      // invisibly, because profiles are advisory. Newer schemas only add
+      // fields, so unknown ones are read for what they do carry.
+      if (
+        typeof candidate.schema_version !== 'number' ||
+        candidate.schema_version < 1 ||
+        candidate.media_id !== mediaId ||
+        !Array.isArray(candidate.streams)
+      ) {
         return undefined;
       }
       return candidate;

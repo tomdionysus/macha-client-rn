@@ -9,6 +9,7 @@ import { MachaProvider, useMacha } from '../providers/MachaProvider';
 import { PlaybackProvider } from '../providers/PlaybackProvider';
 import { BottomNav } from '../ui/BottomNav';
 import { MiniPlayer } from '../ui/MiniPlayer';
+import { ToastProvider } from '../ui/Toast';
 import { colors } from '../ui/theme';
 
 void SplashScreen.preventAutoHideAsync();
@@ -23,7 +24,9 @@ export default function RootLayout() {
         <StatusBar style="light" />
         <MachaProvider>
           <PlaybackProvider>
-            <AppShell />
+            <ToastProvider>
+              <AppShell />
+            </ToastProvider>
           </PlaybackProvider>
         </MachaProvider>
       </SafeAreaProvider>

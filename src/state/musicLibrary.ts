@@ -42,17 +42,32 @@ function validFile(value: unknown): value is LibraryFile {
  */
 export class MusicLibraryStore {
   private readonly key: string;
+  private readonly listeners = new Set<() => void>();
+  /** Changes on every mutation, so React has a value to react to. */
+  private revision = 0;
 
   constructor(clientId: string) {
     this.key = `macha.musicLibrary.v1.${clientId}`;
   }
+
+  getRevision = (): number => this.revision;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
 
   private read(): LibraryFile {
     return readValidatedJson(this.key, validFile) ?? EMPTY;
   }
 
   private write(file: LibraryFile): LibraryFile {
-    return writeJson(this.key, file);
+    const written = writeJson(this.key, file);
+    this.revision += 1;
+    for (const listener of this.listeners) listener();
+    return written;
   }
 
   favourites(): string[] {

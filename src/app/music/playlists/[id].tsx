@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
+import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
 import type { Playlist } from '../../../state/playlists';
 import { Artwork } from '../../../ui/Artwork';
@@ -18,12 +19,12 @@ export default function PlaylistScreen() {
   const { start, setShuffle, media: nowPlaying, busy } = usePlayback();
   const router = useRouter();
 
-  // Playlists are local, so re-reading the store is the whole refresh; a nonce
-  // is cheaper and more predictable here than mirroring the list into state.
-  const [nonce, setNonce] = useState(0);
-  const playlist: Playlist | undefined = playlists.get(id);
-  const touch = useCallback(() => setNonce((value) => value + 1), []);
-  void nonce;
+  // Subscribed rather than re-read on a counter, so a reorder or removal
+  // redraws without depending on a memo dependency the compiler may drop.
+  const all = usePlaylists();
+  const playlist: Playlist | undefined = all.find((entry) => entry.id === id);
+  const touch = useCallback(() => undefined, []);
+  void playlists;
 
   const play = useCallback(
     (index: number, shuffled = false) => {

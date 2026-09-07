@@ -9,9 +9,9 @@ import { DetailHero } from '../../../ui/DetailHero';
 import { PlayIcon, PlusIcon, ShuffleIcon } from '../../../ui/Icons';
 import { AddToPlaylistSheet } from '../../../ui/AddToPlaylistSheet';
 import { DownloadButton } from '../../../ui/DownloadButton';
-import { useMacha } from '../../../providers/MachaProvider';
 import { DownloadIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';
+import { useToast } from '../../../ui/Toast';
 import { ErrorState, Loading } from '../../../ui/Status';
 import { Button, Divider, ListRow } from '../../../ui/controls';
 import type { MediaSummary } from '../../../types';
@@ -24,6 +24,7 @@ export default function AlbumScreen() {
   const { start, setShuffle, busy, media: nowPlaying } = usePlayback();
   const [adding, setAdding] = useState<MediaSummary[] | undefined>(undefined);
   const router = useRouter();
+  const toast = useToast();
   const detail = useAsync((signal) => media.details(id, signal), [media, generation, id]);
 
   const album = detail.value as AlbumDetails | undefined;
@@ -39,6 +40,25 @@ export default function AlbumScreen() {
     },
     [router, setShuffle, start, tracks],
   );
+
+  /**
+   * Queueing a whole album changes nothing the viewer can see: the button they
+   * tapped is unchanged and the per-track state is further down the page. The
+   * banner is the only acknowledgement, so it reports what actually happened
+   * rather than assuming every track was new.
+   */
+  const downloadAlbum = useCallback(() => {
+    const queued = downloadManager.enqueue(tracks);
+    toast({
+      icon: <DownloadIcon size={16} color={colors.progress} />,
+      message:
+        queued === 0
+          ? 'Already downloaded'
+          : `Downloading ${pluralize(queued, 'track')}`,
+      action:
+        queued === 0 ? undefined : { label: 'Downloads', onPress: () => router.navigate('/downloads') },
+    });
+  }, [downloadManager, router, toast, tracks]);
 
   return (
     <Screen showBack onRefresh={detail.refresh} refreshing={detail.refreshing}>
@@ -78,7 +98,7 @@ export default function AlbumScreen() {
                     label="Download"
                     variant="quiet"
                     icon={<DownloadIcon size={18} color={colors.textDim} />}
-                    onPress={() => downloadManager.enqueue(tracks)}
+                    onPress={downloadAlbum}
                   />
                 </>
               ) : undefined

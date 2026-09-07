@@ -1,9 +1,16 @@
 import * as Crypto from 'expo-crypto';
-import { MachaApiError, parseErrorEnvelope } from './errors';
+import { MachaApiError, isEndpointFailure, parseErrorEnvelope } from './errors';
 import { fetchWithTimeout, mergeHeaders, normalizeBaseUrl, queryString, retryAfterMs, throwResponseError } from './http';
 import { EndpointRegistry, withEndpointFailover, type Endpoint } from './endpoints';
 import { NO_AUTH, type AuthenticatedFetch } from './session';
-import type { MediaSummary, PlaybackCapabilities, PlaybackMode, PlaybackSource } from '../types';
+import type {
+  MediaTechnicalProfile,
+  MediaTechnicalStream,
+  PlaybackInstruction,
+  PlaybackMediaFacts,
+  PlaybackOperations,
+} from '@macha/core';
+import type { MediaSummary, PlaybackMode, PlaybackSource } from '../types';
 
 /** Session negotiation may involve real work on the node; it gets a longer deadline than the catalogue. */
 const SESSION_TIMEOUT_MS = 20_000;
@@ -71,7 +78,7 @@ export interface PlaybackOptions {
 }
 
 export interface PlaybackPreferences {
-  mode: PlaybackMode | 'auto';
+  mode: PlaybackMode;
   maxHeight: number | null;
   maxBitrate: number | null;
   audioStream: number | null;
@@ -81,7 +88,7 @@ export interface PlaybackPreferences {
 }
 
 export interface PlaybackPreferencesUpdate {
-  mode?: PlaybackMode | 'auto';
+  mode?: PlaybackMode;
   maxHeight?: number | null;
   maxBitrate?: number | null;
   audioStream?: number | null;
@@ -139,7 +146,7 @@ interface WireSession {
   duration_ms: number;
   seek_ms: number;
   preferences: {
-    mode: PlaybackMode | 'auto';
+    mode: PlaybackMode;
     max_height: number | null;
     max_bitrate: number | null;
     audio_stream: number | null;
@@ -168,6 +175,30 @@ interface WireSession {
   };
 }
 
+interface WireFactsStream extends WireStream {
+  level?: number;
+  color_transfer?: string;
+  dolby_vision_profile?: number;
+  dolby_vision_compatibility?: number;
+}
+
+interface WireFactsMedia {
+  media_id?: string;
+  path?: string;
+  format?: string;
+  container?: string;
+  duration_ms?: number;
+  bitrate?: number;
+  size?: number;
+  streams?: WireFactsStream[];
+  operations?: unknown;
+}
+
+interface WireFacts {
+  item_id?: string;
+  media?: WireFactsMedia[];
+}
+
 export function newIdempotencyKey(): string {
   return Crypto.randomUUID();
 }
@@ -187,6 +218,49 @@ function mapStream(stream: WireStream): PlaybackStreamInfo {
     sampleRate: stream.sample_rate,
     bitDepth: stream.bit_depth,
     bitrate: stream.bitrate,
+  };
+}
+
+function mapTechnicalStream(stream: WireFactsStream): MediaTechnicalStream {
+  return {
+    index: stream.index,
+    type: stream.type,
+    codec: stream.codec,
+    profile: stream.profile ?? '',
+    language: stream.language ?? '',
+    default: stream.default ?? false,
+    forced: stream.forced ?? false,
+    width: stream.width || undefined,
+    height: stream.height || undefined,
+    channels: stream.channels || undefined,
+    sampleRate: stream.sample_rate || undefined,
+    bitDepth: stream.bit_depth || undefined,
+    bitrate: stream.bitrate || undefined,
+    level: stream.level || undefined,
+    colorTransfer: stream.color_transfer || undefined,
+    dolbyVisionProfile: stream.dolby_vision_profile,
+    dolbyVisionCompatibility: stream.dolby_vision_compatibility,
+  };
+}
+
+/**
+ * What the node reports it can perform, read pessimistically.
+ *
+ * An absent flag reads as "cannot", never as "can". The whole point of the
+ * gate is to stop the client asking for something the node will refuse, so an
+ * unknown answer must not be optimistic — an older node that omits the field
+ * simply gets the safer instruction.
+ */
+function mapOperations(value: unknown): PlaybackOperations {
+  const record = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const copy = (record.copy_into_fmp4 && typeof record.copy_into_fmp4 === 'object'
+    ? record.copy_into_fmp4
+    : {}) as Record<string, unknown>;
+  return {
+    direct: record.direct === true,
+    copyIntoFmp4: { video: copy.video === true, audio: copy.audio === true },
+    transcodeVideo: record.transcode_video === true,
+    transcodeAudio: record.transcode_audio === true,
   };
 }
 
@@ -211,27 +285,33 @@ export class NodePlaybackApi {
     this.baseUrl = normalizeBaseUrl(baseUrl);
   }
 
+  /**
+   * Creates a session from an explicit instruction.
+   *
+   * The API is instruction-based: the server reports what a file is and
+   * performs what it is told. There is no `auto`, and no capabilities are
+   * sent — the server does not ask what the client can play and will hand over
+   * a file the device cannot demux if that is what was requested. Choosing
+   * correctly is entirely this client's responsibility, which is why the
+   * decision comes from `@macha/core`'s chooser rather than from here.
+   */
   async create(
     media: MediaSummary,
-    capabilities: PlaybackCapabilities,
+    instruction: PlaybackInstruction,
     seekMs: number | undefined,
     preferences: PlaybackPreferencesUpdate | undefined,
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<PlaybackSession> {
-    const wireCapabilities: Record<string, unknown> = {
-      containers: capabilities.containers,
-      video_codecs: capabilities.videoCodecs,
-      audio_codecs: capabilities.audioCodecs,
-      hls_fmp4: capabilities.hls,
-    };
-    if (capabilities.maxWidth !== undefined) wireCapabilities.max_width = capabilities.maxWidth;
-    if (capabilities.maxHeight !== undefined) wireCapabilities.max_height = capabilities.maxHeight;
-
     const body: Record<string, unknown> = {
       item_id: media.id,
-      capabilities: wireCapabilities,
-      preferences: wirePreferences({ ...preferences, mode: preferences?.mode ?? 'auto' }),
+      preferences: {
+        ...wirePreferences(preferences),
+        mode: instruction.mode,
+        video: instruction.video,
+        audio: instruction.audio,
+        ...(instruction.container ? { container: instruction.container } : {}),
+      },
     };
     if (seekMs !== undefined) body.seek_ms = Math.max(0, Math.round(seekMs));
 
@@ -240,6 +320,50 @@ export class NodePlaybackApi {
       { method: 'POST', body: JSON.stringify(body), signal },
     );
     return this.mapSession(wire);
+  }
+
+  /**
+   * What this media is, and what this node's build can do with it.
+   *
+   * The chooser reasons about the media and the device; without this it is
+   * guessing about the executor, and a wholly correct instruction can still be
+   * refused because *this* build cannot copy this codec into fragmented MP4.
+   * Unlike the catalogue profile this resolves mutable path identities the same
+   * way session creation does, so it also answers for media that has no
+   * immutable profile.
+   */
+  async facts(ref: { itemId?: string; mediaId?: string }, signal?: AbortSignal): Promise<PlaybackMediaFacts[]> {
+    const query = queryString([
+      ['item_id', ref.itemId],
+      ['media_id', ref.mediaId],
+    ]);
+    if (!query) throw new MachaApiError('Playback facts need an item id or a media id.', 400, 'invalid_request');
+
+    const wire = await this.request<WireFacts | undefined>(`/api/v1/playback/media?${query}`, {
+      method: 'GET',
+      signal,
+    });
+    return (wire?.media ?? []).flatMap((entry) => {
+      const mediaId = entry.media_id;
+      if (!mediaId) return [];
+      const profile: MediaTechnicalProfile = {
+        mediaId,
+        format: entry.format ?? '',
+        container: entry.container,
+        durationMs: entry.duration_ms ?? 0,
+        bitrate: entry.bitrate ?? 0,
+        sizeBytes: entry.size,
+        streams: (entry.streams ?? []).map(mapTechnicalStream),
+      };
+      return [{
+        mediaId,
+        itemId: wire?.item_id,
+        path: entry.path,
+        sizeBytes: entry.size,
+        profile,
+        operations: mapOperations(entry.operations),
+      }];
+    });
   }
 
   async update(sessionId: string, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {
@@ -418,15 +542,52 @@ export class ClusterPlaybackApi {
 
   create(
     media: MediaSummary,
-    capabilities: PlaybackCapabilities,
+    instruction: PlaybackInstruction,
     seekMs?: number,
     preferences?: PlaybackPreferencesUpdate,
     signal?: AbortSignal,
   ): Promise<PlaybackSession> {
     const idempotencyKey = newIdempotencyKey();
     return withEndpointFailover(this.registry, (endpoint) =>
-      this.node(endpoint).create(media, capabilities, seekMs, preferences, idempotencyKey, signal),
+      this.node(endpoint).create(media, instruction, seekMs, preferences, idempotencyKey, signal),
     );
+  }
+
+  /**
+   * Playback facts from whichever node is currently preferred, resolved per
+   * call.
+   *
+   * Resolving per call is the point, not an incidental. `operations` describes
+   * what *one node's build* can perform, so binding a node once and reusing it
+   * would eventually have the chooser reading one node's abilities while a
+   * different node executes the instruction — which is exactly the failure the
+   * operations gate exists to prevent, reappearing one level up.
+   *
+   * A 404 is deliberately not terminal here, unlike everywhere else in this
+   * client. A node whose build predates the facts endpoint answers 404 for
+   * every media, and during a partial cluster upgrade that would make facts
+   * unavailable whenever the preferred node happened to be an older one —
+   * and unavailable facts mean transcoding everything, silently. Media that
+   * genuinely does not exist answers 404 on every node, so the loop still ends
+   * with that answer.
+   */
+  async facts(ref: { itemId?: string; mediaId?: string }, signal?: AbortSignal): Promise<PlaybackMediaFacts[]> {
+    const candidates = this.registry.candidates();
+    if (candidates.length === 0) throw new Error('No Macha endpoint is configured.');
+    let lastError: unknown;
+    for (const { endpoint } of candidates) {
+      try {
+        const facts = await this.node(endpoint).facts(ref, signal);
+        this.registry.recordSuccess(endpoint.id);
+        return facts;
+      } catch (error) {
+        lastError = error;
+        const notFound = error instanceof MachaApiError && error.status === 404;
+        if (!notFound && !isEndpointFailure(error)) throw error;
+        if (!notFound) this.registry.recordFailure(endpoint.id, error);
+      }
+    }
+    throw lastError;
   }
 
   update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {

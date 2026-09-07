@@ -1,10 +1,13 @@
 import * as Crypto from 'expo-crypto';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { ClusterCatalogueApi } from '../api/catalogue';
 import { EndpointRegistry } from '../api/endpoints';
 import { MediaApi } from '../api/media';
 import { ClusterPlaybackApi } from '../api/playback';
 import { ClusterStatusApi } from '../api/status';
+import { MachaConnectionError } from '../api/errors';
 import { SessionManager, authFor, type AuthenticatedFetch } from '../api/session';
 import {
   getApiToken,
@@ -17,6 +20,8 @@ import {
 } from '../state/connection';
 import { ContinueWatchingStore } from '../state/continueWatching';
 import { DownloadStore } from '../state/downloads';
+import { Connectivity } from '../state/connectivity';
+import { OfflineLibrary } from '../api/offlineLibrary';
 import { DownloadManager } from '../downloads/DownloadManager';
 import { MusicLibraryStore } from '../state/musicLibrary';
 import { PlaylistStore } from '../state/playlists';
@@ -35,6 +40,7 @@ export interface MachaServices {
   musicLibrary: MusicLibraryStore;
   downloads: DownloadStore;
   downloadManager: DownloadManager;
+  connectivity: Connectivity;
   clientId: string;
 }
 
@@ -48,6 +54,12 @@ interface MachaContextValue extends MachaServices {
   /** Bumped whenever services are rebuilt, so screens can re-run their loads. */
   generation: number;
 }
+
+/**
+ * Only a backstop. Network changes arrive as events; this catches the case
+ * the device cannot see — the node itself going away on a healthy network.
+ */
+const REACHABILITY_BACKSTOP_MS = 60_000;
 
 const MachaContext = createContext<MachaContextValue | undefined>(undefined);
 
@@ -66,6 +78,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
 
   const registry = useMemo(() => new EndpointRegistry(), []);
   const sessions = useMemo(() => new SessionManager(), []);
+  // One connectivity fact for the whole app, outliving service rebuilds.
+  const connectivity = useMemo(() => new Connectivity(), []);
   /**
    * One opaque viewer identity for the life of the app process. It rides every
    * playback-session POST so the node can recognise one logical viewer across
@@ -102,9 +116,9 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const services = useMemo<MachaServices>(() => {
     const auth = authFor(apiToken, sessions);
     const catalogue = new ClusterCatalogueApi(registry, auth);
-    const mediaApi = new MediaApi(catalogue);
     const playbackApi = new ClusterPlaybackApi(registry, auth, viewerSession);
     const downloads = new DownloadStore(clientId || 'anonymous');
+    const mediaApi = new MediaApi(catalogue, new OfflineLibrary(downloads), connectivity);
     return {
       registry,
       auth,
@@ -117,12 +131,21 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       musicLibrary: new MusicLibraryStore(clientId || 'anonymous'),
       downloads,
       downloadManager: new DownloadManager(downloads, playbackApi, mediaApi),
+      connectivity,
       clientId,
     };
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, sessions, apiToken, clientId, viewerSession, generation]);
+  }, [registry, sessions, connectivity, apiToken, clientId, viewerSession, generation]);
+
+  // Going offline (or coming back) changes what every screen should be
+  // showing, so it invalidates loaded data exactly like reconfiguring the
+  // connection does. Screens already key their loads on `generation`.
+  useEffect(
+    () => connectivity.subscribe(() => setGeneration((value) => value + 1)),
+    [connectivity],
+  );
 
   const discoveryDone = useRef(false);
   useEffect(() => {
@@ -160,6 +183,57 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrated, endpoints, services, registry]);
 
+  /**
+   * Reachability, driven by events rather than polling.
+   *
+   * The device pushes network changes, so losing Wi-Fi or switching on
+   * airplane mode is known immediately and for free — no timer, no request.
+   *
+   * But the device's network is not the question: on the same Wi-Fi with the
+   * node powered off, NetInfo happily reports "connected" while Macha is
+   * unreachable. So a network event only *triggers* the decision — losing the
+   * network means offline outright, while regaining it prompts a cheap
+   * catalogue status GET to confirm Macha itself is actually there. The slow
+   * timer that remains is only a backstop for the node going away underneath a
+   * perfectly healthy network.
+   */
+  useEffect(() => {
+    if (!hydrated || endpoints.length === 0) return;
+    let cancelled = false;
+
+    const confirm = async () => {
+      try {
+        await services.media.status();
+        if (!cancelled) connectivity.reportReachable();
+      } catch (error) {
+        if (!cancelled && error instanceof MachaConnectionError) connectivity.reportUnreachable();
+      }
+    };
+
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (cancelled) return;
+      // `isInternetReachable` is deliberately ignored: a LAN with no route to
+      // the internet is a perfectly good home for a Macha cluster.
+      if (state.isConnected === false) connectivity.reportUnreachable();
+      else void confirm();
+    });
+
+    void confirm();
+    const backstop = setInterval(() => {
+      if (AppState.currentState === 'active') void confirm();
+    }, REACHABILITY_BACKSTOP_MS);
+    const appState = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void confirm();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      clearInterval(backstop);
+      appState.remove();
+    };
+  }, [hydrated, endpoints, services, connectivity]);
+
   const configure = useCallback((nextEndpoints: readonly string[], nextToken: string) => {
     const normalized = setConfiguredEndpoints(nextEndpoints);
     setApiToken(nextToken);
@@ -194,4 +268,12 @@ export function useAuthHeaders(): Record<string, string> | undefined {
   }, [auth]);
 
   return useMemo(() => (token ? { Authorization: `Bearer ${token}` } : undefined), [token]);
+}
+
+/** Subscribes to the app-wide reachability state. */
+export function useConnectivity(): { offline: boolean } {
+  const { connectivity } = useMacha();
+  const [offline, setOffline] = useState(connectivity.isOffline);
+  useEffect(() => connectivity.subscribe(() => setOffline(connectivity.isOffline)), [connectivity]);
+  return { offline };
 }
