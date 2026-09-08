@@ -77,18 +77,23 @@ export class ClusterPlaybackApi {
   /**
    * A replacement session for a generation whose node stopped serving it.
    *
-   * Core records the failed endpoint, skips it and every node already known to
-   * have failed this generation, and returns a prepared standby when one is
-   * ready rather than paying for a fresh admission. The transform is restated
+   * Core records the failed endpoint and skips it, along with every node
+   * already known to have failed this generation. The transform is restated
    * for the same reason it is on create: the node performs what it is told,
    * and a replacement that quietly picked its own could come back as something
    * this device cannot decode.
+   *
+   * Deliberately no prepared standby. Core supports one and the web client uses
+   * it, but a session's pipeline is reclaimed after about a minute idle, so a
+   * standby built on the first sign of trouble is usually dead by the time it
+   * is wanted — measured here as a 3ms promotion followed by a 3s failure,
+   * against 214ms to admit a fresh session. The admission was never the
+   * expensive part; the player reload is.
    */
   failover(
     session: PlaybackSession,
     media: MediaSummary,
     seekMs: number,
-    preparedAlternate?: PlaybackSession,
   ): Promise<PlaybackSession> {
     return this.resolver.failover(
       session,
@@ -96,20 +101,7 @@ export class ClusterPlaybackApi {
       deviceCapabilities(),
       seekMs,
       { mode: session.preferences.mode, ...transformFor(session.preferences.mode) },
-      preparedAlternate,
     );
-  }
-
-  /** A standby session on a different node, created before anything has gone wrong. */
-  prepareAlternate(
-    session: PlaybackSession,
-    media: MediaSummary,
-    seekMs: number,
-  ): Promise<PlaybackSession | undefined> {
-    return this.resolver.prepareAlternate(session, media, deviceCapabilities(), seekMs, {
-      mode: session.preferences.mode,
-      ...transformFor(session.preferences.mode),
-    });
   }
 
   update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {

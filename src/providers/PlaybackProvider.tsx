@@ -92,12 +92,23 @@ export function usePlayback(): PlaybackContextValue {
 /** Progress is checkpointed at most this often; it is a resume hint, not telemetry. */
 const PROGRESS_CHECKPOINT_MS = 5_000;
 /**
- * How many nodes to try before telling the viewer a title will not play.
+ * How many replacements to admit before telling the viewer a title will not play.
  *
  * Bounded because a title that is genuinely broken fails identically on every
- * node, and walking a whole cluster to prove it just delays the message.
+ * node, and walking a whole cluster to prove it only delays the message.
  */
 const MAX_FAILOVER_ATTEMPTS = 2;
+
+/**
+ * How long playback must survive before the budget above is forgiven.
+ *
+ * The budget exists to stop a broken title cycling the cluster, and those
+ * failures arrive back to back. A node that dies half an hour into a film is a
+ * different event from the one that died at the start, and should not be
+ * refused because of it — so the count is a burst limit rather than a lifetime
+ * one.
+ */
+const FAILOVER_BUDGET_RESET_MS = 60_000;
 
 /** Restarting an item that has barely begun is more useful than resuming it. */
 const RESUME_FLOOR_MS = 10_000;
@@ -186,6 +197,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
   const failoverAttemptsRef = useRef(0);
+  const lastFailoverAtRef = useRef(0);
+  const failoverInFlightRef = useRef(false);
 
   useEffect(() => () => player.release(), [player]);
 
@@ -255,6 +268,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // Each item gets its own budget: a title that exhausted the cluster says
       // nothing about the next one.
       failoverAttemptsRef.current = 0;
+      lastFailoverAtRef.current = 0;
+      failoverInFlightRef.current = false;
       const sameQueue =
         queueRef.current.items.length === items.length &&
         queueRef.current.items.every((existing, position) => existing.id === items[position]?.id);
@@ -599,11 +614,34 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * fall back to telling the viewer when there is nowhere left to go.
    */
   const failoverSource = useCallback(async (): Promise<boolean> => {
+    // The failed player keeps reporting the error for as long as it is on
+    // screen, and admitting a replacement is not instant — so without this every
+    // repeat of the same failure starts another failover, spends the budget and
+    // churns the UI. One at a time.
+    if (failoverInFlightRef.current) return true;
     const session = sessionRef.current;
     const media = mediaRef.current;
-    if (!session || !media) return false;
-    if (failoverAttemptsRef.current >= MAX_FAILOVER_ATTEMPTS) return false;
+    if (!session || !media) {
+      console.log('[macha] [playback] failover-declined', { reason: 'no-session' });
+      return false;
+    }
+    // Playback that has been fine for a while earns a fresh budget: the limit
+    // is there to stop a broken title cycling nodes, not to ration recovery
+    // across a whole film.
+    if (Date.now() - lastFailoverAtRef.current > FAILOVER_BUDGET_RESET_MS) failoverAttemptsRef.current = 0;
+    if (failoverAttemptsRef.current >= MAX_FAILOVER_ATTEMPTS) {
+      console.log('[macha] [playback] failover-declined', {
+        reason: 'budget-spent',
+        attempts: failoverAttemptsRef.current,
+      });
+      return false;
+    }
     failoverAttemptsRef.current += 1;
+    lastFailoverAtRef.current = Date.now();
+    failoverInFlightRef.current = true;
+    // Stop the dead source now rather than leaving it to keep failing behind
+    // the replacement being built.
+    player.pause();
 
     const myGeneration = ++generationRef.current;
     const resumeMs = positionRef.current;
@@ -627,9 +665,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.play();
       setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
       return true;
-    } catch {
+    } catch (error) {
+      console.log('[macha] [playback] failover-failed', { error: String(error) });
       // Superseded work is not a failure anyone should hear about.
       return generationRef.current !== myGeneration;
+    } finally {
+      failoverInFlightRef.current = false;
     }
   }, [mediaApi, player, playbackApi]);
 
