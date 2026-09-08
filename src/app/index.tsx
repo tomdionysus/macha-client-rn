@@ -13,16 +13,18 @@ import { SettingsIcon } from '../ui/Icons';
 import { describeError } from '../api/errors';
 import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
+import { localCopyOf, useDownloads } from '../hooks/useDownloads';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
 
 export default function HomeScreen() {
-  const { media, endpoints, continueWatching, downloads, generation } = useMacha();
+  const { media, endpoints, continueWatching, generation } = useMacha();
   const { offline } = useConnectivity();
   const { playItem } = usePlayback();
   const router = useRouter();
   const openMedia = useOpenMedia();
+  const downloads = useDownloads();
 
   const home = useAsync((signal) => media.home(signal), [media, generation]);
   const [resumable, setResumable] = useState<PlaybackProgress[]>(() => continueWatching.list());
@@ -50,7 +52,7 @@ export default function HomeScreen() {
       resumable.flatMap((entry) => {
         if (!entry.media) return [];
         if (!offline) return [entry.media];
-        const stored = downloads.localFor(entry.media);
+        const stored = localCopyOf(downloads, entry.media);
         return stored ? [offlineMedia(stored)] : [];
       }),
     [resumable, offline, downloads],

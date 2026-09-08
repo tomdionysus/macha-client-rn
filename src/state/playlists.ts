@@ -54,21 +54,25 @@ export class PlaylistStore {
   private readonly key: string;
   private readonly listeners = new Set<() => void>();
   /**
-   * Bumped on every mutation.
+   * The last read, held until something changes it.
    *
-   * React needs a *value* that changes to know this store has changed. A
-   * "re-read on a counter" pattern does not survive the React Compiler, which
-   * correctly observes that a counter never referenced inside a memo cannot
-   * affect its result and drops it — leaving the list frozen at whatever it
-   * was first computed from.
+   * React needs a *value* that changes to know this store has changed, and it
+   * has to be the value the caller actually uses. A revision counter is not
+   * enough: a hook that subscribes to one and then calls `list()` anyway is
+   * compiled to a memo keyed on the store itself, which never changes
+   * identity, so the list stays frozen at whatever it was first computed from.
    */
-  private revision = 0;
+  private cached: Playlist[] | undefined;
 
   constructor(clientId: string) {
     this.key = `macha.playlists.v1.${clientId}`;
   }
 
-  getRevision = (): number => this.revision;
+  /** Stable between mutations, as `useSyncExternalStore` requires. */
+  getSnapshot = (): Playlist[] => {
+    this.cached ??= this.list();
+    return this.cached;
+  };
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -78,7 +82,7 @@ export class PlaylistStore {
   };
 
   private changed(): void {
-    this.revision += 1;
+    this.cached = undefined;
     for (const listener of this.listeners) listener();
   }
 

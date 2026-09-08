@@ -181,6 +181,18 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const engineRef = useRef<'video' | 'audio'>('video');
   const lastCheckpointRef = useRef(0);
   const durationRef = useRef(0);
+  /**
+   * The runtime as the node reports it, which the player may not override.
+   *
+   * A transformed stream is a growing playlist, so the player's own `duration`
+   * describes what has been produced rather than what the film is. Letting that
+   * win pinned the seek bar to its right-hand end and left the remaining time
+   * reading `−0:00` for the whole movie. Zero means nobody authoritative has
+   * said yet, and only then is the player's figure worth having — a downloaded
+   * file played off the disk has no session and no profile, and there the
+   * player is the only source there is.
+   */
+  const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
 
   useEffect(() => () => player.release(), [player]);
@@ -260,6 +272,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       countedPlayRef.current = undefined;
       positionRef.current = 0;
       lastCheckpointRef.current = 0;
+      knownDurationRef.current = 0;
 
       setBusy(true);
       setState((current) => ({
@@ -312,6 +325,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           if (seekMs > 0) player.currentTime = seekMs / 1000;
           player.play();
         }
+        // Off the disk there is no node to ask, so the player's own reading is
+        // the only one available and is left free to supply it.
+        knownDurationRef.current = 0;
         durationRef.current = media.durationMs ?? 0;
         setState((current) => ({
           ...current,
@@ -326,7 +342,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const instruction = await chooseInstruction(mediaApi, playbackApi, media, options.preferences?.mode);
+        const { instruction, durationMs: knownDurationMs } = await chooseInstruction(
+          mediaApi,
+          playbackApi,
+          media,
+          options.preferences?.mode,
+        );
         const session = await createSession(playbackApi, media, instruction, seekMs, options.preferences);
         if (generationRef.current !== myGeneration) {
           // A late lease belonging to a superseded generation is never activated.
@@ -346,12 +367,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           if (session.mode === 'direct' && seekMs > 0) player.currentTime = seekMs / 1000;
           player.play();
         }
-        durationRef.current = session.durationMs;
+        // The session's own figure first — it describes this exact output —
+        // and the profile's runtime when it does not give one.
+        const durationMs = session.durationMs || knownDurationMs;
+        knownDurationRef.current = durationMs;
+        durationRef.current = durationMs;
         setState((current) => ({
           ...current,
           status: 'ready',
           session,
-          durationMs: session.durationMs,
+          durationMs,
           positionMs: session.mode === 'direct' ? seekMs : session.seekMs,
         }));
       } catch (error) {
@@ -577,12 +602,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
           player.play();
         }
-        durationRef.current = next.durationMs;
+        const durationMs = next.durationMs || knownDurationRef.current;
+        knownDurationRef.current = durationMs;
+        durationRef.current = durationMs;
         setState((current) => ({
           ...current,
           status: 'ready',
           session: next,
-          durationMs: next.durationMs,
+          durationMs,
           buffering: !sourceUnchanged,
         }));
       } catch (error) {
@@ -610,7 +637,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         if (engineRef.current !== 'video') return;
         const positionMs = Math.max(0, Math.round(currentTime * 1000));
         positionRef.current = positionMs;
-        const durationMs = Math.max(0, Math.round((player.duration || durationRef.current / 1000) * 1000));
+        const reported = Math.max(0, Math.round((player.duration || 0) * 1000));
+        const durationMs = knownDurationRef.current || reported || durationRef.current;
         if (durationMs > 0) durationRef.current = durationMs;
         setState((current) => ({
           ...current,
@@ -645,6 +673,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('sourceLoad', ({ duration }) => {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
+        if (knownDurationRef.current > 0) return;
         const durationMs = Math.max(0, Math.round(duration * 1000));
         if (durationMs > 0) durationRef.current = durationMs;
         setState((current) => ({ ...current, durationMs: durationMs || current.durationMs }));
@@ -689,7 +718,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       TrackPlayer.addEventListener(TrackEvent.PlaybackProgressUpdated, ({ position, duration, buffered }) => {
         if (engineRef.current !== 'audio') return;
         const positionMs = Math.max(0, Math.round(position * 1000));
-        const durationMs = Math.max(0, Math.round(duration * 1000));
+        const durationMs = knownDurationRef.current || Math.max(0, Math.round(duration * 1000));
         positionRef.current = positionMs;
         if (durationMs > 0) durationRef.current = durationMs;
         setState((current) => ({
@@ -947,42 +976,68 @@ function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string |
  * facts at all, the answer is transcode: the one instruction that is always
  * playable, because there is no fallback to recover into.
  */
+/**
+ * What to ask the node for, and how long the media actually runs.
+ *
+ * The runtime comes back with it because the technical profile is the only
+ * place the client reliably learns it: the catalogue does not carry a duration,
+ * and a transformed session describes a stream that is still being produced.
+ * The chooser has already paid for these facts, so carrying the number out
+ * costs nothing and saves the seek bar from having to trust the player.
+ */
 async function chooseInstruction(
   mediaApi: MediaApi,
   playbackApi: ClusterPlaybackApi,
   media: MediaSummary,
   requested: PlaybackMode | undefined,
-): Promise<PlaybackInstruction> {
+): Promise<{ instruction: PlaybackInstruction; durationMs: number }> {
+  const mediaId = media.mediaIds[0];
+
   if (requested) {
+    // The viewer named the mode, so no facts are needed to choose one — but
+    // the runtime still is, and asking for it must not fail the playback.
+    const stated = await playbackFacts(playbackApi, media, mediaId);
     return {
-      mode: requested,
-      video: requested === 'transcode' ? 'transcode' : 'copy',
-      audio: requested === 'transcode' ? 'transcode' : 'copy',
-      reasons: [],
-      // The viewer said so. Nothing was inferred, so nothing was assumed.
-      assumed: [],
+      instruction: {
+        mode: requested,
+        video: requested === 'transcode' ? 'transcode' : 'copy',
+        audio: requested === 'transcode' ? 'transcode' : 'copy',
+        reasons: [],
+        // The viewer said so. Nothing was inferred, so nothing was assumed.
+        assumed: [],
+      },
+      durationMs: stated?.profile.durationMs ?? 0,
     };
   }
 
-  const mediaId = media.mediaIds[0];
   const capabilities = deviceCapabilities();
   const overrides = devicePlaybackOverrides();
 
   const facts = await playbackFacts(playbackApi, media, mediaId);
   if (facts) {
-    return choosePlaybackInstruction(facts.profile, capabilities, {
-      overrides,
-      operations: facts.operations,
-    });
+    return {
+      instruction: choosePlaybackInstruction(facts.profile, capabilities, {
+        overrides,
+        operations: facts.operations,
+      }),
+      durationMs: facts.profile.durationMs,
+    };
   }
 
   const profile = mediaId ? await mediaApi.mediaProfile(mediaId).catch(() => undefined) : undefined;
   if (!profile) {
     // Not an assumption about an optional input: there are no facts at all,
     // which `reasons` already says plainly.
-    return { mode: 'transcode', video: 'transcode', audio: 'transcode', reasons: ['no-technical-facts'], assumed: [] };
+    return {
+      instruction: { mode: 'transcode', video: 'transcode', audio: 'transcode', reasons: ['no-technical-facts'], assumed: [] },
+      durationMs: 0,
+    };
   }
-  return choosePlaybackInstruction(technicalProfileFromCatalogue(profile), capabilities, { overrides });
+  const catalogued = technicalProfileFromCatalogue(profile);
+  return {
+    instruction: choosePlaybackInstruction(catalogued, capabilities, { overrides }),
+    durationMs: catalogued.durationMs,
+  };
 }
 
 /**

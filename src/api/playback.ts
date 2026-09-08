@@ -253,12 +253,16 @@ function mapTechnicalStream(stream: WireFactsStream): MediaTechnicalStream {
  */
 function mapOperations(value: unknown): PlaybackOperations {
   const record = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
-  const copy = (record.copy_into_fmp4 && typeof record.copy_into_fmp4 === 'object'
-    ? record.copy_into_fmp4
-    : {}) as Record<string, unknown>;
+  const streams = (key: string): { video: boolean; audio: boolean } => {
+    const nested = (record[key] && typeof record[key] === 'object' ? record[key] : {}) as Record<string, unknown>;
+    return { video: nested.video === true, audio: nested.audio === true };
+  };
   return {
     direct: record.direct === true,
-    copyIntoFmp4: { video: copy.video === true, audio: copy.audio === true },
+    copyIntoFmp4: streams('copy_into_fmp4'),
+    // A separate question with a separate answer: the two carriages accept
+    // different codecs, so neither may be inferred from the other.
+    copyIntoMpegts: streams('copy_into_mpegts'),
     transcodeVideo: record.transcode_video === true,
     transcodeAudio: record.transcode_audio === true,
   };

@@ -1,34 +1,30 @@
 import { useSyncExternalStore } from 'react';
 import { useMacha } from '../providers/MachaProvider';
 import type { Playlist } from '../state/playlists';
+import type { MusicLibraryView } from '../state/musicLibrary';
 
 /**
  * Playlists, subscribed properly.
  *
- * `useSyncExternalStore` is the correct way to read a mutable store from
- * React, and — unlike re-reading inside a `useMemo` keyed on a counter — it
- * survives the React Compiler, which is entitled to drop a dependency that
- * cannot affect the memo's result and did exactly that.
+ * The subscribed value has to be the array itself, not a revision counter
+ * beside it. Subscribing and then calling `list()` anyway leaves the call
+ * keyed on the store singleton, which the React Compiler will happily cache
+ * against forever — the list then never changes after its first render.
  */
 export function usePlaylists(): Playlist[] {
   const { playlists } = useMacha();
-  // The revision is the snapshot: it is a primitive that changes on every
-  // mutation, so React sees a new value. `list()` itself returns a fresh array
-  // each call, which would make the store look permanently changed.
-  useSyncExternalStore(playlists.subscribe, playlists.getRevision, playlists.getRevision);
-  return playlists.list();
+  return useSyncExternalStore(playlists.subscribe, playlists.getSnapshot, playlists.getSnapshot);
 }
 
 /**
- * Subscribes to per-device listening state (favourites, play counts, recently
- * played) and returns the store to read from during render.
+ * Per-device listening state: favourites, play counts, recently played.
  *
- * Deliberately returns the store rather than a snapshot: the callers read
- * several different projections of it, and memoizing those reads is what broke
- * here in the first place.
+ * Callers read several different projections of it, so what comes back is a
+ * handle with the same reads on it rather than one prepared snapshot — but a
+ * *new* handle each time the state changes, so those projections are keyed on
+ * something that can actually invalidate.
  */
-export function useMusicLibrary() {
+export function useMusicLibrary(): MusicLibraryView {
   const { musicLibrary } = useMacha();
-  useSyncExternalStore(musicLibrary.subscribe, musicLibrary.getRevision, musicLibrary.getRevision);
-  return musicLibrary;
+  return useSyncExternalStore(musicLibrary.subscribe, musicLibrary.getSnapshot, musicLibrary.getSnapshot);
 }

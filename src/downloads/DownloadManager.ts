@@ -64,17 +64,8 @@ export class DownloadManager {
     private readonly mediaApi: MediaApi,
   ) {}
 
-  /**
-   * A value that changes on every mutation, so React can tell that this store
-   * has moved. A subscription alone is not enough: a component that only
-   * increments a discarded counter has no reactive input the React Compiler
-   * can see, and it is entitled to cache the render — which it did, leaving
-   * the download button, the downloads screen and "Clear" all showing state
-   * from whenever the screen was first drawn.
-   */
-  private revision = 0;
-
-  getRevision = (): number => this.revision;
+  /** Rebuilt on the next read after a mutation, and not before. */
+  private cached: DownloadProgressSnapshot | undefined;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -84,13 +75,28 @@ export class DownloadManager {
   };
 
   private notify(): void {
-    this.revision += 1;
+    this.cached = undefined;
     for (const listener of this.listeners) listener();
   }
 
-  snapshot(): DownloadProgressSnapshot {
-    return { records: this.store.all(), active: this.active, live: new Map(this.live) };
-  }
+  /**
+   * The whole state as one object whose identity changes only when something
+   * actually changed.
+   *
+   * Caching is not an optimisation here, it is the contract twice over.
+   * `useSyncExternalStore` requires a snapshot that is stable between
+   * notifications — a fresh object per call is an endless render loop. And the
+   * value has to be the state itself rather than a revision counter, because a
+   * counter is only reactive if the reader keeps it: a hook that subscribes and
+   * discards the result has no input the React Compiler can see, so it caches
+   * the derived records against the store singletons and never recomputes them.
+   * That is what left the download button, "Clear" and removing a single item
+   * all showing whatever was true when the screen was first drawn.
+   */
+  getSnapshot = (): DownloadProgressSnapshot => {
+    this.cached ??= { records: this.store.all(), active: this.active, live: new Map(this.live) };
+    return this.cached;
+  };
 
   /** Live bytes for an in-flight transfer, if there is one. */
   progressFor(mediaId: string): LiveProgress | undefined {

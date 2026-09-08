@@ -33,6 +33,16 @@ function validFile(value: unknown): value is LibraryFile {
   );
 }
 
+/** What a screen may do with the listening state. Mirrors the store's own reads. */
+export interface MusicLibraryView {
+  favourites(): string[];
+  isFavourite(itemId: string): boolean;
+  toggleFavourite(itemId: string): boolean;
+  playCount(itemId: string): number;
+  recentIds(): string[];
+  mostPlayedIds(limit?: number): string[];
+}
+
 /**
  * Per-device listening state: favourites, play counts and recently played.
  *
@@ -43,14 +53,33 @@ function validFile(value: unknown): value is LibraryFile {
 export class MusicLibraryStore {
   private readonly key: string;
   private readonly listeners = new Set<() => void>();
-  /** Changes on every mutation, so React has a value to react to. */
-  private revision = 0;
+  private cached: MusicLibraryView | undefined;
 
   constructor(clientId: string) {
     this.key = `macha.musicLibrary.v1.${clientId}`;
   }
 
-  getRevision = (): number => this.revision;
+  /**
+   * A handle onto this store whose identity changes whenever the state does.
+   *
+   * The store itself cannot be that handle: it is a singleton, so anything
+   * derived from it during render is compiled to a memo keyed on a value that
+   * never changes, and favourites and the recently-played order stay at
+   * whatever they were the first time the screen drew. A counter cannot be it
+   * either, because the caller reads through these methods rather than through
+   * the counter. So the handle is what callers already use, rebuilt on change.
+   */
+  getSnapshot = (): MusicLibraryView => {
+    this.cached ??= {
+      favourites: () => this.favourites(),
+      isFavourite: (itemId) => this.isFavourite(itemId),
+      toggleFavourite: (itemId) => this.toggleFavourite(itemId),
+      playCount: (itemId) => this.playCount(itemId),
+      recentIds: () => this.recentIds(),
+      mostPlayedIds: (limit) => this.mostPlayedIds(limit),
+    };
+    return this.cached;
+  };
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -65,7 +94,7 @@ export class MusicLibraryStore {
 
   private write(file: LibraryFile): LibraryFile {
     const written = writeJson(this.key, file);
-    this.revision += 1;
+    this.cached = undefined;
     for (const listener of this.listeners) listener();
     return written;
   }
