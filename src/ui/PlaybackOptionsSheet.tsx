@@ -134,7 +134,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
         </SheetSection>
       ) : null}
 
-      <SheetSection title="Source">
+      <SheetSection title={endpointLabel(session) ?? 'Source'}>
         <Text style={{ ...typography.caption, color: colors.textFaint, lineHeight: 18 }}>
           {[
             session.sourceInfo.format?.toUpperCase(),
@@ -184,6 +184,24 @@ function streamLabel(stream: PlaybackStreamInfo): string {
 function shortMediaId(mediaId: string): string {
   const body = mediaId.replace(/^macha:/, '');
   return body.length > 16 ? `…${body.slice(-12)}` : body;
+}
+
+/**
+ * Which node is serving this, as the section heading.
+ *
+ * The stream description underneath says what is being served; naming the
+ * endpoint says where it is coming from, which is the thing you actually want
+ * when a cluster has more than one node and one of them is behaving oddly.
+ *
+ * The scheme is dropped because `SheetSection` uppercases its title and
+ * `HTTP://` is noise in a heading whose whole job is to identify a host. A
+ * session that names no endpoint keeps the generic heading rather than showing
+ * an empty one.
+ */
+function endpointLabel(session: PlaybackSession): string | undefined {
+  const base = session.endpoint?.baseUrl?.trim();
+  if (!base) return undefined;
+  return base.replace(/^https?:\/\//i, '') || undefined;
 }
 
 /** What is actually coming down the wire, preferred over the muxer's name for it. */

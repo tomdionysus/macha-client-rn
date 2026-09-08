@@ -91,6 +91,14 @@ export function usePlayback(): PlaybackContextValue {
 
 /** Progress is checkpointed at most this often; it is a resume hint, not telemetry. */
 const PROGRESS_CHECKPOINT_MS = 5_000;
+/**
+ * How many nodes to try before telling the viewer a title will not play.
+ *
+ * Bounded because a title that is genuinely broken fails identically on every
+ * node, and walking a whole cluster to prove it just delays the message.
+ */
+const MAX_FAILOVER_ATTEMPTS = 2;
+
 /** Restarting an item that has barely begun is more useful than resuming it. */
 const RESUME_FLOOR_MS = 10_000;
 
@@ -177,6 +185,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    */
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
+  const failoverAttemptsRef = useRef(0);
 
   useEffect(() => () => player.release(), [player]);
 
@@ -243,6 +252,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const previous = sessionRef.current;
       sessionRef.current = undefined;
       mediaRef.current = media;
+      // Each item gets its own budget: a title that exhausted the cluster says
+      // nothing about the next one.
+      failoverAttemptsRef.current = 0;
       const sameQueue =
         queueRef.current.items.length === items.length &&
         queueRef.current.items.every((existing, position) => existing.id === items[position]?.id);
@@ -569,6 +581,65 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * subtitle-only change may come back with the A/V generation unchanged — in
    * which case the player is left alone and only the subtitle URL is replaced.
    */
+  /**
+   * Replace the source with an equivalent one from another node.
+   *
+   * A player error mid-stream is usually a fact about the node rather than the
+   * media — the socket died, the extent went away — so the viewer should get
+   * the picture back rather than a failure screen. Core picks the replacement,
+   * skipping the failed endpoint and any other node already known to have
+   * failed this generation, and records the failure so ranking learns from it.
+   *
+   * This is a reload rather than a seamless hand-off: the picture stops and
+   * resumes at the same position. A truly silent swap needs the player to
+   * accept an alternate source without dropping the presentation, which this
+   * client's Platform contract cannot yet express.
+   *
+   * Returns whether a replacement was actually installed, so the caller can
+   * fall back to telling the viewer when there is nowhere left to go.
+   */
+  const failoverSource = useCallback(async (): Promise<boolean> => {
+    const session = sessionRef.current;
+    const media = mediaRef.current;
+    if (!session || !media) return false;
+    if (failoverAttemptsRef.current >= MAX_FAILOVER_ATTEMPTS) return false;
+    failoverAttemptsRef.current += 1;
+
+    const myGeneration = ++generationRef.current;
+    const resumeMs = positionRef.current;
+    // Logged because a short outage is recovered by the platform player's own
+    // retry and never reaches here at all — so "did it fail over, or did
+    // ExoPlayer just reconnect?" is otherwise indistinguishable from outside.
+    console.log('[macha] [playback] failover-attempt', {
+      from: session.endpoint?.baseUrl,
+      attempt: failoverAttemptsRef.current,
+      resumeMs,
+    });
+    try {
+      const next = await playbackApi.failover(session, media, resumeMs);
+      console.log('[macha] [playback] failover-result', { to: next.endpoint?.baseUrl });
+      if (generationRef.current !== myGeneration) return true;
+      sessionRef.current = next;
+      applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
+      // A transformed generation starts at the seek point it was cut for; a
+      // direct one is the whole file and has to be told where to resume.
+      if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
+      player.play();
+      setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
+      return true;
+    } catch {
+      // Superseded work is not a failure anyone should hear about.
+      return generationRef.current !== myGeneration;
+    }
+  }, [mediaApi, player, playbackApi]);
+
+  // Held in a ref so the player's listeners never have to resubscribe when the
+  // services object is rebuilt.
+  const failoverRef = useRef(failoverSource);
+  useEffect(() => {
+    failoverRef.current = failoverSource;
+  }, [failoverSource]);
+
   const applyUpdate = useCallback(
     async (update: PlaybackUpdate) => {
       const session = sessionRef.current;
@@ -649,11 +720,26 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('statusChange', ({ status, error }) => {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
+        if (status === 'error') {
+          // Try another node before saying anything. A stream that stops
+          // mid-playback is far more often the node than the title, and the
+          // viewer would rather have the picture back than an explanation.
+          setState((current) => ({ ...current, buffering: true }));
+          void failoverRef.current().then((swapped) => {
+            if (swapped) return;
+            setState((current) => ({
+              ...current,
+              status: 'failed',
+              buffering: false,
+              error: error?.message ?? 'The player could not play this stream.',
+            }));
+          });
+          return;
+        }
         setState((current) => ({
           ...current,
           buffering: status === 'loading',
-          status: status === 'error' ? 'failed' : current.status === 'loading' && status === 'readyToPlay' ? 'ready' : current.status,
-          error: status === 'error' ? (error?.message ?? 'The player could not play this stream.') : current.error,
+          status: current.status === 'loading' && status === 'readyToPlay' ? 'ready' : current.status,
         }));
       }),
       player.addListener('sourceLoad', ({ duration }) => {

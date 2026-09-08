@@ -11,6 +11,7 @@ import {
   type PlaybackUpdate,
 } from '@macha/core';
 import { deviceCapabilities } from '../playback/capabilities';
+import { transformFor } from '../playback/policy';
 
 // The session model and its wire decoding are core's. This module was a second
 // implementation of both — the keystone of the duplication, and the reason the
@@ -70,6 +71,44 @@ export class ClusterPlaybackApi {
       video: instruction.video,
       audio: instruction.audio,
       ...(instruction.container ? { container: instruction.container } : {}),
+    });
+  }
+
+  /**
+   * A replacement session for a generation whose node stopped serving it.
+   *
+   * Core records the failed endpoint, skips it and every node already known to
+   * have failed this generation, and returns a prepared standby when one is
+   * ready rather than paying for a fresh admission. The transform is restated
+   * for the same reason it is on create: the node performs what it is told,
+   * and a replacement that quietly picked its own could come back as something
+   * this device cannot decode.
+   */
+  failover(
+    session: PlaybackSession,
+    media: MediaSummary,
+    seekMs: number,
+    preparedAlternate?: PlaybackSession,
+  ): Promise<PlaybackSession> {
+    return this.resolver.failover(
+      session,
+      media,
+      deviceCapabilities(),
+      seekMs,
+      { mode: session.preferences.mode, ...transformFor(session.preferences.mode) },
+      preparedAlternate,
+    );
+  }
+
+  /** A standby session on a different node, created before anything has gone wrong. */
+  prepareAlternate(
+    session: PlaybackSession,
+    media: MediaSummary,
+    seekMs: number,
+  ): Promise<PlaybackSession | undefined> {
+    return this.resolver.prepareAlternate(session, media, deviceCapabilities(), seekMs, {
+      mode: session.preferences.mode,
+      ...transformFor(session.preferences.mode),
     });
   }
 
