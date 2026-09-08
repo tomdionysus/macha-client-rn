@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import type { PlaybackSession, PlaybackStreamInfo } from '../api/playback';
+import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { PlaybackMode } from '../types';
 import { Sheet, SheetOption, SheetSection } from './Sheet';
@@ -52,7 +52,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           <SheetOption
             key={mode}
             label={MODE_LABELS[mode]}
-            detail={mode === preferences.mode ? `Now: ${session.mode} · ${describeTransform(session)}` : MODE_DETAIL[mode]}
+            detail={mode === preferences.mode ? [`Now: ${session.mode}`, describeTransform(session)].filter(Boolean).join(' · ') : MODE_DETAIL[mode]}
             selected={preferences.mode === mode}
             disabled={busy}
             onPress={() => change({ preferences: { mode } })}
@@ -139,7 +139,10 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           {[
             session.sourceInfo.format?.toUpperCase(),
             formatBitrate(session.sourceInfo.bitrate),
-            session.output.format ? `→ ${session.output.format.toUpperCase()}` : undefined,
+            // The container the node says it is serving, which is the honest
+            // answer; `format` is the muxer's own name for it and only stands
+            // in for a node that does not report the container.
+            outputContainer(session) ? `→ ${outputContainer(session)!.toUpperCase()}` : undefined,
             formatBitrate(session.output.bitrate),
           ]
             .filter(Boolean)
@@ -154,8 +157,19 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
  * What the node actually resolved, per elementary stream. Mixed results —
  * video copied while audio is transcoded — are real and worth showing, even
  * though the preference schema has no way to ask for them directly.
+ *
+ * Nothing to add when no stream is transcoded, though. A direct session
+ * copies no stream anywhere — it serves the source file untouched — and a
+ * remux rewraps both together, so "video copy, audio copy" names an operation
+ * per stream that only happened to the session as a whole. The mode already
+ * says that much, and spending "copy" on it is what stops the word meaning
+ * anything in the case that needs it: one stream copied while its sibling is
+ * re-encoded. Matches how `describePlaybackSession` badges the same sessions
+ * in @macha/core.
  */
-function describeTransform(session: PlaybackSession): string {
+function describeTransform(session: PlaybackSession): string | undefined {
+  const untouched = (transform: PlaybackTransform) => transform === 'copy' || transform === 'omit';
+  if (untouched(session.transform.video) && untouched(session.transform.audio)) return undefined;
   return `video ${session.transform.video}, audio ${session.transform.audio}`;
 }
 
@@ -170,4 +184,9 @@ function streamLabel(stream: PlaybackStreamInfo): string {
 function shortMediaId(mediaId: string): string {
   const body = mediaId.replace(/^macha:/, '');
   return body.length > 16 ? `…${body.slice(-12)}` : body;
+}
+
+/** What is actually coming down the wire, preferred over the muxer's name for it. */
+function outputContainer(session: PlaybackSession): string | undefined {
+  return session.output.container ?? session.output.format;
 }

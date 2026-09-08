@@ -1,4 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  readValidatedJson as coreReadValidatedJson,
+  writeJson as coreWriteJson,
+} from '@macha/core';
 
 /**
  * A tiny persistence seam over AsyncStorage.
@@ -53,20 +57,13 @@ class ClientStore {
 
 export const clientStore = new ClientStore();
 
+// Core's helpers, bound to this client's store so callers keep the shorter
+// two-argument signature. The parse-validate-discard logic was duplicated; the
+// convenience of not passing the store at ~20 call sites was not.
 export function readValidatedJson<T>(key: string, validate: (value: unknown) => value is T): T | undefined {
-  const raw = clientStore.getItem(key);
-  if (!raw) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (validate(parsed)) return parsed;
-  } catch {
-    // Fall through: invalid persisted state is discarded rather than repaired.
-  }
-  clientStore.removeItem(key);
-  return undefined;
+  return coreReadValidatedJson(clientStore, key, validate);
 }
 
 export function writeJson<T>(key: string, value: T): T {
-  clientStore.setItem(key, JSON.stringify(value));
-  return value;
+  return coreWriteJson(clientStore, key, value);
 }

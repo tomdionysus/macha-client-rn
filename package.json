@@ -1,7 +1,7 @@
 {
   "name": "macha-client-rn",
   "main": "index.js",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "dependencies": {
     "@macha/core": "file:../macha-ts",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -36,7 +36,8 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "patch-package": "^8.0.1",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.0"
   },
   "scripts": {
     "start": "expo start",
@@ -46,7 +47,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "expo lint",
     "prebuild": "expo prebuild",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test": "vitest run"
   },
   "private": true,
   "description": "React Native phone client for Macha.",

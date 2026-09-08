@@ -56,6 +56,9 @@ export const HeartIcon = icon('M12 20s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 7.6a4.4 
 export const DownloadIcon = icon('M12 3v12M7 11l5 5 5-5M4 20h16');
 export const DownloadedIcon = icon('M4 20h16M20 7l-9 9-4-4');
 export const CloudOffIcon = icon('M3 3l18 18M7 18h9a4 4 0 0 0 1.4-7.7A6 6 0 0 0 8 7.2M6.2 9.3A4 4 0 0 0 7 18');
+/** Fullscreen: corner brackets pushing out, and the same pulling in. */
+export const ExpandIcon = icon('M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5');
+export const CollapseIcon = icon('M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5');
 export const SortIcon = icon('M4 7h13M4 12h9M4 17h5M17 13l3 3 3-3M20 16V7');
 
 export function MusicIcon({ size = 24, color = colors.text }: IconProps) {

@@ -298,9 +298,12 @@ export class DownloadManager {
     try {
       await FileSystem.makeDirectoryAsync(ARTWORK_DIR, { intermediates: true }).catch(() => undefined);
       const target = `${ARTWORK_DIR}${safeName(mediaId)}.img`;
-      const url = this.mediaApi.artworkUrls(ref)[0];
-      if (!url) return undefined;
-      const result = await FileSystem.downloadAsync(url, target);
+      // This downloader sends no Authorization header, so only a
+      // self-authenticating source can be stored. Artwork failing is not a
+      // download failure, so an item with no signed URL simply keeps no cover.
+      const source = this.mediaApi.artworkUrls(ref).find((candidate) => !candidate.requiresAuthorization);
+      if (!source) return undefined;
+      const result = await FileSystem.downloadAsync(source.url, target);
       return result.status === 200 ? result.uri : undefined;
     } catch {
       return undefined;

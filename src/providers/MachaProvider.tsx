@@ -1,12 +1,20 @@
 import * as Crypto from 'expo-crypto';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { ClusterCatalogueApi } from '../api/catalogue';
-import { EndpointRegistry } from '../api/endpoints';
+import {
+  ClusterEndpointRouter,
+  ContinueWatchingStore,
+  EndpointHealthMonitor,
+  EndpointRegistry,
+  PlaybackQueueStore,
+  bootstrapEndpoints,
+  configureMachaHost,
+} from '@macha/core';
 import { MediaApi } from '../api/media';
 import { ClusterPlaybackApi } from '../api/playback';
-import { ClusterStatusApi } from '../api/status';
+import { ClusterStatusRouter } from '../api/status';
 import { MachaConnectionError } from '../api/errors';
 import { SessionManager, authFor, type AuthenticatedFetch } from '../api/session';
 import {
@@ -18,22 +26,36 @@ import {
   setConfiguredEndpoints,
   setDiscoveredEndpoints,
 } from '../state/connection';
-import { ContinueWatchingStore } from '../state/continueWatching';
+import { adoptLegacyContinueWatching } from '../state/continueWatchingMigration';
 import { DownloadStore } from '../state/downloads';
 import { Connectivity } from '../state/connectivity';
 import { OfflineLibrary } from '../api/offlineLibrary';
 import { DownloadManager } from '../downloads/DownloadManager';
 import { MusicLibraryStore } from '../state/musicLibrary';
-import { PlaylistStore } from '../state/playlists';
-import { PlaybackQueueStore } from '../state/queue';
+import { PlaylistStore } from '@macha/core';
+
 import { clientStore } from '../state/storage';
+
+// Core reaches for storage, a clock and an id generator through its host seam
+// rather than a browser global. `ClientStore` already presents the synchronous
+// `StorageLike` shape core wants, over an AsyncStorage cache hydrated at
+// startup. `ephemeralStorage` is the same store on purpose: the web's choice of
+// `sessionStorage` ties an anonymous session to a tab, and a phone has no tab —
+// its run is the process, and a session surviving a relaunch is the behaviour
+// people expect from an app.
+configureMachaHost({
+  storage: clientStore,
+  ephemeralStorage: clientStore,
+  now: Date.now,
+  uuid: () => Crypto.randomUUID(),
+});
 
 export interface MachaServices {
   registry: EndpointRegistry;
   auth: AuthenticatedFetch;
   media: MediaApi;
   playback: ClusterPlaybackApi;
-  status: ClusterStatusApi;
+  status: ClusterStatusRouter;
   continueWatching: ContinueWatchingStore;
   queue: PlaybackQueueStore;
   playlists: PlaylistStore;
@@ -76,7 +98,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const [clientId, setClientId] = useState('');
   const [generation, setGeneration] = useState(0);
 
-  const registry = useMemo(() => new EndpointRegistry(), []);
+  const registry = useMemo(() => new EndpointRegistry([]), []);
+  const router = useMemo(() => new ClusterEndpointRouter(registry), [registry]);
   const sessions = useMemo(() => new SessionManager(), []);
   // One connectivity fact for the whole app, outliving service rebuilds.
   const connectivity = useMemo(() => new Connectivity(), []);
@@ -105,27 +128,36 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   // reached last time, then (re)start the anonymous session lifecycle.
   useEffect(() => {
     if (!hydrated) return;
-    registry.replace(endpoints);
-    registry.merge(getDiscoveredEndpoints());
+    registry.replace(bootstrapEndpoints(endpoints, 'bootstrap'));
+    // `applyAdvertisement` is not a merge: it keeps every non-discovered
+    // endpoint and replaces the discovered set wholesale, because discovery is
+    // a refreshable view rather than accumulated history. A node that has left
+    // the cluster has to disappear, which an accumulating merge cannot express.
+    registry.applyAdvertisement(getDiscoveredEndpoints().map((baseUrl) => ({ apiBaseUrls: [baseUrl] })));
     if (endpoints.length > 0) sessions.start(registry);
     else sessions.stop();
     setGeneration((value) => value + 1);
     return () => sessions.stop();
-  }, [hydrated, endpoints, apiToken, registry, sessions]);
+  }, [hydrated, endpoints, apiToken, registry, router, sessions]);
 
   const services = useMemo<MachaServices>(() => {
     const auth = authFor(apiToken, sessions);
-    const catalogue = new ClusterCatalogueApi(registry, auth);
-    const playbackApi = new ClusterPlaybackApi(registry, auth, viewerSession);
+    const catalogue = new ClusterCatalogueApi(router, auth);
+    const playbackApi = new ClusterPlaybackApi(router, auth, viewerSession);
     const downloads = new DownloadStore(clientId || 'anonymous');
+    const continueWatching = new ContinueWatchingStore(clientId || 'anonymous');
+    // Idempotent: it returns immediately once the store has anything in it, so
+    // running again on a later connection generation cannot resurrect history
+    // the viewer has since cleared.
+    adoptLegacyContinueWatching(continueWatching, clientId || 'anonymous');
     const mediaApi = new MediaApi(catalogue, new OfflineLibrary(downloads), connectivity);
     return {
       registry,
       auth,
       media: mediaApi,
       playback: playbackApi,
-      status: new ClusterStatusApi(registry, auth),
-      continueWatching: new ContinueWatchingStore(clientId || 'anonymous'),
+      status: new ClusterStatusRouter(router, auth),
+      continueWatching,
       queue: new PlaybackQueueStore(clientId || 'anonymous'),
       playlists: new PlaylistStore(clientId || 'anonymous'),
       musicLibrary: new MusicLibraryStore(clientId || 'anonymous'),
@@ -137,7 +169,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, sessions, connectivity, apiToken, clientId, viewerSession, generation]);
+  }, [registry, router, sessions, connectivity, apiToken, clientId, viewerSession, generation]);
 
   // Going offline (or coming back) changes what every screen should be
   // showing, so it invalidates loaded data exactly like reconfiguring the
@@ -147,41 +179,62 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     [connectivity],
   );
 
-  const discoveryDone = useRef(false);
-  useEffect(() => {
-    discoveryDone.current = false;
-  }, [generation]);
-
   /**
-   * One best-effort membership refresh per connection generation. The cluster
-   * knows which nodes exist and which client-facing API bases they advertise;
-   * learning them means a later failover has somewhere to go. Discovered bases
-   * are remembered as a startup hint only — never as user configuration.
+   * Cluster membership and endpoint health, on core's loop.
+   *
+   * This replaces a single best-effort discovery per connection generation.
+   * The monitor discovers members, probes every known node, and records the
+   * latency and capacity that ranking actually runs on — without it the
+   * registry degrades to sticky, then failure count, then configured order,
+   * which is to say the endpoint migration buys nothing until this runs.
+   *
+   * It also gets the scheme right. The old local helper assumed the scheme of
+   * the first configured endpoint; core inherits it from the endpoint that
+   * answered, and discovers nothing rather than defaulting to `http` when
+   * neither an origin nor a scheme-carrying endpoint is available — a silent
+   * downgrade to plaintext being the worse failure.
+   *
+   * Bound to the foreground: a backgrounded phone has no business probing a
+   * cluster on a timer. `stop()` is idempotent, so the teardown path is safe
+   * to run more than once.
    */
   useEffect(() => {
-    if (!hydrated || endpoints.length === 0 || discoveryDone.current) return;
-    discoveryDone.current = true;
-    let cancelled = false;
-    void services.status
-      .status()
-      .then((snapshot) => {
-        if (cancelled) return;
-        const scheme = endpoints[0]?.startsWith('https://') ? 'https' : 'http';
-        const advertised = ClusterStatusApi.advertisedApiBases(snapshot, scheme);
-        if (advertised.length === 0) return;
-        registry.merge(advertised);
-        setDiscoveredEndpoints(
-          registry.all.filter((endpoint) => endpoint.source === 'discovered').map((endpoint) => endpoint.baseUrl),
-        );
-      })
-      .catch(() => {
-        // A node that cannot describe the cluster is still perfectly able to
-        // serve the catalogue. Discovery is an optimisation, never a gate.
-      });
-    return () => {
-      cancelled = true;
+    if (!hydrated || endpoints.length === 0) return;
+    const monitor = new EndpointHealthMonitor({
+      registry,
+      clusterStatusApi: services.status,
+      auth: authFor(apiToken, sessions),
+    });
+
+    // Discovered bases are a startup hint, never user configuration. The
+    // registry notifies on every health change, so persist only when the
+    // discovered set itself moves rather than on every success and failure.
+    let lastPersisted = '';
+    const persist = registry.subscribe(() => {
+      const discovered = registry
+        .snapshot()
+        .map(({ endpoint }) => endpoint)
+        .filter((endpoint) => endpoint.source === 'discovered')
+        .map((endpoint) => endpoint.baseUrl);
+      const key = discovered.join('\n');
+      if (key === lastPersisted) return;
+      lastPersisted = key;
+      setDiscoveredEndpoints(discovered);
+    });
+
+    const apply = (state: AppStateStatus) => {
+      if (state === 'active') monitor.start();
+      else monitor.stop();
     };
-  }, [hydrated, endpoints, services, registry]);
+    apply(AppState.currentState);
+    const subscription = AppState.addEventListener('change', apply);
+
+    return () => {
+      subscription.remove();
+      persist();
+      monitor.stop();
+    };
+  }, [hydrated, endpoints, registry, services, apiToken, sessions]);
 
   /**
    * Reachability, driven by events rather than polling.
@@ -258,16 +311,31 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
  */
 export function useAuthHeaders(): Record<string, string> | undefined {
   const { auth } = useMacha();
-  const [token, setToken] = useState(auth.token);
+  const [authorization, setAuthorization] = useState<string>();
 
   useEffect(() => {
-    setToken(auth.token);
+    let cancelled = false;
+    // `authorization()` waits for a mint already in flight rather than
+    // answering undefined during one, so a view mounted on a cold start gets
+    // the header once it exists instead of loading its images unauthenticated
+    // and 401ing with nothing to retry.
+    const refresh = () => {
+      void auth.authorization().then((value) => {
+        if (!cancelled) setAuthorization(value);
+      });
+    };
+    refresh();
     const manager = auth instanceof SessionManager ? auth : undefined;
-    if (!manager) return;
-    return manager.subscribe(() => setToken(manager.token));
+    const unsubscribe = manager?.subscribe(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [auth]);
 
-  return useMemo(() => (token ? { Authorization: `Bearer ${token}` } : undefined), [token]);
+  // Core returns the whole header value, not the bare token: a token in a query
+  // string ends up in access logs and `Referer`.
+  return useMemo(() => (authorization ? { Authorization: authorization } : undefined), [authorization]);
 }
 
 /** Subscribes to the app-wide reachability state. */

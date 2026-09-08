@@ -17,6 +17,8 @@ import { usePlayback } from '../providers/PlaybackProvider';
 import { Artwork } from '../ui/Artwork';
 import {
   ChevronDownIcon,
+  CollapseIcon,
+  ExpandIcon,
   ForwardIcon,
   LayersIcon,
   PauseIcon,
@@ -90,6 +92,25 @@ export default function PlayerScreen() {
       void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     };
   }, [audioOnly]);
+
+  /**
+   * Force landscape, or hand rotation back to the device.
+   *
+   * Rotating the phone already worked; what was missing was a way to ask for
+   * landscape while the phone is lying flat or held in a rotation lock, which
+   * is most of the time someone is actually watching something.
+   *
+   * The button reads the *measured* orientation rather than a flag of its own,
+   * so rotating by hand keeps the icon honest — a remembered "we are
+   * fullscreen" boolean would be wrong the moment the viewer turned the phone
+   * back themselves. Releasing unlocks rather than forcing portrait, so the
+   * device decides, exactly as it does on arriving here.
+   */
+  const toggleLandscape = useCallback((currentlyLandscape: boolean) => {
+    void (currentlyLandscape
+      ? ScreenOrientation.unlockAsync()
+      : ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE));
+  }, []);
 
   const armHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -309,6 +330,22 @@ export default function PlayerScreen() {
                 onPress={() => void skipNext()}
                 style={[styles.iconButton, (queueIndex >= queue.length - 1 || busy) && styles.disabled]}>
                 <SkipForwardIcon size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={landscape ? 'Exit fullscreen' : 'Fullscreen'}
+                hitSlop={8}
+                onPress={() => {
+                  tap();
+                  toggleLandscape(landscape);
+                  showChrome();
+                }}
+                style={styles.iconButton}>
+                {landscape ? (
+                  <CollapseIcon size={20} color={colors.text} />
+                ) : (
+                  <ExpandIcon size={20} color={colors.text} />
+                )}
               </Pressable>
             </View>
           </View>

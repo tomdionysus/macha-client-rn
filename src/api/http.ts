@@ -1,53 +1,27 @@
-import { MachaApiError, MachaConnectionError, isAbortError, parseErrorEnvelope, serverUnreachable } from './errors';
+import { isGatewayConnectionFailure, normalizeBaseUrl, readResponseBody } from '@macha/core';
+import { MachaApiError, parseErrorEnvelope, serverUnreachable } from './errors';
 
 /**
  * Applies to catalogue/status/control requests. Media transfers are exempt —
  * the native player owns its own deadlines.
  */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
+// The HTTP primitives are core's. They are aliased to this module's existing
+// names rather than renamed at ~40 call sites: the implementation is what was
+// duplicated, not the vocabulary. `mergeRequestHeaders` exists because older
+// Tizen Chromium exposes only the earliest `Headers` constructor shape — a
+// browser fact this client will never meet, but not a reason to keep a second
+// implementation of the same function.
+export {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  fetchWithTimeout,
+  normalizeBaseUrl,
+  queryString,
+  mergeRequestHeaders as mergeHeaders,
+  readResponseBody as readBody,
+  type HeaderValues,
+  type ParsedResponseBody as ParsedBody,
+} from '@macha/core';
 
-export type HeaderValues = Record<string, string | undefined>;
-
-export function mergeHeaders(initial: HeadersInit | undefined, values: HeaderValues): Record<string, string> {
-  const result: Record<string, string> = {};
-  if (initial) {
-    if (Array.isArray(initial)) {
-      for (const [key, value] of initial) result[key] = value;
-    } else if (typeof (initial as Headers).forEach === 'function') {
-      (initial as Headers).forEach((value, key) => {
-        result[key] = value;
-      });
-    } else {
-      Object.assign(result, initial as Record<string, string>);
-    }
-  }
-  for (const key of Object.keys(values)) {
-    const value = values[key];
-    if (value !== undefined) result[key] = value;
-  }
-  return result;
-}
-
-export function queryString(entries: ReadonlyArray<readonly [string, string | undefined]>): string {
-  const parts: string[] = [];
-  for (const [key, value] of entries) {
-    if (value === undefined) continue;
-    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-  }
-  return parts.join('&');
-}
-
-export function normalizeBaseUrl(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === '/') return '';
-  return trimmed.replace(/\/+$/, '');
-}
-
-/**
- * Accepts what a person actually types into the connect screen — `10.0.0.4`,
- * `10.0.0.4:7438`, `macha.local` — and produces a base URL. A bare host with
- * no scheme means `http`, because Macha's default is a plain-HTTP LAN node.
- */
 export function coerceEndpointUrl(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -65,63 +39,14 @@ export function coerceEndpointUrl(value: string): string {
 
 export const DEFAULT_MACHA_PORT = 7438;
 
-/**
- * `fetch` bounded by a deadline and composed with the caller's own
- * cancellation. A timeout surfaces as `MachaConnectionError` because, from
- * here, a request that never answers is indistinguishable from a node that
- * never answers and has to fail over the same way. A genuine caller abort
- * stays an AbortError so endpoint health never learns from user intent.
- */
-export async function fetchWithTimeout(
-  fetcher: (url: string, init?: RequestInit) => Promise<Response>,
-  url: string,
-  init: RequestInit,
-  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
-): Promise<Response> {
-  const controller = new AbortController();
-  const consumerSignal = init.signal ?? undefined;
-  let timedOut = false;
-  const onConsumerAbort = () => controller.abort();
-  if (consumerSignal) {
-    if (consumerSignal.aborted) onConsumerAbort();
-    else consumerSignal.addEventListener('abort', onConsumerAbort);
-  }
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-  try {
-    return await fetcher(url, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (timedOut) throw new MachaConnectionError(`No answer from ${url} within ${timeoutMs} ms.`);
-    if (isAbortError(error)) throw error;
-    throw serverUnreachable();
-  } finally {
-    clearTimeout(timer);
-    consumerSignal?.removeEventListener('abort', onConsumerAbort);
-  }
-}
-
-export interface ParsedBody {
-  body: unknown;
-  wasJson: boolean;
-}
-
-export async function readBody(response: Response): Promise<ParsedBody> {
-  try {
-    return { body: (await response.json()) as unknown, wasJson: true };
-  } catch {
-    return { body: undefined, wasJson: false };
-  }
-}
-
-/**
- * A proxy in front of an offline node answers 502/503/504 with HTML, not a
- * Macha error envelope. That is an unreachable node, not an API failure.
- */
-export function isGatewayConnectionFailure(response: Response, wasJson: boolean): boolean {
-  return !wasJson && (response.status === 502 || response.status === 503 || response.status === 504);
-}
+// Gateway-failure classification is core's. The rule is 502/504 unconditionally
+// — Macha proxies nothing, so it emits neither, and gating them on a non-JSON
+// body misreads a JSON-emitting load balancer as the application answering —
+// plus 500 or 503 only when the body was not JSON, because a Macha error
+// envelope proves the request reached the application. 503-without-body is
+// HAProxy's answer for a backend that is gone, which is what the API now sits
+// behind for TLS offload.
+export { isGatewayConnectionFailure };
 
 export function retryAfterMs(value: string | null): number {
   if (!value) return 1_000;
@@ -132,7 +57,7 @@ export function retryAfterMs(value: string | null): number {
 }
 
 export async function throwResponseError(response: Response, what: string): Promise<never> {
-  const { body, wasJson } = await readBody(response);
+  const { body, wasJson } = await readResponseBody(response);
   if (isGatewayConnectionFailure(response, wasJson)) throw serverUnreachable();
   const parsed = parseErrorEnvelope(body, `${response.status} ${response.statusText}`.trim());
   throw new MachaApiError(
@@ -140,5 +65,6 @@ export async function throwResponseError(response: Response, what: string): Prom
     response.status,
     parsed.code,
     retryAfterMs(response.headers.get('retry-after')),
+    parsed.reason,
   );
 }

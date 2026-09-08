@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
-import type { Playlist } from '../../../state/playlists';
+import type { Playlist } from '@macha/core';
 import { Artwork } from '../../../ui/Artwork';
 import { ChevronDownIcon, CloseIcon, PlayIcon, ShuffleIcon, TrashIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';

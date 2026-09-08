@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useMacha } from '../providers/MachaProvider';
-import type { Playlist } from '../state/playlists';
+import type { Playlist } from '@macha/core';
 import type { MusicLibraryView } from '../state/musicLibrary';
 
 /**

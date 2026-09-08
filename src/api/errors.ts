@@ -1,10 +1,17 @@
+import { MachaConnectionError } from '@macha/core';
+
 export const SERVER_UNREACHABLE_MESSAGE =
   'Cannot reach a Macha node. Check the address and that the node is running.';
 
-/** Transport-level failure: DNS, refused connection, TLS, or a request deadline. */
-export class MachaConnectionError extends Error {
-  readonly name = 'MachaConnectionError';
-}
+/**
+ * Transport-level failure: DNS, refused connection, TLS, or a request deadline.
+ *
+ * Core's class rather than our own, because `retryableEndpointFailure` and
+ * `unreachableEndpointFailure` test for it by identity. A local look-alike is
+ * classified as an unknown object instead of a transport failure, which reads
+ * as "not retryable" and would strand a walk on the first unreachable node.
+ */
+export { MachaConnectionError };
 
 export function serverUnreachable(detail?: string): MachaConnectionError {
   return new MachaConnectionError(detail ? `${SERVER_UNREACHABLE_MESSAGE} (${detail})` : SERVER_UNREACHABLE_MESSAGE);
@@ -18,31 +25,30 @@ export class MachaApiError extends Error {
     readonly status?: number,
     readonly code?: string,
     readonly retryAfterMs?: number,
+    /**
+     * Why the node failed, where it says so — `source_unsupported`,
+     * `source_unreadable`, `source_read_timed_out`.
+     *
+     * Carried because core's `retryableEndpointFailure` reads it off the error
+     * and lets it outrank the status. `source_unsupported` is a fact about the
+     * bytes, and every node holds the same bytes, so it must end a cluster walk
+     * rather than collect three identical refusals. Dropping this field would
+     * leave a 5xx looking node-local and spend the viewer's time proving it
+     * isn't.
+     */
+    readonly reason?: string,
   ) {
     super(message);
   }
 }
 
-interface ErrorEnvelope {
-  message: string;
-  code?: string;
-}
-
 /**
- * Macha error bodies are `{ "error": { "code", "message" } }` on current nodes
- * and a flat `{ "message" }` on older ones. Both are accepted; anything else
- * falls back to the caller's HTTP-status text.
+ * Error-envelope parsing is core's: same two accepted body shapes, same
+ * `message`/`code`/`reason` extraction, including the `reason` this client
+ * needs for `retryableEndpointFailure` to tell a node-local failure from a
+ * fact about the file.
  */
-export function parseErrorEnvelope(body: unknown, fallback: string): ErrorEnvelope {
-  if (!body || typeof body !== 'object') return { message: fallback };
-  const record = body as Record<string, unknown>;
-  const nested = record.error;
-  const source = nested && typeof nested === 'object' ? (nested as Record<string, unknown>) : record;
-  const message = typeof source.message === 'string' && source.message.trim() ? source.message.trim() : undefined;
-  const code = typeof source.code === 'string' && source.code.trim() ? source.code.trim() : undefined;
-  if (!message && typeof nested === 'string' && nested.trim()) return { message: nested.trim(), code };
-  return { message: message ?? fallback, code };
-}
+export { parseErrorEnvelope, type ParsedErrorEnvelope } from '@macha/core';
 
 export function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;

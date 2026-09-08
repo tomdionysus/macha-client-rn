@@ -15,6 +15,8 @@ import { colors, space, type as typography } from '../ui/theme';
 export default function SettingsScreen() {
   const router = useRouter();
   const { media, endpoints, apiToken, registry, continueWatching, queue, generation } = useMacha();
+  // Core's registry reports through `snapshot()`; there is no `all` accessor.
+  const knownEndpoints = registry.snapshot().length;
   const { stop } = usePlayback();
   const [cleared, setCleared] = useState(false);
   const { complete: downloaded, storedBytes } = useDownloads();
@@ -61,7 +63,7 @@ export default function SettingsScreen() {
         <Divider />
         <ListRow
           title="Cluster status"
-          detail={`${registry.all.length} known endpoint${registry.all.length === 1 ? '' : 's'}`}
+          detail={`${knownEndpoints} known endpoint${knownEndpoints === 1 ? '' : 's'}`}
           trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
           onPress={() => router.navigate('/status')}
         />

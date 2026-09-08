@@ -8,9 +8,11 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import {
   choosePlaybackInstruction,
   degradeInstruction,
+  restatePreferencesClearedByMode,
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
   type PlaybackMediaFacts,
+  type StreamInstruction,
 } from '@macha/core';
 import {
   ensureAudioEngine,
@@ -20,9 +22,10 @@ import {
   type AudioTrackInfo,
 } from '../playback/AudioEngine';
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
+import { buildOrder, statedUpdate, transformFor } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
-import { progressFor } from '../state/continueWatching';
+import { progressFor } from '@macha/core';
 import { PLAY_COUNT_THRESHOLD_MS } from '../state/musicLibrary';
 import type { MediaSummary } from '../types';
 import { useMacha } from './MachaProvider';
@@ -91,26 +94,6 @@ const PROGRESS_CHECKPOINT_MS = 5_000;
 /** Restarting an item that has barely begun is more useful than resuming it. */
 const RESUME_FLOOR_MS = 10_000;
 
-/**
- * A play order over the queue.
- *
- * Shuffle has to be *stable*: re-randomising on every skip means Previous
- * doesn't return where you came from, and a "random" run can repeat a track
- * while others go unheard. So the order is computed once when shuffle is
- * turned on and kept until it is turned off or the queue is replaced. The
- * current item is pinned to the front so enabling shuffle never interrupts
- * what is playing.
- */
-function buildOrder(length: number, shuffle: boolean, currentIndex: number): number[] {
-  const sequential = Array.from({ length }, (_, index) => index);
-  if (!shuffle || length < 2) return sequential;
-  const rest = sequential.filter((index) => index !== currentIndex);
-  for (let i = rest.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [rest[i], rest[j]] = [rest[j], rest[i]];
-  }
-  return currentIndex >= 0 && currentIndex < length ? [currentIndex, ...rest] : rest;
-}
 
 const IDLE: PlaybackState = {
   status: 'idle',
@@ -346,7 +329,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           mediaApi,
           playbackApi,
           media,
-          options.preferences?.mode,
+          // `'choose'` is core's client-side sentinel for "you decide". This
+          // client always decides, so it never sets one — narrowing here keeps
+          // that true at the type level rather than by convention.
+          options.preferences?.mode === 'choose' ? undefined : options.preferences?.mode,
         );
         const session = await createSession(playbackApi, media, instruction, seekMs, options.preferences);
         if (generationRef.current !== myGeneration) {
@@ -593,7 +579,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       setBusy(true);
       setState((current) => ({ ...current, buffering: true, error: undefined }));
       try {
-        const next = await playbackApi.update(session, update);
+        const next = await playbackApi.update(session, statedUpdate(update, session));
         if (generationRef.current !== myGeneration) return;
         sessionRef.current = next;
         const sourceUnchanged = next.source.url === session.source.url;
@@ -894,7 +880,7 @@ function applySource(
   media: MediaSummary,
   artworkUrl: string | undefined,
 ): void {
-  const hls = session.mode !== 'direct' || (session.mimeType ?? '').includes('mpegurl');
+  const hls = session.source.isManifest;
   const source: VideoSource = {
     uri: session.source.url,
     contentType: hls ? 'hls' : 'auto',
@@ -945,7 +931,9 @@ function audioTrackFor(
 
 /** Remux and transcode always deliver HLS; Direct Play hands over the original bytes. */
 function isHlsSession(session: PlaybackSession): boolean {
-  return session.mode !== 'direct' || (session.mimeType ?? '').includes('mpegurl');
+  // Decided once when the session is decoded, so the audio engine and core's
+  // Direct/Remux badge can never disagree about what is being served.
+  return session.source.isManifest;
 }
 
 /**
@@ -959,8 +947,16 @@ function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string |
     media.artwork?.thumbnail ??
     media.musicContext?.artwork ??
     media.artwork?.backdrop;
-  return ref ? mediaApi.artworkUrls(ref)[0] : undefined;
+  if (!ref) return undefined;
+  // The lock-screen notification loads this URL itself, in a process that has
+  // no access to the session token — so only a self-authenticating source is
+  // usable. Taking the first entry regardless would put an authenticated
+  // per-node URL on the notification, which fails as a blank cover with
+  // nothing anywhere to say why.
+  return mediaApi.artworkUrls(ref).find((source) => !source.requiresAuthorization)?.url;
 }
+
+
 
 /**
  * Decides how to ask for a piece of media.
@@ -1000,8 +996,7 @@ async function chooseInstruction(
     return {
       instruction: {
         mode: requested,
-        video: requested === 'transcode' ? 'transcode' : 'copy',
-        audio: requested === 'transcode' ? 'transcode' : 'copy',
+        ...transformFor(requested),
         reasons: [],
         // The viewer said so. Nothing was inferred, so nothing was assumed.
         assumed: [],

@@ -35,9 +35,9 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
   // onto new content would inherit the previous item's exhausted attempts.
   useEffect(() => setAttempt(0), [artwork?.id]);
 
-  const uri = candidates[attempt];
+  const source = candidates[attempt];
 
-  if (!uri) {
+  if (!source) {
     return (
       <View style={[styles.placeholder, { borderRadius }, style as StyleProp<ViewStyle>]}>
         {fallbackText ? (
@@ -52,7 +52,10 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
   return (
     <Image
       style={[styles.image, { borderRadius }, style]}
-      source={{ uri, headers }}
+      // Headers only where the source needs them. A signed capability URL is
+      // self-authenticating, and sending a bearer token to something that did
+      // not ask for it is a habit worth not having.
+      source={{ uri: source.url, headers: source.requiresAuthorization ? headers : undefined }}
       contentFit={contentFit}
       // Recycled cards must not show the previous poster while the new one
       // loads; keying on the object identity forces a clean swap.

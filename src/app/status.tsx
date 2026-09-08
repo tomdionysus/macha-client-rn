@@ -24,7 +24,11 @@ const HEALTH_COLOR: Record<ClusterHealth, string> = {
  */
 export default function StatusScreen() {
   const { status, generation } = useMacha();
-  const snapshot = useAsync((signal) => status.status(signal), [status, generation]);
+  // No signal: core's status client does not take one, and neither does
+  // `router.request` (unlike `router.find`). `useAsync` discards a superseded
+  // result, so leaving on this screen wastes an in-flight request rather than
+  // rendering a stale one. Raised with the package session.
+  const snapshot = useAsync(() => status.status(), [status, generation]);
 
   const cluster = snapshot.value?.cluster;
 
@@ -106,7 +110,11 @@ function NodeCard({ node }: { node: ClusterNodeStatus }) {
       </View>
       <Text style={styles.nodeMeta}>
         {[
-          node.api_host ? `${node.api_host}:${node.api_port}` : `${node.host}:${node.port}`,
+          // The API endpoint verbatim, or nothing. `host`/`port` are the RPC
+          // bind address — not necessarily reachable, and not the right
+          // protocol for REST — so falling back to them printed an internal
+          // address under an API label. Absent stays absent.
+          node.api_endpoint,
           node.version,
           node.phase,
           stale ? node.telemetry_freshness.replace('_', ' ') : undefined,
