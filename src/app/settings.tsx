@@ -14,7 +14,7 @@ import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { media, endpoints, apiToken, registry, continueWatching, queue, generation } = useMacha();
+  const { media, endpoints, registry, continueWatching, queue, generation } = useMacha();
   // Core's registry reports through `snapshot()`; there is no `all` accessor.
   const knownEndpoints = registry.snapshot().length;
   const { stop } = usePlayback();
@@ -50,13 +50,6 @@ export default function SettingsScreen() {
           title="Macha nodes"
           detail={endpoints.length > 0 ? endpoints.join('\n') : 'Not configured'}
           leading={<ServerIcon size={20} color={colors.textDim} />}
-          trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
-          onPress={() => router.navigate('/connect')}
-        />
-        <Divider />
-        <ListRow
-          title="API token"
-          detail={apiToken ? 'A manual bearer token is configured' : 'Using anonymous node sessions'}
           trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
           onPress={() => router.navigate('/connect')}
         />

@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
-import { coerceEndpointUrl, fetchWithTimeout, mergeHeaders } from '../api/http';
+import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';
 import { Button } from '../ui/controls';
 import { MachaLogo } from '../ui/Logo';
@@ -17,12 +17,11 @@ const CONNECTION_CHECK_TIMEOUT_MS = 6_000;
  * (session, cluster membership, catalogue) follows from that.
  */
 export default function ConnectScreen() {
-  const { configure, endpoints, apiToken } = useMacha();
+  const { configure, endpoints } = useMacha();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [address, setAddress] = useState(endpoints.join('\n'));
-  const [token, setToken] = useState(apiToken);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
 
@@ -40,19 +39,19 @@ export default function ConnectScreen() {
     setChecking(true);
     setMessage(undefined);
     try {
-      const reachable = await firstReachable(candidates, token);
+      const reachable = await firstReachable(candidates);
       if (!reachable) {
         setMessage(SERVER_UNREACHABLE_MESSAGE);
         return;
       }
       // The reachable node goes first so the very next request starts on a node
       // already known to answer, rather than retrying a dead seed.
-      configure([reachable, ...candidates.filter((candidate) => candidate !== reachable)], token);
+      configure([reachable, ...candidates.filter((candidate) => candidate !== reachable)]);
       router.replace('/');
     } finally {
       setChecking(false);
     }
-  }, [address, configure, router, token]);
+  }, [address, configure, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -81,19 +80,6 @@ export default function ConnectScreen() {
         />
         <Text style={styles.hint}>One per line to seed more than one node. Plain HTTP on port 7438 is assumed.</Text>
 
-        <Text style={styles.label}>API token</Text>
-        <TextInput
-          value={token}
-          onChangeText={setToken}
-          placeholder="Only if the node sets catalogue.api.token_file"
-          placeholderTextColor={colors.textFaint}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          style={styles.input}
-        />
-        <Text style={styles.hint}>Leave this empty for a node that issues anonymous sessions.</Text>
-
         {message ? <Text style={styles.error}>{message}</Text> : null}
 
         <Button label="Connect" onPress={() => void connect()} busy={checking} style={styles.connect} />
@@ -111,23 +97,17 @@ export default function ConnectScreen() {
  * until its deadline, and making the viewer wait through each one in turn is
  * the difference between "instant" and "seems broken".
  */
-async function firstReachable(candidates: readonly string[], token: string): Promise<string | undefined> {
-  const trimmed = token.trim();
+async function firstReachable(candidates: readonly string[]): Promise<string | undefined> {
   const probes = candidates.map(async (baseUrl) => {
     const response = await fetchWithTimeout(
       (url, init) => fetch(url, init),
       `${baseUrl}/api/v1/catalogue/status`,
-      {
-        method: 'GET',
-        headers: mergeHeaders(undefined, {
-          Accept: 'application/json',
-          Authorization: trimmed ? `Bearer ${trimmed}` : undefined,
-        }),
-      },
+      { method: 'GET', headers: { Accept: 'application/json' } },
       CONNECTION_CHECK_TIMEOUT_MS,
     );
-    // 401 still proves a Macha node is listening; it only means this token is
-    // wrong, which the viewer will discover immediately and can correct.
+    // Unauthenticated on purpose: this probe runs before any session exists,
+    // and 401 still proves a Macha node is listening. The session the app then
+    // mints is what carries authorization from here on.
     if (!response.ok && response.status !== 401) throw new Error(`${response.status}`);
     return baseUrl;
   });

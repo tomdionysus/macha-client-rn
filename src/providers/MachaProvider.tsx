@@ -16,13 +16,11 @@ import { MediaApi } from '../api/media';
 import { ClusterPlaybackApi } from '../api/playback';
 import { ClusterStatusRouter } from '../api/status';
 import { MachaConnectionError } from '../api/errors';
-import { SessionManager, authFor, type AuthenticatedFetch } from '../api/session';
+import { SessionManager, type AuthenticatedFetch } from '../api/session';
 import {
-  getApiToken,
   getClientId,
   getConfiguredEndpoints,
   getDiscoveredEndpoints,
-  setApiToken,
   setConfiguredEndpoints,
   setDiscoveredEndpoints,
 } from '../state/connection';
@@ -70,9 +68,8 @@ interface MachaContextValue extends MachaServices {
   /** True once persisted client state has been read; nothing renders before this. */
   hydrated: boolean;
   endpoints: string[];
-  apiToken: string;
   /** Replaces the configured bootstrap seeds and restarts the session lifecycle. */
-  configure(endpoints: readonly string[], apiToken: string): void;
+  configure(endpoints: readonly string[]): void;
   /** Bumped whenever services are rebuilt, so screens can re-run their loads. */
   generation: number;
 }
@@ -94,7 +91,6 @@ export function useMacha(): MachaContextValue {
 export function MachaProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(clientStore.isHydrated);
   const [endpoints, setEndpoints] = useState<string[]>([]);
-  const [apiToken, setToken] = useState('');
   const [clientId, setClientId] = useState('');
   const [generation, setGeneration] = useState(0);
 
@@ -116,7 +112,6 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setClientId(getClientId());
       setEndpoints(getConfiguredEndpoints());
-      setToken(getApiToken());
       setHydrated(true);
     });
     return () => {
@@ -138,10 +133,10 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     else sessions.stop();
     setGeneration((value) => value + 1);
     return () => sessions.stop();
-  }, [hydrated, endpoints, apiToken, registry, router, sessions]);
+  }, [hydrated, endpoints, registry, router, sessions]);
 
   const services = useMemo<MachaServices>(() => {
-    const auth = authFor(apiToken, sessions);
+    const auth = sessions;
     const catalogue = new ClusterCatalogueApi(router, auth);
     const playbackApi = new ClusterPlaybackApi(router, auth, viewerSession);
     const downloads = new DownloadStore(clientId || 'anonymous');
@@ -169,7 +164,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, router, sessions, connectivity, apiToken, clientId, viewerSession, generation]);
+  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation]);
 
   // Going offline (or coming back) changes what every screen should be
   // showing, so it invalidates loaded data exactly like reconfiguring the
@@ -203,7 +198,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     const monitor = new EndpointHealthMonitor({
       registry,
       clusterStatusApi: services.status,
-      auth: authFor(apiToken, sessions),
+      auth: sessions,
     });
 
     // Discovered bases are a startup hint, never user configuration. The
@@ -234,7 +229,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       persist();
       monitor.stop();
     };
-  }, [hydrated, endpoints, registry, services, apiToken, sessions]);
+  }, [hydrated, endpoints, registry, services, sessions]);
 
   /**
    * Reachability, driven by events rather than polling.
@@ -287,17 +282,15 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrated, endpoints, services, connectivity]);
 
-  const configure = useCallback((nextEndpoints: readonly string[], nextToken: string) => {
+  const configure = useCallback((nextEndpoints: readonly string[]) => {
     const normalized = setConfiguredEndpoints(nextEndpoints);
-    setApiToken(nextToken);
     setDiscoveredEndpoints([]);
     setEndpoints(normalized);
-    setToken(nextToken.trim());
   }, []);
 
   const value = useMemo<MachaContextValue>(
-    () => ({ ...services, hydrated, endpoints, apiToken, configure, generation }),
-    [services, hydrated, endpoints, apiToken, configure, generation],
+    () => ({ ...services, hydrated, endpoints, configure, generation }),
+    [services, hydrated, endpoints, configure, generation],
   );
 
   return <MachaContext.Provider value={value}>{children}</MachaContext.Provider>;

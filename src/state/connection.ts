@@ -5,7 +5,6 @@ import { clientStore, readValidatedJson, writeJson } from './storage';
 const CLIENT_ID_KEY = 'macha.clientId.v1';
 const ENDPOINTS_KEY = 'macha.endpoints.v1';
 const DISCOVERED_KEY = 'macha.discoveredEndpoints.v1';
-const TOKEN_KEY = 'macha.apiToken.v1';
 
 /** A cluster realistically has a handful of nodes; this only guards a pathological advertisement. */
 const MAX_DISCOVERED_ENDPOINTS = 16;
@@ -75,13 +74,8 @@ export function setDiscoveredEndpoints(urls: readonly string[]): void {
   writeJson<StoredEndpoints>(DISCOVERED_KEY, { version: 1, urls: normalized });
 }
 
-/** Optional manual bearer token, for a node configured with `catalogue.api.token_file`. */
-export function getApiToken(): string {
-  return clientStore.getItem(TOKEN_KEY) ?? '';
-}
-
-export function setApiToken(token: string): void {
-  const value = token.trim();
-  if (value) clientStore.setItem(TOKEN_KEY, value);
-  else clientStore.removeItem(TOKEN_KEY);
-}
+// There is no manual bearer token. Playback sessions are minted anonymously,
+// so nothing a viewer could type into the old Settings field was ever
+// load-bearing, and `macha.apiToken.v1` is left alone rather than swept: Macha
+// has not shipped, so no device has ever had one written to it. If that changes
+// before release, deleting a dead credential is a migration worth writing.

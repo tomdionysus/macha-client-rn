@@ -9,24 +9,16 @@
 // The local `AuthenticatedFetch` carried a `token` getter for callers building
 // their own URLs. Nothing outside this module ever read it, and core's
 // `authorization()` covers the case properly, so it is gone rather than ported.
+//
+// There is no manual-token override any more. `authFor` used to pick
+// `fixedBearerToken` over the session manager when the viewer had typed a token
+// into Settings; the field is gone from every Macha client, so the manager is
+// now the only authority and callers use it directly. Core still exports
+// `fixedBearerToken` for whoever removes it there once every client is clear.
 export {
   NO_AUTH,
   SessionManager,
-  fixedBearerToken,
   mintAnonymousSession,
   type AnonymousSession,
   type AuthenticatedFetch,
 } from '@macha/core';
-
-import { fixedBearerToken, type AuthenticatedFetch, type SessionManager } from '@macha/core';
-
-/**
- * A manually configured token wins over the anonymous session.
- *
- * The Settings screen's override is a deliberate act by someone who knows what
- * they are doing; the anonymous session is the fallback for everyone else.
- */
-export function authFor(manualToken: string | undefined, sessions: SessionManager): AuthenticatedFetch {
-  const trimmed = manualToken?.trim();
-  return trimmed ? fixedBearerToken(trimmed) : sessions;
-}
