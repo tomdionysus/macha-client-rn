@@ -26,7 +26,8 @@ Everything that was in the working tree at 0.3.5 went in as `0.4.0`, on top of
 - the node field on the connect screen, which accepted several nodes all along
   but gave a phone no way to type the second one.
 
-**Neither `b223191` nor `0.4.0` is pushed.**
+**Pushed** to `origin/offline-downloads-and-playback-instructions` on
+2026-09-12, `b223191` and both 0.4.0 commits together.
 
 **0.4.0 is on the phone**, built release (debug keystore, as the Expo template
 signs it) and installed to the Blackview A85 `A85EEA0000005410` on Android 12.
