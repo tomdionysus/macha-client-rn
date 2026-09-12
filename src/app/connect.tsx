@@ -1,11 +1,12 @@
-import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';
 import { Button } from '../ui/controls';
+import { ScanIcon } from '../ui/Icons';
 import { MachaLogo } from '../ui/Logo';
 import { colors, radius, space, type as typography } from '../ui/theme';
 
@@ -20,10 +21,26 @@ export default function ConnectScreen() {
   const { configure, endpoints } = useMacha();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { scanned } = useLocalSearchParams<{ scanned?: string }>();
 
   const [address, setAddress] = useState(endpoints.join('\n'));
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
+
+  // A scanned address is added to the field rather than substituted for it, and
+  // is not connected with automatically: someone who has already typed a seed
+  // has not asked for it to be thrown away, and an address that arrives from a
+  // camera is worth seeing before it is used.
+  const applied = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!scanned || applied.current === scanned) return;
+    applied.current = scanned;
+    setMessage(undefined);
+    setAddress((current) => {
+      const lines = current.split(/[\n,]/).map((line) => line.trim()).filter(Boolean);
+      return lines.includes(scanned) ? current : [...lines, scanned].join('\n');
+    });
+  }, [scanned]);
 
   const connect = useCallback(async () => {
     const candidates = address
@@ -69,16 +86,33 @@ export default function ConnectScreen() {
         <TextInput
           value={address}
           onChangeText={setAddress}
-          placeholder="192.168.1.20:7438"
+          placeholder={'192.168.1.20:7438\n192.168.1.21:7438'}
           placeholderTextColor={colors.textFaint}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           inputMode="url"
           multiline
+          // The field has always accepted several nodes; typing the second one
+          // was the problem. A URL keyboard's action key is "Go", and on a
+          // multiline field that submitted instead of breaking the line, so
+          // there was no way to reach line two from the phone. This states
+          // which of the two the key does.
+          submitBehavior="newline"
           style={[styles.input, styles.multiline]}
         />
-        <Text style={styles.hint}>One per line to seed more than one node. Plain HTTP on port 7438 is assumed.</Text>
+        <Text style={styles.hint}>
+          One node per line, or separated by commas — seed as many as you like and the rest of the cluster is
+          discovered from whichever answers. Plain HTTP on port 7438 is assumed.
+        </Text>
+
+        <Button
+          label="Scan a code"
+          variant="secondary"
+          icon={<ScanIcon size={18} />}
+          onPress={() => router.push('/scan')}
+          style={styles.scan}
+        />
 
         {message ? <Text style={styles.error}>{message}</Text> : null}
 
@@ -159,8 +193,11 @@ const styles = StyleSheet.create({
     minHeight: 50,
   },
   multiline: {
-    minHeight: 84,
+    // Three lines rather than two: a box that can only show what you have
+    // already typed reads as a field for one value, whatever it accepts.
+    minHeight: 112,
     textAlignVertical: 'top',
+    lineHeight: 22,
   },
   hint: {
     ...typography.caption,
@@ -171,6 +208,9 @@ const styles = StyleSheet.create({
   error: {
     ...typography.body,
     color: colors.danger,
+    marginBottom: space.lg,
+  },
+  scan: {
     marginBottom: space.lg,
   },
   connect: {

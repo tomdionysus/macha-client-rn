@@ -76,3 +76,76 @@ export function statedUpdate(update: PlaybackUpdate, session: PlaybackSession): 
     undefined,
   );
 }
+
+/** A seek the player has been asked for but has not yet reached. */
+export interface PendingSeek {
+  targetMs: number;
+  atMs: number;
+}
+
+/**
+ * How near a report has to land before the seek counts as settled.
+ *
+ * Generous on purpose: a transformed stream seeks to the nearest keyframe, so
+ * the position the player settles on is the node's answer rather than the one
+ * asked for, and it can be a second or so away.
+ */
+const SEEK_SETTLED_TOLERANCE_MS = 1_500;
+
+/**
+ * How long to wait before believing the player again regardless.
+ *
+ * Without this, a seek that never lands — a failed generation, a stream that
+ * ends short of the target — would freeze the reported position permanently,
+ * which is a worse bug than the one being fixed.
+ */
+const SEEK_DEADLINE_MS = 6_000;
+
+/**
+ * Whether a reported position is still the pre-seek one and should be ignored.
+ *
+ * Both engines keep reporting the old position for a few frames after a seek.
+ * Accepting those drags the bar back to where the viewer just left, then jumps
+ * it forward when the seek lands — the scrubber appearing to fight them — and
+ * checkpoints the stale position to Continue Watching on the way past.
+ */
+export function seekStillPending(pending: PendingSeek, reportedMs: number, nowMs: number): boolean {
+  if (nowMs - pending.atMs >= SEEK_DEADLINE_MS) return false;
+  return Math.abs(reportedMs - pending.targetMs) > SEEK_SETTLED_TOLERANCE_MS;
+}
+
+/**
+ * The volume to restore after expo-video ducked the player, or `undefined` to
+ * leave it alone.
+ *
+ * expo-video ducks by mutating the viewer-facing volume — `player.volume /= 2f`
+ * in `AudioFocusManager.duckPlayer` — and its `volume` setter assigns
+ * `userVolume = volume` (`VideoPlayer.kt:132-136`). So the duck **overwrites the
+ * reference the unduck restores from**: `unduckPlayer` sets
+ * `player.volume = player.userVolume`, which is by then the ducked value. Every
+ * duck therefore halves the volume permanently, whether or not the
+ * `AUDIOFOCUS_GAIN` that triggers the unduck ever arrives, and they compound.
+ *
+ * **Measured on an Android 12 device, and the reach is narrower than the source
+ * suggests.** Because `willPauseWhenDucked` is never set, the framework ducks
+ * automatically on API 26+ and does *not* deliver
+ * `AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK` to the app — so `duckPlayer` never runs
+ * and the volume is never mutated. Verified by inducing a real
+ * `GAIN_TRANSIENT_MAY_DUCK` from a notification: the audio ducked at the mixer,
+ * and this client's focus-stack entry still read `loss: none -- notified: false`.
+ *
+ * `minSdkVersion` is 24, and expo-video takes a deprecated pre-O path below API
+ * 26 where the callback *is* delivered. So this guards Android 7.0/7.1, where the
+ * bug is real, and is inert everywhere this app has actually run. It is kept
+ * because it is cheap and because it catches any unrequested drop, not only a
+ * duck — not because anything here has been seen to lose volume.
+ *
+ * Restoring is in any case not antisocial: the platform's own duck is at the
+ * mixer and survives this.
+ *
+ * Returning `undefined` when the volume already matches is what makes the
+ * caller loop-safe — writing the value emits another `volumeChange`.
+ */
+export function restoredVolume(reported: number, intended: number): number | undefined {
+  return reported < intended ? intended : undefined;
+}

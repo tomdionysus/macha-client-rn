@@ -15,7 +15,7 @@ import { colors } from '../ui/theme';
 void SplashScreen.preventAutoHideAsync();
 
 /** Routes that own the whole window and must not be overlaid by docked chrome. */
-const FULL_BLEED_ROUTES = ['/play', '/connect'];
+const FULL_BLEED_ROUTES = ['/play', '/connect', '/scan', '/login'];
 
 export default function RootLayout() {
   return (
@@ -59,6 +59,8 @@ function AppShell() {
         <Stack.Screen name="index" options={{ animation: 'fade' }} />
         <Stack.Screen name="connect" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="play" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
       {chromeVisible ? (
         <View style={styles.chrome} pointerEvents="box-none">

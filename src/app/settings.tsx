@@ -2,10 +2,11 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { useMacha } from '../providers/MachaProvider';
+import { useAccount, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { useAsync } from '../hooks/useAsync';
-import { ChevronRightIcon, DownloadIcon, ServerIcon, TrashIcon } from '../ui/Icons';
+import { describeError } from '../api/errors';
+import { ChevronRightIcon, DownloadIcon, ServerIcon, TrashIcon, UserIcon } from '../ui/Icons';
 import { useDownloads } from '../hooks/useDownloads';
 import { formatBytes, pluralize } from '../ui/format';
 import { Screen } from '../ui/Screen';
@@ -14,7 +15,8 @@ import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { media, endpoints, registry, continueWatching, queue, generation } = useMacha();
+  const { media, endpoints, registry, continueWatching, queue, generation, signOut } = useMacha();
+  const { display: account, session } = useAccount();
   // Core's registry reports through `snapshot()`; there is no `all` accessor.
   const knownEndpoints = registry.snapshot().length;
   const { stop } = usePlayback();
@@ -43,12 +45,55 @@ export default function SettingsScreen() {
     );
   }, [continueWatching, queue, stop]);
 
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | undefined>(undefined);
+
+  const logOut = useCallback(() => {
+    Alert.alert(
+      'Log out?',
+      'This ends the session everywhere, not just on this device, and anything playing will stop.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setSigningOut(true);
+              setSignOutError(undefined);
+              try {
+                // Playback stops first: after the token changes, a session
+                // created under the old identity can no longer be closed, and
+                // the node holds it against `max_video_transcodes` for thirty
+                // minutes. The same reason the login screen stops first.
+                await stop();
+                await signOut();
+              } catch (error) {
+                // Signing out locally has already happened by the time this
+                // throws — what failed is the revoke, so the honest thing to
+                // report is that the old session is still live elsewhere.
+                setSignOutError(describeError(error));
+              } finally {
+                setSigningOut(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [signOut, stop]);
+
   return (
     <Screen title="Settings" showBack onRefresh={catalogue.refresh} refreshing={catalogue.refreshing}>
       <Section title="Connection">
         <ListRow
           title="Macha nodes"
+          // Every configured node, one per line, rather than the first two and
+          // a nothing. A seed list is a list: showing part of it invites the
+          // reading that only that many are allowed, and the whole point of
+          // seeding more than one is that the cluster survives losing a node.
           detail={endpoints.length > 0 ? endpoints.join('\n') : 'Not configured'}
+          detailLines={Math.max(endpoints.length, 1)}
           leading={<ServerIcon size={20} color={colors.textDim} />}
           trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
           onPress={() => router.navigate('/connect')}
@@ -61,6 +106,49 @@ export default function SettingsScreen() {
           onPress={() => router.navigate('/status')}
         />
       </Section>
+
+      {account.kind === 'unstated' ? null : (
+        <Section title="Account">
+          {account.kind === 'signedIn' ? (
+            <ListRow
+              title={account.username}
+              // The server's own role names, unprettified. It named what it
+              // granted, and a client that renames or groups them is inventing
+              // policy — a role this build does not recognise still shows.
+              detail={session?.roles.length ? session.roles.join(' · ') : 'No roles granted'}
+              leading={<UserIcon size={20} color={colors.textDim} />}
+            />
+          ) : null}
+          {account.kind === 'anonymous' ? (
+            <ListRow
+              title="Log in"
+              detail="Browsing as a guest. Signing in reaches everything your account allows."
+              leading={<UserIcon size={20} color={colors.textDim} />}
+              trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
+              onPress={() => router.navigate('/login')}
+            />
+          ) : null}
+          {account.kind === 'unknown' ? (
+            <Text style={styles.pending}>The cluster has not said who this session belongs to.</Text>
+          ) : null}
+          {account.kind === 'signedIn' ? (
+            <>
+              <Divider />
+              <ListRow
+                title={signingOut ? 'Logging out…' : 'Log out'}
+                detail="Ends this session on every node, not just here."
+                leading={<UserIcon size={20} color={colors.danger} />}
+                onPress={signingOut ? undefined : logOut}
+              />
+            </>
+          ) : null}
+          {signOutError ? (
+            <Text style={styles.error}>
+              {`Signed out on this device, but the session could not be revoked: ${signOutError}`}
+            </Text>
+          ) : null}
+        </Section>
+      )}
 
       <Section title="Catalogue">
         {catalogue.value ? (
@@ -108,7 +196,7 @@ export default function SettingsScreen() {
 
       <Text style={styles.colophon}>
         Macha client {Constants.expoConfig?.version ?? ''}
-        {'\n'}No accounts, no cloud, no telemetry.
+        {'\n'}No cloud, no telemetry.
       </Text>
     </Screen>
   );

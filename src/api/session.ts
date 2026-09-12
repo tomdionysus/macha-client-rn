@@ -15,10 +15,17 @@
 // into Settings; the field is gone from every Macha client, so the manager is
 // now the only authority and callers use it directly. Core still exports
 // `fixedBearerToken` for whoever removes it there once every client is clear.
+//
+// `signIn` and `signOut` live on the manager too: signing in mints a new token
+// with credentials rather than upgrading the one in hand, and signing out
+// drops the token and immediately mints a fresh anonymous one, so the client
+// is never left holding no session at all.
 export {
   NO_AUTH,
+  SessionAuthError,
   SessionManager,
   mintAnonymousSession,
   type AnonymousSession,
   type AuthenticatedFetch,
+  type SessionCredentials,
 } from '@macha/core';

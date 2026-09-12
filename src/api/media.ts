@@ -60,7 +60,8 @@ export class MediaApi {
   /**
    * Where to load an artwork object from, best first.
    *
-   * Each entry states whether it needs the viewer's bearer token: a signed
+   * Each entry states whether it needs the anonymous session's Authorization
+   * header: a signed
    * capability URL does not, the per-node object URLs do. Callers filter on
    * that rather than counting positions, so a path that cannot set headers
    * cannot silently 401 on a fallback.

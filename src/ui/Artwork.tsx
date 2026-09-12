@@ -53,8 +53,8 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
     <Image
       style={[styles.image, { borderRadius }, style]}
       // Headers only where the source needs them. A signed capability URL is
-      // self-authenticating, and sending a bearer token to something that did
-      // not ask for it is a habit worth not having.
+      // self-authenticating, and sending the session's Authorization header to
+      // something that did not ask for it is a habit worth not having.
       source={{ uri: source.url, headers: source.requiresAuthorization ? headers : undefined }}
       contentFit={contentFit}
       // Recycled cards must not show the previous poster while the new one

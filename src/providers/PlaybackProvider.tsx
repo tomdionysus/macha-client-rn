@@ -22,7 +22,7 @@ import {
   type AudioTrackInfo,
 } from '../playback/AudioEngine';
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
-import { buildOrder, statedUpdate, transformFor } from '../playback/policy';
+import { buildOrder, restoredVolume, seekStillPending, statedUpdate, transformFor } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
 import { progressFor } from '@macha/core';
@@ -196,6 +196,26 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    */
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
+  /**
+   * What the video player's volume should be, for `restoredVolume` to measure a
+   * duck against. Constant today: nothing in this client offers an in-app volume
+   * control, because a phone already has hardware buttons and a system slider.
+   * It is a ref rather than a literal so that adding one later cannot forget
+   * this path and leave the viewer fighting an automatic restore.
+   */
+  const intendedVolumeRef = useRef(1);
+  /**
+   * A seek the player has been asked for but has not yet reached.
+   *
+   * Both engines keep reporting the *old* position for a few frames after a
+   * seek, and on a transformed stream for a good deal longer. Accepting those
+   * reports drags the bar back to where the viewer just left, then jumps it
+   * forward when the seek lands — and writes the stale position to Continue
+   * Watching on the way past. So reports are ignored until one arrives near the
+   * target, or until the deadline, which is the guard against a seek that never
+   * lands leaving the position frozen for good.
+   */
+  const pendingSeekRef = useRef<{ targetMs: number; atMs: number } | undefined>(undefined);
   const failoverAttemptsRef = useRef(0);
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
@@ -581,6 +601,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     (positionMs: number) => {
       const bounded = Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs));
       positionRef.current = bounded;
+      pendingSeekRef.current = { targetMs: bounded, atMs: Date.now() };
       if (engineRef.current === 'audio') void TrackPlayer.seekTo(bounded / 1000);
       else player.currentTime = bounded / 1000;
       setState((current) => ({ ...current, positionMs: bounded }));
@@ -734,6 +755,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
         const positionMs = Math.max(0, Math.round(currentTime * 1000));
+        const pendingSeek = pendingSeekRef.current;
+        if (pendingSeek) {
+          if (seekStillPending(pendingSeek, positionMs, Date.now())) return;
+          pendingSeekRef.current = undefined;
+        }
         positionRef.current = positionMs;
         const reported = Math.max(0, Math.round((player.duration || 0) * 1000));
         const durationMs = knownDurationRef.current || reported || durationRef.current;
@@ -752,6 +778,21 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           countedPlayRef.current = playing.id;
           musicLibrary.recordPlay(playing.id);
         }
+      }),
+      // expo-video ducks by halving the viewer-facing volume and, because its
+      // `volume` setter also assigns `userVolume`, its own unduck restores the
+      // ducked value. Nothing inside the library ever puts this back, and the
+      // halvings compound. `restoredVolume` returns undefined once the value
+      // matches, which is what stops this write re-triggering itself.
+      player.addListener('volumeChange', ({ volume }) => {
+        if (engineRef.current !== 'video') return;
+        const restore = restoredVolume(volume, intendedVolumeRef.current);
+        if (restore === undefined) return;
+        // Logged because the duck is invisible from JS otherwise: expo-video
+        // reports no focus event, so without this there is no way to tell a
+        // restore that fired from one that never needed to.
+        console.log('[macha] [playback] volume-restored', { from: volume, to: restore });
+        player.volume = restore;
       }),
       player.addListener('playingChange', ({ isPlaying }) => {
         // Two engines, one state: stand down unless this one owns playback.
@@ -831,6 +872,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       TrackPlayer.addEventListener(TrackEvent.PlaybackProgressUpdated, ({ position, duration, buffered }) => {
         if (engineRef.current !== 'audio') return;
         const positionMs = Math.max(0, Math.round(position * 1000));
+        const pendingSeek = pendingSeekRef.current;
+        if (pendingSeek) {
+          if (seekStillPending(pendingSeek, positionMs, Date.now())) return;
+          pendingSeekRef.current = undefined;
+        }
         const durationMs = knownDurationRef.current || Math.max(0, Math.round(duration * 1000));
         positionRef.current = positionMs;
         if (durationMs > 0) durationRef.current = durationMs;
@@ -997,7 +1043,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
  * Hands a negotiated session to the platform player.
  *
  * Stream URLs are short-lived capability URLs and are loaded without the
- * permanent bearer token — that token is only for session control. `contentType`
+ * anonymous session's Authorization header, which is only for session control.
+ * (There is no "permanent" token: the manual one was removed in 0.3.4, and this
+ * comment used to describe it.) `contentType`
  * is set explicitly because a Macha HLS URL has no `.m3u8` extension for the
  * player to recognise.
  */

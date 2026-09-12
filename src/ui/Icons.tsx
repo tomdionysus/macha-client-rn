@@ -59,6 +59,12 @@ export const CloudOffIcon = icon('M3 3l18 18M7 18h9a4 4 0 0 0 1.4-7.7A6 6 0 0 0 
 /** Fullscreen: corner brackets pushing out, and the same pulling in. */
 export const ExpandIcon = icon('M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5');
 export const CollapseIcon = icon('M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5');
+/** A head and shoulders. The only account glyph; there are no avatars in Macha. */
+export const UserIcon = icon('M12 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4M5 20c0-3.4 3-5.4 7-5.4s7 2 7 5.4');
+/** Corner brackets and a sweep line — the scanner glyph, not a drawn QR. */
+export const ScanIcon = icon(
+  'M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3M7 12h10',
+);
 export const SortIcon = icon('M4 7h13M4 12h9M4 17h5M17 13l3 3 3-3M20 16V7');
 
 export function MusicIcon({ size = 24, color = colors.text }: IconProps) {

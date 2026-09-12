@@ -76,6 +76,15 @@ const buttonStyles = StyleSheet.create({
 interface RowProps {
   title: string;
   detail?: string;
+  /**
+   * How many lines of `detail` to show before truncating.
+   *
+   * Two is right for a sentence of explanation, which is what most rows carry.
+   * A row whose detail is a *list* — the configured nodes, say — has to be
+   * told, because clamping that at two reads as a limit on how many there can
+   * be rather than as a truncated view of how many there are.
+   */
+  detailLines?: number;
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   onPress?(): void;
@@ -83,7 +92,7 @@ interface RowProps {
 }
 
 /** A single tappable list line — tracks, episodes, seasons, settings entries. */
-export function ListRow({ title, detail, leading, trailing, onPress, active }: RowProps) {
+export function ListRow({ title, detail, detailLines = 2, leading, trailing, onPress, active }: RowProps) {
   const content = (
     <>
       {leading}
@@ -92,7 +101,7 @@ export function ListRow({ title, detail, leading, trailing, onPress, active }: R
           {title}
         </Text>
         {detail ? (
-          <Text numberOfLines={2} style={rowStyles.detail}>
+          <Text numberOfLines={detailLines} style={rowStyles.detail}>
             {detail}
           </Text>
         ) : null}

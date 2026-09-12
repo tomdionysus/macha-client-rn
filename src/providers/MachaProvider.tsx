@@ -13,10 +13,12 @@ import {
   configureMachaHost,
 } from '@macha/core';
 import { MediaApi } from '../api/media';
+import { ClusterUsersApi, type CurrentSession } from '../api/users';
+import { describeAccount, type AccountDisplay } from '../account/marker';
 import { ClusterPlaybackApi } from '../api/playback';
 import { ClusterStatusRouter } from '../api/status';
 import { MachaConnectionError } from '../api/errors';
-import { SessionManager, type AuthenticatedFetch } from '../api/session';
+import { SessionManager, type AuthenticatedFetch, type SessionCredentials } from '../api/session';
 import {
   getClientId,
   getConfiguredEndpoints,
@@ -58,13 +60,34 @@ export interface MachaServices {
   queue: PlaybackQueueStore;
   playlists: PlaylistStore;
   musicLibrary: MusicLibraryStore;
+  users: ClusterUsersApi;
   downloads: DownloadStore;
   downloadManager: DownloadManager;
   connectivity: Connectivity;
   clientId: string;
 }
 
+/** Who the current token belongs to, and whether the cluster actually said. */
+export interface AccountState {
+  session?: CurrentSession;
+  known: boolean;
+}
+
 interface MachaContextValue extends MachaServices {
+  account: AccountState;
+  /** Re-reads the whoami. Call after anything that changes the session. */
+  refreshAccount(): void;
+  /** Exchanges credentials for a session belonging to that account. Rejects on a refusal. */
+  signIn(credentials: SessionCredentials): Promise<void>;
+  /**
+   * Revokes this session cluster-wide and takes an anonymous one.
+   *
+   * Rejects when the revoke could not be delivered — but the local sign-out
+   * has still happened by then, because a viewer who has asked to be signed
+   * out must not end up still signed in. A rejection means "you are signed out
+   * here, and that token is still live elsewhere until it expires".
+   */
+  signOut(): Promise<void>;
   /** True once persisted client state has been read; nothing renders before this. */
   hydrated: boolean;
   endpoints: string[];
@@ -156,6 +179,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       queue: new PlaybackQueueStore(clientId || 'anonymous'),
       playlists: new PlaylistStore(clientId || 'anonymous'),
       musicLibrary: new MusicLibraryStore(clientId || 'anonymous'),
+      users: new ClusterUsersApi(router, auth),
       downloads,
       downloadManager: new DownloadManager(downloads, playbackApi, mediaApi),
       connectivity,
@@ -288,9 +312,79 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     setEndpoints(normalized);
   }, []);
 
+  const [account, setAccount] = useState<AccountState>({ known: false });
+  const [accountAttempt, setAccountAttempt] = useState(0);
+  const refreshAccount = useCallback(() => setAccountAttempt((value) => value + 1), []);
+
+  /**
+   * Who the current token belongs to, re-read whenever that token changes.
+   *
+   * Subscribing to the session manager rather than reading once at sign-in is
+   * the point. Core's manager answers a 401 by re-minting, and a re-mint
+   * carries no credentials — so a password or role change downgrades a
+   * signed-in viewer to anonymous with nothing announcing it. A marker drawn
+   * from a remembered username would go on naming somebody who is no longer
+   * signed in; one drawn from the whoami corrects itself on the next token.
+   *
+   * `known` is carried separately from `session` because a failed read and a
+   * session with no user are different answers, and "the cluster did not say"
+   * must never be rendered as "nobody is signed in".
+   */
+  useEffect(() => {
+    if (!hydrated || endpoints.length === 0) {
+      // Only when there is something to clear: a fresh object every run would
+      // make this effect its own trigger.
+      setAccount((current) => (current.known || current.session ? { known: false } : current));
+      return;
+    }
+    const controller = new AbortController();
+    const read = () => {
+      services.users.currentSession(controller.signal).then(
+        (session) => {
+          if (!controller.signal.aborted) setAccount({ session, known: true });
+        },
+        () => {
+          // A node too old to answer and a node that cannot be reached mean
+          // the same thing here: identity is unknown and nothing may be
+          // claimed on the strength of it.
+          if (!controller.signal.aborted) setAccount({ known: false });
+        },
+      );
+    };
+    read();
+    const unsubscribe = sessions.subscribe(read);
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [hydrated, endpoints, services, sessions, accountAttempt]);
+
+  const signIn = useCallback(
+    async (credentials: SessionCredentials) => {
+      await sessions.signIn(credentials);
+      refreshAccount();
+    },
+    [refreshAccount, sessions],
+  );
+
+  const signOut = useCallback(async () => {
+    // Revoke first, because after the token is dropped there is nothing left
+    // to revoke with: dropping a token locally is not a logout, and the
+    // session stays valid on every node until it expires.
+    let revocation: unknown;
+    try {
+      await services.users.logout();
+    } catch (error) {
+      revocation = error;
+    }
+    await sessions.signOut();
+    refreshAccount();
+    if (revocation) throw revocation;
+  }, [refreshAccount, services, sessions]);
+
   const value = useMemo<MachaContextValue>(
-    () => ({ ...services, hydrated, endpoints, configure, generation }),
-    [services, hydrated, endpoints, configure, generation],
+    () => ({ ...services, hydrated, endpoints, configure, generation, account, refreshAccount, signIn, signOut }),
+    [services, hydrated, endpoints, configure, generation, account, refreshAccount, signIn, signOut],
   );
 
   return <MachaContext.Provider value={value}>{children}</MachaContext.Provider>;
@@ -329,6 +423,18 @@ export function useAuthHeaders(): Record<string, string> | undefined {
   // Core returns the whole header value, not the bare token: a token in a query
   // string ends up in access logs and `Referer`.
   return useMemo(() => (authorization ? { Authorization: authorization } : undefined), [authorization]);
+}
+
+/**
+ * The account marker's view of the session: what to draw, and who it is.
+ *
+ * `display` is the four-state reading — unknown, unstated, anonymous or
+ * signed in — because only two of those are things to render.
+ */
+export function useAccount(): { display: AccountDisplay; session?: CurrentSession; known: boolean; refresh(): void } {
+  const { account, refreshAccount } = useMacha();
+  const display = useMemo(() => describeAccount(account), [account]);
+  return { display, session: account.session, known: account.known, refresh: refreshAccount };
 }
 
 /** Subscribes to the app-wide reachability state. */

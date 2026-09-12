@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { newestCatalogueFirst } from '../api/media';
 import { useAsync } from '../hooks/useAsync';
 import { useConnectivity, useMacha } from '../providers/MachaProvider';
@@ -10,6 +11,7 @@ import { ErrorState, InlineError, Loading } from '../ui/Status';
 import { MediaRow } from '../ui/MediaRow';
 import { MachaLogo } from '../ui/Logo';
 import { SettingsIcon } from '../ui/Icons';
+import { AccountMarker } from '../ui/AccountMarker';
 import { describeError } from '../api/errors';
 import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
@@ -80,9 +82,12 @@ export default function HomeScreen() {
       onRefresh={refresh}
       refreshing={home.refreshing}
       headerRight={
-        <HeaderButton label="Settings" onPress={() => router.navigate('/settings')}>
-          <SettingsIcon size={20} />
-        </HeaderButton>
+        <View style={styles.headerActions}>
+          <AccountMarker />
+          <HeaderButton label="Settings" onPress={() => router.navigate('/settings')}>
+            <SettingsIcon size={20} />
+          </HeaderButton>
+        </View>
       }>
       {!home.value && home.loading ? <Loading /> : null}
       {!home.value && home.error ? <ErrorState error={home.error} onRetry={home.refresh} /> : null}
@@ -125,3 +130,13 @@ export default function HomeScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  // The marker sits before Settings rather than replacing it: identity is not
+  // a destination, and on every screen but Settings it is not what the viewer
+  // came for.
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});

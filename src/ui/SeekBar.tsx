@@ -31,6 +31,18 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
   const widthRef = useRef(0);
   const durationRef = useRef(durationMs);
   durationRef.current = durationMs;
+  // `enabled` and `onSeek` are read through refs for the same reason, and it
+  // matters more than it looks: the player reports a position several times a
+  // second, so anything rebuilding the handlers on a prop change rebuilds them
+  // *during* a drag. `play.tsx` passes an inline arrow, so `onSeek` is a new
+  // function on every one of those renders. A fresh `PanResponder` mid-gesture
+  // starts a fresh gesture: `dx` resets to zero and the thumb snaps back to
+  // where the finger landed, four times a second, which is what the bar
+  // fighting the viewer actually was.
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+  const onSeekRef = useRef(onSeek);
+  onSeekRef.current = onSeek;
   /** Where the finger first landed, so the whole drag is measured from one origin. */
   const grantXRef = useRef(0);
 
@@ -41,8 +53,8 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
   const responder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => enabled,
-        onMoveShouldSetPanResponder: () => enabled,
+        onStartShouldSetPanResponder: () => enabledRef.current,
+        onMoveShouldSetPanResponder: () => enabledRef.current,
         onPanResponderGrant: (event) => {
           grantXRef.current = event.nativeEvent.locationX;
           setScrubMs(positionAt(grantXRef.current, widthRef.current, durationRef.current));
@@ -56,11 +68,12 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
         onPanResponderRelease: (_event, gesture) => {
           const target = positionAt(grantXRef.current + gesture.dx, widthRef.current, durationRef.current);
           setScrubMs(undefined);
-          onSeek(target);
+          onSeekRef.current(target);
         },
         onPanResponderTerminate: () => setScrubMs(undefined),
       }),
-    [enabled, onSeek],
+    // Created once, deliberately: see the refs above.
+    [],
   );
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -95,9 +108,7 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
       </View>
       <View style={styles.times}>
         <Text style={styles.time}>{formatDuration(displayMs)}</Text>
-        <Text style={styles.time}>
-          {durationMs > 0 ? `−${formatDuration(Math.max(0, durationMs - displayMs))}` : '--:--'}
-        </Text>
+        <Text style={styles.time}>{durationMs > 0 ? formatDuration(durationMs) : '--:--'}</Text>
       </View>
     </View>
   );
