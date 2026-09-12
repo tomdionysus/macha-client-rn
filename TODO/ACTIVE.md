@@ -26,8 +26,28 @@ Everything that was in the working tree at 0.3.5 went in as `0.4.0`, on top of
 - the node field on the connect screen, which accepted several nodes all along
   but gave a phone no way to type the second one.
 
-**Neither `b223191` nor `0.4.0` is pushed.** `0.4.0` is the first build that can
-run the camera or reach an account, because both need the native rebuild.
+**Neither `b223191` nor `0.4.0` is pushed.**
+
+**0.4.0 is on the phone**, built release (debug keystore, as the Expo template
+signs it) and installed to the Blackview A85 `A85EEA0000005410` on Android 12.
+`expo prebuild` was required and cleared `android/` first — the generated tree
+predated `expo-camera` and its manifest had no `CAMERA` permission. The
+installed package now requests `CAMERA` and does **not** request `RECORD_AUDIO`,
+which is the config-plugin setting doing what it was asked.
+
+**What the install actually proves:** the app launches, stays up, and the crash
+buffer is empty; `versionName` went `0.1.0` → `0.4.0` on the device, which is the
+evidence for the P3 correction below; and the health monitor reports
+`reachable: 1, known: 2` — `http://10.44.1.51:7438` answers, the other seed
+`http://ramaroja.macha.network:7438` does not. That second one resolves and pings
+from both the phone and the Mac (85.87.136.89) but answers nothing on 7438 from
+either, so it is a seed pointing at a node that is not serving rather than
+anything this client is doing wrong.
+
+**What it does not prove, and needs a person holding the phone:** the camera
+permission flow and a real scan, a login against a node and all four marker
+states, and — the one that motivated the change — whether the node field's
+action key now breaks the line instead of submitting.
 
 ---
 
@@ -305,10 +325,22 @@ argument. The standby defect once cited as a reason against it has been retracte
 
 ## P3 — Android reports a version that has never matched the app
 
-`android/app/build.gradle` carries `versionCode 1` / `versionName "0.1.0"` while
-`package.json` and `app.json` are at 0.3.5. Confirmed observable: `dumpsys package
-foundation.macha.client` reports `versionName=0.1.0` on the device. Wants wiring
-to the `app.json` version rather than another hand-edit.
+**Half of this was wrong, corrected 2026-09-12 by running the thing.**
+`android/` is **gitignored and generated**, and `versionName` is already wired to
+`app.json`: a prebuild for the 0.4.0 build wrote `versionName "0.4.0"` with no
+hand-edit anywhere. What was observed on the device was a stale generated tree,
+not a stale source of truth — the APK on the phone was assembled from an
+`android/` that predated several bumps.
+
+**`versionCode 1` is the real remainder.** It stays 1 because nothing sets
+`android.versionCode` in `app.json`, so every build ships the same code. Android
+compares that number and not the name, so two different builds are
+indistinguishable to the package manager.
+
+Still cosmetic **here** specifically, and still worth not conflating with the
+Android TV client's version of it: `expo-module-gradle-plugin` requires
+`versionName` in `defaultConfig` and fails autolinking outright when it is
+*absent*. Ours is present and generated — a different bug with a different cost.
 
 Cosmetic **here** specifically, and worth not conflating with the Android TV
 client's version of it: `expo-module-gradle-plugin` requires `versionName` in
