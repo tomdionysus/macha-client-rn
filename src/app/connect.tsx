@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LIVENESS_PATH } from '@macha/core';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';
@@ -140,7 +141,7 @@ export default function ConnectScreen() {
 }
 
 /**
- * The first candidate that answers `catalogue/status`. Every candidate is
+ * The first candidate that answers core's liveness route. Every candidate is
  * probed at once rather than in series: on a LAN, a wrong address usually hangs
  * until its deadline, and making the viewer wait through each one in turn is
  * the difference between "instant" and "seems broken".
@@ -149,14 +150,24 @@ async function firstReachable(candidates: readonly string[]): Promise<string | u
   const probes = candidates.map(async (baseUrl) => {
     const response = await fetchWithTimeout(
       (url, init) => fetch(url, init),
-      `${baseUrl}/api/v1/catalogue/status`,
+      `${baseUrl}${LIVENESS_PATH}`,
       { method: 'GET', headers: { Accept: 'application/json' } },
       CONNECTION_CHECK_TIMEOUT_MS,
     );
-    // Unauthenticated on purpose: this probe runs before any session exists,
-    // and 401 still proves a Macha node is listening. The session the app then
-    // mints is what carries authorization from here on.
-    if (!response.ok && response.status !== 401) throw new Error(`${response.status}`);
+    // Unauthenticated on purpose: this probe runs before any session exists.
+    // It asks core's liveness route, which takes no token and needs no role —
+    // `/api/v1/catalogue/status` used to serve this and cannot any more, because
+    // under the roles model it needs `media_viewer`, and the one client asking
+    // is precisely the one that has neither a session nor a role yet.
+    //
+    // Any answer proves a node is listening, which is all this gate asks. Core's
+    // contract is 200 while serving and 503 while recovering or failed; a node
+    // too old for the route (0.38.1 is still in the field) answers 404. None of
+    // those mean "not there". 401 and 403 are kept for a deployment that puts
+    // something in front of the node. Only a transport failure — which throws
+    // rather than answering — means nothing is at that address.
+    const answered = response.ok || [401, 403, 404, 503].includes(response.status);
+    if (!answered) throw new Error(`${response.status}`);
     return baseUrl;
   });
 

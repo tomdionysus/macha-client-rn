@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { newestCatalogueFirst } from '../api/media';
 import { useAsync } from '../hooks/useAsync';
-import { useConnectivity, useMacha } from '../providers/MachaProvider';
+import { useMacha, useProblems } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { HeaderButton, Screen } from '../ui/Screen';
@@ -16,13 +16,14 @@ import { describeError } from '../api/errors';
 import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
 import { localCopyOf, useDownloads } from '../hooks/useDownloads';
+import { clusterMediaUnavailable, describeEmptyLibrary } from '../state/problems';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
 
 export default function HomeScreen() {
   const { media, endpoints, continueWatching, generation } = useMacha();
-  const { offline } = useConnectivity();
+  const problems = useProblems();
   const { playItem } = usePlayback();
   const router = useRouter();
   const openMedia = useOpenMedia();
@@ -43,21 +44,28 @@ export default function HomeScreen() {
   /**
    * Continue watching, narrowed to what can actually be played right now.
    *
-   * Progress is device-local, so the list survives the network going away and
-   * would otherwise keep offering items whose bytes are on a node that cannot
-   * be reached — an offer that can only fail. Offline it is restricted to
-   * downloads, and each entry is swapped for its stored form so the cover comes
-   * off the disk rather than from the cluster.
+   * Progress is device-local, so the list survives the cluster going away and
+   * would otherwise keep offering items whose bytes are somewhere this device
+   * cannot reach — an offer that can only fail. Restricted to downloads
+   * whenever cluster media is out of reach, with each entry swapped for its
+   * stored form so the cover comes off the disk rather than from a node.
+   *
+   * **Not keyed on "offline".** That was one of four ways the answer is no, and
+   * the other three left unplayable items on the rail: a cluster that refuses
+   * this viewer answers every request promptly and is not offline by any
+   * measure, yet can play them nothing. `clusterMediaUnavailable` asks the
+   * question this rail actually has, which is not about the network.
    */
+  const unavailable = clusterMediaUnavailable(problems);
   const resumableItems = useMemo(
     () =>
       resumable.flatMap((entry) => {
         if (!entry.media) return [];
-        if (!offline) return [entry.media];
+        if (!unavailable) return [entry.media];
         const stored = localCopyOf(downloads, entry.media);
         return stored ? [offlineMedia(stored)] : [];
       }),
-    [resumable, offline, downloads],
+    [resumable, unavailable, downloads],
   );
 
   const resume = useCallback(
@@ -109,21 +117,21 @@ export default function HomeScreen() {
             items={newestCatalogueFirst(home.value.movies).slice(0, RAIL_LIMIT)}
             onOpen={openMedia}
             onSeeAll={() => router.navigate('/movies')}
-            emptyLabel="No films in this catalogue yet."
+            emptyLabel={describeEmptyLibrary('films', problems).title}
           />
           <MediaRow
             title="TV"
             items={newestCatalogueFirst(home.value.shows).slice(0, RAIL_LIMIT)}
             onOpen={openMedia}
             onSeeAll={() => router.navigate('/shows')}
-            emptyLabel="No series in this catalogue yet."
+            emptyLabel={describeEmptyLibrary('series', problems).title}
           />
           <MediaRow
             title="Music"
             items={newestCatalogueFirst(home.value.albums).slice(0, RAIL_LIMIT)}
             onOpen={openMedia}
             onSeeAll={() => router.navigate('/music')}
-            emptyLabel="No albums in this catalogue yet."
+            emptyLabel={describeEmptyLibrary('albums', problems).title}
           />
         </>
       ) : null}

@@ -11,10 +11,13 @@ import {
   PlaybackQueueStore,
   bootstrapEndpoints,
   configureMachaHost,
+  subscribeConnectionState,
 } from '@macha/core';
 import { MediaApi } from '../api/media';
 import { ClusterUsersApi, type CurrentSession } from '../api/users';
 import { describeAccount, type AccountDisplay } from '../account/marker';
+import { describeMediaAccess, mayRequestMedia, type MediaAccess } from '../account/access';
+import { describeProblems, type Problem } from '../state/problems';
 import { ClusterPlaybackApi } from '../api/playback';
 import { ClusterStatusRouter } from '../api/status';
 import { MachaConnectionError } from '../api/errors';
@@ -75,6 +78,16 @@ export interface AccountState {
 
 interface MachaContextValue extends MachaServices {
   account: AccountState;
+  /**
+   * Whether the cluster will serve media to whoever we are — three answers, not
+   * two. Only `denied` may gate anything; see `src/account/access.ts`.
+   */
+  access: MediaAccess;
+  /**
+   * Everything standing between this device and the cluster's media, root
+   * causes only. Empty when nothing is wrong.
+   */
+  problems: Problem[];
   /** Re-reads the whoami. Call after anything that changes the session. */
   refreshAccount(): void;
   /** Exchanges credentials for a session belonging to that account. Rejects on a refusal. */
@@ -97,12 +110,6 @@ interface MachaContextValue extends MachaServices {
   generation: number;
 }
 
-/**
- * Only a backstop. Network changes arrive as events; this catches the case
- * the device cannot see — the node itself going away on a healthy network.
- */
-const REACHABILITY_BACKSTOP_MS = 60_000;
-
 const MachaContext = createContext<MachaContextValue | undefined>(undefined);
 
 export function useMacha(): MachaContextValue {
@@ -119,6 +126,12 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
 
   const registry = useMemo(() => new EndpointRegistry([]), []);
   const router = useMemo(() => new ClusterEndpointRouter(registry), [registry]);
+  // Read by MediaApi through a ref, so learning our access does not rebuild
+  // every service and bump `generation` under every mounted screen.
+  const accessRef = useRef<MediaAccess>({ kind: 'unknown' });
+  const [networkDown, setNetworkDown] = useState(false);
+  // Core's health loop, kept so a returning radio can force a cycle at once.
+  const monitorRef = useRef<EndpointHealthMonitor | undefined>(undefined);
   const sessions = useMemo(() => new SessionManager(), []);
   // One connectivity fact for the whole app, outliving service rebuilds.
   const connectivity = useMemo(() => new Connectivity(), []);
@@ -168,7 +181,9 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     // running again on a later connection generation cannot resurrect history
     // the viewer has since cleared.
     adoptLegacyContinueWatching(continueWatching, clientId || 'anonymous');
-    const mediaApi = new MediaApi(catalogue, new OfflineLibrary(downloads), connectivity);
+    const mediaApi = new MediaApi(catalogue, new OfflineLibrary(downloads), connectivity, () =>
+      mayRequestMedia(accessRef.current),
+    );
     return {
       registry,
       auth,
@@ -224,6 +239,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       clusterStatusApi: services.status,
       auth: sessions,
     });
+    monitorRef.current = monitor;
 
     // Discovered bases are a startup hint, never user configuration. The
     // registry notifies on every health change, so persist only when the
@@ -252,59 +268,61 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       subscription.remove();
       persist();
       monitor.stop();
+      if (monitorRef.current === monitor) monitorRef.current = undefined;
     };
   }, [hydrated, endpoints, registry, services, sessions]);
 
   /**
-   * Reachability, driven by events rather than polling.
+   * Reachability is core's answer, mirrored here rather than re-decided.
    *
-   * The device pushes network changes, so losing Wi-Fi or switching on
-   * airplane mode is known immediately and for free — no timer, no request.
+   * This was a 60s timer calling `media.status()` and publishing its own
+   * verdict. Two things ended that. It asked `/api/v1/status`, which server
+   * 0.38.5 now gates behind a `view_status` role — so it would have begun
+   * answering 403 and reporting a perfectly healthy cluster as unreachable,
+   * which is the precise failure this client exists to avoid. And core's health
+   * loop already answers the same question every `ENDPOINT_HEALTH_INTERVAL_MS`
+   * (10s), from a liveness route needing no session and no role, so the timer
+   * was a slower second opinion on a settled question.
    *
-   * But the device's network is not the question: on the same Wi-Fi with the
-   * node powered off, NetInfo happily reports "connected" while Macha is
-   * unreachable. So a network event only *triggers* the decision — losing the
-   * network means offline outright, while regaining it prompts a cheap
-   * catalogue status GET to confirm Macha itself is actually there. The slow
-   * timer that remains is only a backstop for the node going away underneath a
-   * perfectly healthy network.
+   * Four bugs in this project have been two independently chosen timeouts
+   * colliding. `Connectivity` is now a mirror of core's transitions rather than
+   * an independent judge, so there is one authority on whether the cluster can
+   * be reached.
    */
-  useEffect(() => {
-    if (!hydrated || endpoints.length === 0) return;
-    let cancelled = false;
+  useEffect(
+    () =>
+      subscribeConnectionState((event) => {
+        if (event.type === 'reachable') connectivity.reportReachable();
+        else connectivity.reportUnreachable();
+      }),
+    [connectivity],
+  );
 
-    const confirm = async () => {
-      try {
-        await services.media.status();
-        if (!cancelled) connectivity.reportReachable();
-      } catch (error) {
-        if (!cancelled && error instanceof MachaConnectionError) connectivity.reportUnreachable();
-      }
-    };
-
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (cancelled) return;
-      // `isInternetReachable` is deliberately ignored: a LAN with no route to
-      // the internet is a perfectly good home for a Macha cluster.
-      if (state.isConnected === false) connectivity.reportUnreachable();
-      else void confirm();
-    });
-
-    void confirm();
-    const backstop = setInterval(() => {
-      if (AppState.currentState === 'active') void confirm();
-    }, REACHABILITY_BACKSTOP_MS);
-    const appState = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void confirm();
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      clearInterval(backstop);
-      appState.remove();
-    };
-  }, [hydrated, endpoints, services, connectivity]);
+  /**
+   * The device's own radio, which core has no way to see.
+   *
+   * Deliberately **not** a reachability verdict — core owns that. This records
+   * the device fact, so the problem list can say "this device has no network"
+   * the instant it happens instead of waiting for a probe to fail, and nudges
+   * core's health loop to re-probe the moment the radio returns rather than
+   * waiting out its interval.
+   *
+   * `isInternetReachable` stays ignored on purpose: a LAN with no route to the
+   * internet is a perfectly good home for a Macha cluster.
+   */
+  useEffect(
+    () =>
+      NetInfo.addEventListener((state) => {
+        const down = state.isConnected === false;
+        setNetworkDown(down);
+        if (down) return;
+        // Restarting the loop runs a cycle now instead of on its next tick.
+        const monitor = monitorRef.current;
+        monitor?.stop();
+        monitor?.start();
+      }),
+    [],
+  );
 
   const configure = useCallback((nextEndpoints: readonly string[]) => {
     const normalized = setConfiguredEndpoints(nextEndpoints);
@@ -359,6 +377,102 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrated, endpoints, services, sessions, accountAttempt]);
 
+  /**
+   * The session lifecycle as three facts, kept apart on purpose.
+   *
+   * `settled` is core's `isReady`: the manager has minted or given up trying.
+   * Before it, nothing below is evidence — a request made early goes out with
+   * no token, is answered 401 and is returned unretried, which reads exactly
+   * like being refused. `mintRefused` is the only one that means a node
+   * actually said no.
+   */
+  const [sessionFacts, setSessionFacts] = useState({ settled: false, hasToken: false, mintRefused: false });
+
+  useEffect(() => {
+    if (!hydrated || endpoints.length === 0) {
+      setSessionFacts((current) =>
+        current.settled || current.hasToken || current.mintRefused
+          ? { settled: false, hasToken: false, mintRefused: false }
+          : current,
+      );
+      return;
+    }
+    let cancelled = false;
+    const read = () => {
+      // `authorization()` waits on a mint already in flight rather than
+      // answering undefined during one, so this resolves after the lifecycle
+      // has actually decided instead of racing it.
+      void sessions.authorization().then((authorization) => {
+        if (cancelled) return;
+        const settled = sessions.isReady;
+        const hasToken = authorization !== undefined;
+        // Core states *why* a mint failed rather than leaving each client to
+        // infer it from a status code — `refused` is a node that answered and
+        // said no, `unreachable` is nothing answering at all. Only the first
+        // may offer a login; the second is the away-from-home case and must
+        // stay quiet and serve the downloads. Core clears this on a successful
+        // adopt, so holding a token already means no refusal stands.
+        const mintRefused = sessions.lastMintFailure?.reason === 'refused';
+        setSessionFacts((current) =>
+          current.settled === settled && current.hasToken === hasToken && current.mintRefused === mintRefused
+            ? current
+            : { settled, hasToken, mintRefused },
+        );
+      });
+    };
+    read();
+    const unsubscribe = sessions.subscribe(read);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [hydrated, endpoints, sessions, generation]);
+
+  const access = useMemo(
+    () => describeMediaAccess({ ...sessionFacts, session: account.session, known: account.known }),
+    [sessionFacts, account],
+  );
+  accessRef.current = access;
+
+  const [clusterUnreachable, setClusterUnreachable] = useState(connectivity.isOffline);
+  useEffect(
+    () => connectivity.subscribe(() => setClusterUnreachable(connectivity.isOffline)),
+    [connectivity],
+  );
+
+  const problems = useMemo(
+    () =>
+      describeProblems({
+        endpointsConfigured: endpoints.length > 0,
+        networkDown,
+        // Only when the device believes it has a network: otherwise this is a
+        // restatement of `networkDown`, and `describeProblems` drops it anyway.
+        clusterUnreachable: clusterUnreachable && !networkDown,
+        access,
+      }),
+    [endpoints, networkDown, clusterUnreachable, access],
+  );
+
+  /**
+   * A change of access has to re-run every screen's load.
+   *
+   * Screens read through `generation`, and access is learned *after* the first
+   * load has already gone out — optimistically, because `unknown` must not
+   * behave as a refusal. So the first catalogue call is made before we know we
+   * are refused, fails, and the screen renders that failure. Without this the
+   * error is permanent: `MediaApi` would serve the device's own library
+   * perfectly well on the next read, and nothing ever asks it for one.
+   *
+   * Keyed on the kind rather than the object, and guarded on an actual
+   * transition, so a re-render cannot turn this into its own trigger.
+   */
+  const lastAccessKind = useRef(access.kind);
+  useEffect(() => {
+    if (lastAccessKind.current === access.kind) return;
+    lastAccessKind.current = access.kind;
+    setGeneration((value) => value + 1);
+  }, [access.kind]);
+
   const signIn = useCallback(
     async (credentials: SessionCredentials) => {
       await sessions.signIn(credentials);
@@ -383,8 +497,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   }, [refreshAccount, services, sessions]);
 
   const value = useMemo<MachaContextValue>(
-    () => ({ ...services, hydrated, endpoints, configure, generation, account, refreshAccount, signIn, signOut }),
-    [services, hydrated, endpoints, configure, generation, account, refreshAccount, signIn, signOut],
+    () => ({ ...services, hydrated, endpoints, configure, generation, account, access, problems, refreshAccount, signIn, signOut }),
+    [services, hydrated, endpoints, configure, generation, account, access, problems, refreshAccount, signIn, signOut],
   );
 
   return <MachaContext.Provider value={value}>{children}</MachaContext.Provider>;
@@ -435,6 +549,28 @@ export function useAccount(): { display: AccountDisplay; session?: CurrentSessio
   const { account, refreshAccount } = useMacha();
   const display = useMemo(() => describeAccount(account), [account]);
   return { display, session: account.session, known: account.known, refresh: refreshAccount };
+}
+
+/**
+ * Whether the cluster will serve media, and why not when it will not.
+ *
+ * `unknown` is not a refusal. A screen that blocks on it will block on every
+ * cold start against a slow cluster, which is the whole reason this is not a
+ * boolean.
+ */
+export function useMediaAccess(): MediaAccess {
+  return useMacha().access;
+}
+
+/**
+ * Everything currently standing between this device and the cluster's media.
+ *
+ * One list, read by the header warning, by the popover that explains it, and by
+ * any view deciding whether cluster-served media is worth offering — so those
+ * three can never disagree about whether something is wrong.
+ */
+export function useProblems(): Problem[] {
+  return useMacha().problems;
 }
 
 /** Subscribes to the app-wide reachability state. */

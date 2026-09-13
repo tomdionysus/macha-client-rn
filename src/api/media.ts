@@ -3,6 +3,7 @@ import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
 import type { Connectivity } from '../state/connectivity';
+import { isAuthRefusal } from './errors';
 
 export { newestCatalogueFirst } from '@macha/core';
 
@@ -22,6 +23,15 @@ export class MediaApi {
     catalogue: ClusterCatalogueApi,
     private readonly offline?: OfflineLibrary,
     private readonly connectivity?: Connectivity,
+    /**
+     * Whether this cluster will serve media to whoever we currently are.
+     *
+     * A function rather than a value because access is discovered after the
+     * services are built — a session has to be minted and a whoami answered
+     * before anything is known — and rebuilding every service to carry the
+     * answer would bump `generation` and re-run every screen's load.
+     */
+    private readonly mayRequest?: () => boolean,
   ) {
     this.live = new MachaMediaApi(catalogue);
   }
@@ -35,6 +45,12 @@ export class MediaApi {
    */
   private async serve<T>(live: () => Promise<T>, stored: (library: OfflineLibrary) => T): Promise<T> {
     const library = this.offline;
+    // A cluster that has refused this viewer will refuse every catalogue call,
+    // and it refuses with a real answer rather than a transport fault — so the
+    // `MachaConnectionError` fallback below never fires for it, and the screen
+    // shows an error where the device's own library was the right answer.
+    // Decided before asking, because there is nothing useful to catch after.
+    if (library && this.mayRequest && !this.mayRequest()) return stored(library);
     if (library && this.connectivity?.isOffline && !this.connectivity.shouldProbe()) return stored(library);
     try {
       const result = await live();
@@ -45,6 +61,15 @@ export class MediaApi {
         this.connectivity?.reportUnreachable();
         return stored(library);
       }
+      // A refusal is an answer, and the device's own library is the honest
+      // reply to it: these are the items this viewer may actually have. The
+      // access notice says why the rest is missing, so nothing is hidden —
+      // what is avoided is a raw bearer-token message on a library screen.
+      //
+      // Deliberately no `reportUnreachable` here. The cluster is perfectly
+      // reachable and answered promptly; recording it as offline would suppress
+      // real requests and mislabel a working node.
+      if (library && isAuthRefusal(error)) return stored(library);
       throw error;
     }
   }

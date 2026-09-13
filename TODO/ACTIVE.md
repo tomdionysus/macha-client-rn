@@ -14,32 +14,39 @@ source or a device, it says so; where it was taken on trust, it says that too.
 Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
-Last rationalised 2026-09-13.
+Last rationalised 2026-09-13, after 0.5.0.
 
 ---
 
 ## Start here
 
 **Branch and version.** Work is on `develop`; `main` holds releases and a release
-is a tag on it. Current release is **0.4.1** (`versionCode 401`). `develop` is
-several commits ahead of `main` with documentation and tooling only. Run
-`npm run version:check` before tagging anything — it compares `package.json`,
-`app.json` and the tag. The convention itself is in `AGENTS.md`.
+is a tag on it. `package.json` and `app.json` say **0.5.0** (`versionCode 500`);
+the newest tag on `main` is **0.4.1**, so 0.5.0 is committed but **not yet
+released**. Run `npm run version:check` before tagging — it compares
+`package.json`, `app.json` and the tag. The convention is in `AGENTS.md`.
 
-**What is unverified, which is the single most useful thing to know.** Three
-features are written, committed and on two phones or about to be, and **not one
-of them has been used by a person**: the QR scanner, login with the account
-marker, and the node-address rows. The rows replaced a fix that shipped to two
-phones while being wrong, so "it typechecks" has already proved worthless here
-once.
+**Never add `Co-Authored-By: Claude` or `Claude-Session:` trailers to a commit.**
+Every commit in this repo was rewritten on 2026-09-13 to remove them, which moved
+the `0.4.0` and `0.4.1` tags to new SHAs. Do not reintroduce them.
+
+**Do not `git push`.** Tom pushes. Do the local work, then hand over the command.
+
+**What is unverified, which is the single most useful thing to know.** The
+node-address rows and the whole media-access gate have now been measured on a
+device. **Two things still have never been used by a person:** the QR scanner,
+and a *successful* login. A third has never run on hardware at all: the gate's
+`no-session` branch, which needs `allow_anonymous` off to reach.
 
 **Devices.** Deploying is `adb install -r android/app/build/outputs/apk/release/app-release.apk`
 after `npx expo prebuild --platform android` and a Gradle `assembleRelease`; the
 first build after a plugin change is long, because prebuild clears `android/`
 (which is gitignored and generated — nothing is lost).
 
-- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.4.0**.
-  Endpoints already configured. Was on `10.44.1.x`; that network is gone.
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.4.1**
+  as of 2026-09-13. Endpoints configured, and they are a **remote TLS
+  cluster** — `https://macnessa.macha.network` and two siblings, not a local
+  node. `10.44.1.x` is live, not gone: phone `.127`, this Mac `.200`.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15, paired
   over wireless debugging at `192.168.1.125`. Has **0.4.0**, and **no endpoints
   configured**, so it opens on the connect screen — which makes it the right
@@ -56,61 +63,58 @@ code from the screen and only Tom can read it.
 
 ---
 
-## P1 — Three shipped features nobody has used
+## P1 — What still needs a person holding a phone
 
-**Status: the whole of 0.4.0 and 0.4.1's user-facing work.** Needs a person
-holding a phone; nothing here can be done from this machine alone.
+Nothing here can be done from this machine alone. The Galaxy is the better
+device for the first two — clean install, no endpoints, opens on the connect
+screen.
 
-The Galaxy is the better device for it — clean install, no endpoints, opens on
-the connect screen.
+- **The camera.** Never used. The permission prompt, a real code read at a real
+  distance, and the second refusal — where the prompt becomes a link to Settings
+  rather than another request. The viewfinder is decoration; the scanner reads
+  the whole frame.
+- **A successful login.** The **wrong password** path is measured (renders the
+  refusal, clears the password, keeps the username, and — the part that mattered
+  — **demotes no node**; the 401 logged as a `route-success` because the node
+  answered). A successful one has never run, and it answers three questions at
+  once: whether the marker names a signed-in viewer, whether the library
+  repopulates without a restart via the `generation` bump, and whether the
+  gate's `no-role` state clears correctly.
+- **Pasting a list of addresses into a node row.** `editRow`'s split path is
+  unit-tested only. `adb shell input text` types character by character and
+  cannot emulate a clipboard paste, so it needs a person.
 
-- **The node rows.** Can a second node actually be added now? This is the one
-  that has already been got wrong once: `multiline` plus `submitBehavior` shipped
-  in 0.4.0 and the field still offered one line. The replacement asks nothing of
-  the keyboard, which is an argument rather than a measurement. **Neither phone
-  has 0.4.1 yet.**
-- **The camera.** The permission prompt, a real code read at a real distance,
-  and the second refusal — where the prompt becomes a link to Settings rather
-  than another request. The viewfinder is decoration; the scanner reads the whole
-  frame.
-- **Login and the marker.** A real login, a wrong password, a logout, and the
-  marker through all four of its states. Note that the marker **cannot currently
-  name a signed-in viewer on a deployed node** — see the next item — so a
-  successful login against 0.38.0 shows nothing until that is fixed.
+**The marker's inherited claim was wrong and is retired.** It said a deployed
+node "names no user". `session_json` (`macha/src/session_api.cpp:29-36`) writes
+`username` beside `user_id` whenever the session names one, with a comment that
+clients should not need `/users/me` for it. The device agrees independently: the
+marker renders `anonymous`, which `describeAccount` can only reach with a
+non-empty username. **No `users.me()` fallback needs writing.** The successful
+login above confirms it for a signed-in user.
 
 ---
 
-## P1 — The marker cannot name a signed-in viewer, and the fix is known
+## P1 — Delete `firstReachable`; core ships that gate now
 
-**Status: diagnosed, not written. Small.** This is a defect in work already on
-two phones.
+**Small, and it removes a mirror.** `src/app/connect.tsx` has its own pre-save
+connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)`
+does the same job and more: it returns `unconfirmed`, naming endpoints that
+answered without a 2xx, so the screen can say "reached, but it did not identify
+itself as a Macha server" rather than silently accepting a mistyped address —
+and it separates "still pending" from "unreachable" behind a UI deadline, so a
+slow node does not read as a dead one.
 
-`CurrentSession.username` is optional in core because a deployed node answers
-`GET /api/v1/session` with `id`, `roles` and timestamps and **names no user**.
-The web client confirmed this is not theoretical: on 0.38.0 the route returns
-`user_id` but not `username`, and they built their account marker on `username`
-being there, so a signed-in viewer could never be named. The server is adding it;
-until every node reports it, the reliable source of a name is
-`GET /api/v1/users/me`.
+**Why a copy exists at all is the part worth keeping.** Core's gate was broken
+until 0.9.0 — it counted an endpoint available only on `response.ok` against
+`/api/v1/catalogue/status`, which every node answers 401 to unauthenticated, so
+it could accept nothing and a fresh install could not be configured. This client
+routed around a genuine defect rather than by mistake. But nobody goes back
+without being told, which is how one rule ends up in four places with four
+opinions. Core has recorded the reciprocal lesson: when a defect in a shared
+function is fixed, tell the clients that routed around it.
 
-Here, `describeAccount` maps "no username stated" to `unstated` and renders
-nothing, which is right when nobody is signed in and **wrong when somebody is**.
-
-**The fix, as the web client made it:** when the whoami succeeds but names no
-user, call `users.me()` and take the username from the account record; a refusal
-means the server will not say, which is the same as not knowing. `describeAccount`
-gains no new states and its tests stand.
-
-**Do the readiness gate in the same pass.** `SessionManager.fetch` waits for a
-mint only when one is already in flight; before one starts it goes out
-tokenless, is answered 401, and returns it unretried because it sent no token.
-An early whoami therefore reads as "no roles". This client survives it by
-re-reading on every token change, so the first mint corrects it — but that is
-luck, not design, and the web client lost a whole run's worth of privileged UI
-to the same shape.
-
-**There is no `display_name` anywhere and none is planned for v1** — the web
-session asked and declined it. Initials come from `username` or from nothing.
+If any of ours is kept, say what shape core's result does not give — core asked,
+because that would be a gap in theirs rather than a preference.
 
 ---
 
@@ -144,6 +148,26 @@ wants the result: whether a cold session on either engine ever actually receives
 that 500 before aborting, and the prefetch arithmetic. 6000 rests on static
 constants read from Android artifacts, with iOS never read at all — and the
 server side of that constant has no owner either.
+
+---
+
+## P2 — Two defects left in the access gate deliberately
+
+Both raised, both declined at the time, both still true.
+
+- **The `generation` bump fires on the healthy path.** `HomeScreen` loads via
+  `useAsync(..., [media, generation])`, and access goes `unknown → granted` on
+  every successful launch, so **every cold start runs the catalogue load twice**.
+  A flapping cluster can oscillate it, re-loading every screen each time —
+  a storm exactly when the cluster is least able to take one. It should key on
+  `mayRequestMedia(access)` changing, a boolean that only flips when the answer
+  does, rather than on `access.kind`.
+- **One node's 401 stands for the whole cluster.** `isAuthRefusal` in
+  `MediaApi.serve` collapses to the local library without trying another node,
+  and the router will not walk on a 4xx (`isEndpointFailure` excludes them).
+  Usually right, because sessions and roles are replicated — but core documents
+  the case where it is not: during a rolling upgrade an older build's session
+  carries a role vocabulary the newer one refuses.
 
 ---
 
@@ -269,7 +293,36 @@ Delete the UUID, the constructor parameter and the dependency.
 
 ## Waiting on other sessions
 
-- **Core is at 0.8.1 and has renamed itself `@machafoundation/core`.** The web
+- **Address the core session as `Macha NPM Core`** — *not* the name `ListAgents`
+  prints for it (`Macha Core NPM Module @macha/core`), which `SendMessage`
+  rejects because of the `/` and which carries no `[ref]` to fall back on. Two
+  sends were wasted discovering that.
+- **Both things asked of core on 2026-09-13 have landed.** `SessionManager` now
+  exposes `lastMintFailure` — `{ reason: 'refused' | 'unreachable', status?,
+  code?, message }` — cleared on adopt and notified through `subscribe()`.
+  `reason` was core's addition and the better call: it answers the
+  status-to-meaning question once, so four clients cannot each write their own
+  mapping and drift. And `mintAnonymousSession` now parses the error envelope,
+  so `anonymous_disabled` arrives in `code` and a wrong password reports the
+  server's own wording rather than a bare status number.
+- **Core is at 0.9.0 and this client is clean against it**, checked rather than
+  assumed: typecheck, tests and a full release build all pass. A `file:` link
+  carries no version signal, so a rebuild can deliver a breaking surface with
+  nothing to announce it — **run the build after any core rebuild.** The three
+  0.9.0 breaks that do not reach us: `validateAnonymousSession*` returning
+  `CurrentSession | undefined` rather than `boolean`, `UserRole` gaining
+  `view_status` (fatal to an exhaustive `Record<UserRole, …>`), and required new
+  fields on `EndpointCandidate` and `ConnectionCheckResult`.
+- **`view_status` gates the diagnostic routes only** (`/api/v1/status*`), never
+  liveness. A role-less session therefore learns no cluster membership, since
+  `discoverClusterEndpoints` reads `/api/v1/status`, so the failover pool stays
+  at the bootstrap list until someone signs in. **Tom has ruled that correct; do
+  not build around it.**
+- **Core's `probeNow()` is recorded but not built.** Until it lands, the way to
+  force an off-cycle health probe is `monitor.stop()` then `monitor.start()`,
+  which core has confirmed is safe — it costs a probe already in flight and
+  restarts the interval. Replace it when `probeNow()` exists.
+- **Core has renamed itself `@machafoundation/core`.** The web
   client has migrated its imports; this client still writes `@macha/core` in 23
   files. **Not broken** — npm resolves it as an alias to the same directory, and
   a clean `npm install --dry-run` was verified — so it is a consistency chore for

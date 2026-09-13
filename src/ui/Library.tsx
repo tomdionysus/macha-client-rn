@@ -6,7 +6,8 @@ import { SearchIcon } from './Icons';
 import { colors, radius, space, type as typography } from './theme';
 import { pluralize } from './format';
 import { EmptyState } from './Status';
-import { useConnectivity } from '../providers/MachaProvider';
+import { useProblems } from '../providers/MachaProvider';
+import { describeEmptyLibrary } from '../state/problems';
 import type { CardShape } from './MediaCard';
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
  */
 export function Library({ items, onOpen, noun, shape }: Props) {
   const [filter, setFilter] = useState('');
-  const { offline } = useConnectivity();
+  const problems = useProblems();
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -51,22 +52,14 @@ export function Library({ items, onOpen, noun, shape }: Props) {
         <Text style={styles.count}>{visible.length}</Text>
       </View>
       {visible.length === 0 ? (
-        <EmptyState
-          title={
-            filter
-              ? `No ${noun} match “${filter.trim()}”`
-              : offline
-                ? `No ${noun} downloaded`
-                : `No ${noun} yet`
-          }
-          detail={
-            filter
-              ? undefined
-              : offline
-                ? 'Download these while you are on your network and they will be here when you are not.'
-                : 'Items appear here as the node indexes your library.'
-          }
-        />
+        // A filter that matched nothing is the viewer's own doing and says so;
+        // everything else depends on whether this client can see a catalogue at
+        // all, which is not something a shelf should decide for itself.
+        filter ? (
+          <EmptyState title={`No ${noun} match “${filter.trim()}”`} />
+        ) : (
+          <EmptyState {...describeEmptyLibrary(noun, problems)} />
+        )
       ) : (
         <>
           <MediaGrid items={visible} onOpen={onOpen} shape={shape} />

@@ -8,6 +8,126 @@ Newest first.
 
 ---
 
+## 0.5.0 — a cluster that refuses you, and one warning that means everything
+
+**The shape of it:** a viewer the cluster will not serve gets the app with their
+own downloaded media in it, and one warning in the header that says why. No
+wall, no raw server error, no claim the library is empty when it is only
+unreadable.
+
+**What the server actually does, and the premise it broke.** Removing the media
+view role from anonymous does **not** produce a session with no roles — at the
+time it stopped the mint entirely. `PasswordCredentialValidator::validate`
+(`macha/src/session_api.cpp:87-97`) maps both `!allow_anonymous` *and*
+`user->roles.empty()` onto `CredentialOutcome::disabled`, answering
+**403 `anonymous_disabled`**, so the client held no token and every later request
+met the global bearer gate with **401 "a valid session bearer token is
+required"** — not the 403 the role check produces. Tom called that a server
+defect and changed it; the client handles both states regardless. Found with one
+curl after reading the source, having first designed against the wrong premise.
+
+**The gate is three-state, and that is the whole point.** `describeMediaAccess`
+(`src/account/access.ts`) answers `unknown` / `granted` / `denied`, and only
+`denied` may gate anything. `SessionManager.fetch` waits on a mint only when one
+is *already* in flight, so a request in the window after a failed mint goes out
+tokenless, is answered 401, and returns unretried — reading exactly like a
+refusal. A two-state gate on that sends a fully privileged viewer to a login
+screen on any cold start against a slow cluster. **Ten tests; four of them fail
+against a naive two-state implementation**, which was checked by writing one
+rather than assumed.
+
+**The probe that was written, measured working, and deleted.** Core discarded
+the reason a mint failed, so the client classified it by calling
+`mintAnonymousSession` directly. It worked on a device. It was also a polyfill of
+core's session lifecycle: it walked `endpoints` rather than
+`registry.candidates()` — no health ranking, no `recordSuccess`/`recordFailure` —
+and minted a real session it then discarded on the path where it succeeded,
+feeding the very `session_idle` leak this file already tracks. Removed, and core
+asked to report the fact instead. Core shipped `lastMintFailure` carrying
+`reason: 'refused' | 'unreachable'` — answering the status-to-meaning question
+once, so four clients cannot drift on it. **Only `refused` may offer a login.**
+
+**One warning, not four booleans.** `src/state/problems.ts` is the single source
+for the header badge, the line under it, the popover, the empty-shelf copy and
+the Continue Watching filter, so those five cannot disagree about whether
+something is wrong. It reports root causes only — with the device's radio off,
+"cannot reach your cluster" adds nothing — but an account refusal *is* reported
+alongside an outage, because it outlives one.
+
+- **`network-down` is now distinct from `cluster-unreachable`.** Both used to be
+  "offline", which told a viewer with Wi-Fi switched off exactly what it told a
+  viewer whose node had died. **Still deliberately no "no internet":** this
+  client ignores `isInternetReachable` on purpose, because a LAN with no route
+  out is a fine home for a cluster.
+- **Continue Watching was offering items it could not play**, because it filtered
+  on `offline` — one of four ways the answer is no. A refused cluster answers
+  promptly, is offline by no measure, and can play nothing. Measured: the rail
+  dropped from three items to the downloaded ones.
+- **"No films in this catalogue yet" is a claim about the catalogue**, and only
+  admissible when one can be seen. Refused, it now reads "This account cannot
+  view films"; showing local media, "No films downloaded".
+
+**Reachability handed back to core.** The 60s backstop called
+`services.media.status()` → `/api/v1/status`, which server 0.38.5 gates behind a
+new `view_status` role: it would have begun answering 403 and reporting a
+healthy cluster as unreachable. Deleted rather than repointed — core answers the
+same question every 10s (`ENDPOINT_HEALTH_INTERVAL_MS`) from a liveness route
+needing no session and no role, so ours was a slower second opinion, and two
+independently chosen timeouts colliding is already four bugs here.
+`Connectivity` is now a mirror of core's transitions via
+`subscribeConnectionState`. The NetInfo listener stays and **no longer votes**:
+it records the device's own radio as its own fact and kicks core's monitor when
+the radio returns.
+
+**The connect gate was broken in waiting.** `firstReachable` probed
+`/api/v1/catalogue/status`, which needs `media_viewer` — and the client using
+that gate is the one with neither session nor role. It survived only because the
+probe is tokenless and so got 401, which it tolerated; **it did not tolerate
+403**, so the first node to answer 403 would have made it impossible to save a
+node address at all. Switched to core's `LIVENESS_PATH`. Core then reported that
+their own gate had the mirror-image defect — it required `response.ok` against
+the same route, so a fresh install could not be configured — fixed in 0.9.0, and
+`checkEndpointConfiguration` should replace ours entirely.
+
+**Measured on the A85** (Blackview A85, `A85EEA0000005410`, Android 12) against
+the three-node TLS cluster at `macnessa`/`ramaroja`/`inverbeg`, 0.38.0–0.38.1:
+no crash; `probe-cycle` holding at `reachable: 3, known: 3` throughout, so a
+refusal demotes nothing; local media, artwork included, rendering from
+`OfflineLibrary`; the access-aware empty copy on Films and TV. **The
+`no-session` branch has never run on hardware** — anonymous exists with zero
+roles, so the device reports `no-role`. Seeing the other path needs
+`allow_anonymous` off.
+
+**Two defects left in deliberately, raised and declined:** the `generation` bump
+fires on the healthy path (`unknown → granted` on every launch), so a cold start
+runs the catalogue load twice; and `isAuthRefusal` lets one node's 401 stand for
+the whole cluster without trying another, which is usually right because
+sessions and roles are replicated, but is an assumption.
+
+**Core moved 0.8.1 → 0.9.0 underneath us.** A `file:` link carries no version
+signal, so the rebuild delivered a breaking surface with nothing to announce it.
+All three breaks checked and none reach this client. **The lesson core recorded:
+when a defect in a shared function is fixed, tell the clients that routed around
+it** — nobody would otherwise go back, and one rule ends up in four places with
+four opinions.
+
+## 2026-09-13 — the Claude attribution trailers were stripped from every commit
+
+Every commit on `main` and `develop` carried `Co-Authored-By: Claude …` and
+`Claude-Session: …`. All nine were rewritten out and force-pushed, so **`0.4.0`
+and `0.4.1` name different SHAs than they did**: `0.4.0` → `57a625e`,
+`0.4.1` → `8796ce8`. Trees are byte-identical and commit counts unchanged —
+messages only. Any clone taken before this diverges and should be re-cloned
+rather than merged.
+
+Two things to know if it is ever done again. `filter-branch -- --all` rewrites
+`refs/remotes/origin/*` as well, which makes `--force-with-lease` refuse with
+"stale info" until a `git fetch` restores the tracking refs to the truth. And
+tags push independently of branches, so a half-finished attempt can leave the
+remote with tags pointing at commits no branch can reach.
+
+**Nothing in this repo should ever add those trailers again.**
+
 ## 2026-09-13 — every build this client ever made was `versionCode 1`
 
 Found while tagging, and it is the most expensive thing in this batch.

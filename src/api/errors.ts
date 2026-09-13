@@ -68,6 +68,24 @@ export function isEndpointFailure(error: unknown): boolean {
   return true;
 }
 
+/**
+ * Whether a node refused this viewer, rather than failing to answer.
+ *
+ * 401 is "no usable session" and 403 is "your roles do not permit this". Both
+ * are the node working exactly as intended, and neither is a sentence worth
+ * putting in front of a person: "a valid session bearer token is required" is
+ * true, accurate, and useless to whoever is holding the phone.
+ *
+ * It matters that this is not `isEndpointFailure`. That asks whether to move
+ * off a node; this asks whether the cluster has refused *us*, which every node
+ * will answer identically because sessions and roles are replicated. A caller
+ * with a local library should serve it and let the account notice explain why
+ * the rest is missing.
+ */
+export function isAuthRefusal(error: unknown): boolean {
+  return error instanceof MachaApiError && (error.status === 401 || error.status === 403);
+}
+
 export function describeError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'string' && error.trim()) return error.trim();
