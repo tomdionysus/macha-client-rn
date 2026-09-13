@@ -41,14 +41,19 @@ import { clientStore } from '../state/storage';
 
 // Core reaches for storage, a clock and an id generator through its host seam
 // rather than a browser global. `ClientStore` already presents the synchronous
-// `StorageLike` shape core wants, over an AsyncStorage cache hydrated at
-// startup. `ephemeralStorage` is the same store on purpose: the web's choice of
-// `sessionStorage` ties an anonymous session to a tab, and a phone has no tab —
-// its run is the process, and a session surviving a relaunch is the behaviour
-// people expect from an app.
+// `StorageLike` shape core wants, over an AsyncStorage cache hydrated at startup.
+//
+// `ephemeralStorage` used to be listed here as the same store, deliberately: the
+// web's `sessionStorage` ties a session to a tab, and a phone has no tab. Core
+// 0.10.0 removed that seam entirely — there is one session, it is always worth
+// keeping, and it lives in `secureStorage ?? storage`. Dropping the line changes
+// nothing here, because the fallback is this same store.
+//
+// **`secureStorage` is not supplied yet and should be.** Without it the bearer
+// sits in AsyncStorage in plain text, readable on a rooted device or in a
+// backup; `expo-secure-store` is the fix and is not yet a dependency.
 configureMachaHost({
   storage: clientStore,
-  ephemeralStorage: clientStore,
   now: Date.now,
   uuid: () => Crypto.randomUUID(),
 });

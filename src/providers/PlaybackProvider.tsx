@@ -22,7 +22,15 @@ import {
   type AudioTrackInfo,
 } from '../playback/AudioEngine';
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
-import { buildOrder, restoredVolume, seekStillPending, statedUpdate, transformFor } from '../playback/policy';
+import {
+  buildOrder,
+  errorBlamesEndpoint,
+  restoredVolume,
+  seekRequiresReposition,
+  seekStillPending,
+  statedUpdate,
+  transformFor,
+} from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
 import { progressFor } from '@macha/core';
@@ -196,6 +204,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    */
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
+  /**
+   * How far the player has buffered, as its own ref.
+   *
+   * Read by `seekTo` to decide whether a seek lands beyond what the node has
+   * produced. State is no use there: `seekTo` reaches us from a gesture handler
+   * created once, which would capture the first render's value forever.
+   */
+  const bufferedRef = useRef(0);
   /**
    * What the video player's volume should be, for `restoredVolume` to measure a
    * duck against. Constant today: nothing in this client offers an in-app volume
@@ -597,16 +613,82 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     else player.play();
   }, [player]);
 
+  /**
+   * Moves production to where the viewer went, rather than asking for segments
+   * nobody is building.
+   *
+   * A transformed generation is produced forward from its origin and the node
+   * holds only a bounded window. Seeking an hour ahead asks for a segment
+   * hundreds past anything in flight, which the node refuses **instantly** —
+   * measured 2026-09-13 — and media3 makes that fatal on first occurrence rather
+   * than retrying. A seek-only PATCH repositions the generation cheaply: the
+   * plan state is kept and segment indices are plan-absolute.
+   *
+   * **The PATCH creates a new generation, and the stream URL carries the
+   * generation in its path.** A request against the old one answers 404 by
+   * design, so a retry loop cannot keep an abandoned encoder alive. The player
+   * is therefore repointed at the URL from the response *before* it resumes
+   * fetching — otherwise this trades an instant 500 for an instant 404.
+   */
+  const repositionTo = useCallback(
+    async (targetMs: number) => {
+      const session = sessionRef.current;
+      const media = mediaRef.current;
+      if (!session || !media) return;
+      const myGeneration = ++generationRef.current;
+      setBusy(true);
+      setState((current) => ({ ...current, buffering: true, error: undefined }));
+      try {
+        const next = await playbackApi.update(session, { seekMs: targetMs });
+        if (generationRef.current !== myGeneration) return;
+        sessionRef.current = next;
+        applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
+        player.play();
+        // The node's answer is authoritative: a transformed generation begins at
+        // the nearest random-access point, rarely the millisecond asked for.
+        // Believing our own target would leave the bar disagreeing with the
+        // picture for as long as the difference lasts.
+        positionRef.current = next.seekMs;
+        bufferedRef.current = next.seekMs;
+        pendingSeekRef.current = undefined;
+        setState((current) => ({
+          ...current,
+          status: 'ready',
+          session: next,
+          positionMs: next.seekMs,
+          bufferedMs: next.seekMs,
+          buffering: true,
+        }));
+      } catch (error) {
+        if (generationRef.current !== myGeneration) return;
+        setState((current) => ({ ...current, buffering: false, error: describeError(error) }));
+      } finally {
+        if (generationRef.current === myGeneration) setBusy(false);
+      }
+    },
+    [mediaApi, player, playbackApi],
+  );
+
   const seekTo = useCallback(
     (positionMs: number) => {
       const bounded = Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs));
       positionRef.current = bounded;
       pendingSeekRef.current = { targetMs: bounded, atMs: Date.now() };
-      if (engineRef.current === 'audio') void TrackPlayer.seekTo(bounded / 1000);
-      else player.currentTime = bounded / 1000;
+      if (engineRef.current === 'audio') {
+        // The music path has the same exposure and is deliberately not fixed
+        // here: a seek beyond production on a transformed track is still
+        // refused. Correcting it means reloading the track at the new URL
+        // rather than writing a position, which is separate work.
+        void TrackPlayer.seekTo(bounded / 1000);
+      } else if (seekRequiresReposition(sessionRef.current, bounded, bufferedRef.current)) {
+        void repositionTo(bounded);
+        return;
+      } else {
+        player.currentTime = bounded / 1000;
+      }
       setState((current) => ({ ...current, positionMs: bounded }));
     },
-    [player],
+    [player, repositionTo],
   );
 
   const seekBy = useCallback((deltaMs: number) => seekTo(positionRef.current + deltaMs), [seekTo]);
@@ -645,6 +727,18 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     if (!session || !media) {
       console.log('[macha] [playback] failover-declined', { reason: 'no-session' });
       return false;
+    }
+    // An error under a seek we asked for, on a generation the node is still
+    // producing, says we asked for something that does not exist yet — not that
+    // the node is failing. Failing over on it abandons a working node and throws
+    // away every frame it had built. Measured doing exactly that on 2026-09-13.
+    //
+    // No budget spent and no failure recorded: there is nothing here to learn
+    // about the endpoint. `repositionTo` is what actually resolves this case;
+    // this only stops the wrong remedy running first.
+    if (!errorBlamesEndpoint(session, pendingSeekRef.current, Date.now())) {
+      console.log('[macha] [playback] failover-declined', { reason: 'seek-outstanding' });
+      return true;
     }
     // Playback that has been fine for a while earns a fresh budget: the limit
     // is there to stop a broken title cycling nodes, not to ration recovery
@@ -761,6 +855,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           pendingSeekRef.current = undefined;
         }
         positionRef.current = positionMs;
+        const bufferedMs = Math.max(0, Math.round((bufferedPosition ?? 0) * 1000));
+        bufferedRef.current = bufferedMs;
         const reported = Math.max(0, Math.round((player.duration || 0) * 1000));
         const durationMs = knownDurationRef.current || reported || durationRef.current;
         if (durationMs > 0) durationRef.current = durationMs;
@@ -768,7 +864,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           ...current,
           positionMs,
           durationMs: durationMs || current.durationMs,
-          bufferedMs: Math.max(0, Math.round((bufferedPosition ?? 0) * 1000)),
+          bufferedMs,
         }));
         checkpoint(positionMs, durationMs || durationRef.current);
         // One count per started item, once the listener has clearly committed

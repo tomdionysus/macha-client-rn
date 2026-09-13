@@ -14,6 +14,27 @@ import {
  * persist in the background. A failed write costs the *next* cold start, never
  * the current session.
  */
+/**
+ * Keys this client restores at startup.
+ *
+ * Two prefixes, because two conventions meet here. This client namespaces its
+ * own keys `macha.`; **core namespaces its session cache `macha-session`** —
+ * a hyphen, not a dot.
+ *
+ * Filtering on `macha.` alone meant the signed-in token was written to disk
+ * faithfully on every launch and never read back, so a login survived exactly as
+ * long as the process did. Nothing errored and nothing logged: an anonymous
+ * session re-mints in milliseconds, so the only symptom was a *person* being
+ * signed out every cold start, which is invisible until somebody actually signs
+ * in. Anchored rather than a bare `macha` so a third party's `machaSomething`
+ * cannot wander into this cache.
+ */
+const OWNED_KEY_PREFIXES = ['macha.', 'macha-'] as const;
+
+function owned(key: string): boolean {
+  return OWNED_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
 class ClientStore {
   private cache = new Map<string, string>();
   private hydrated = false;
@@ -22,7 +43,7 @@ class ClientStore {
   async hydrate(): Promise<void> {
     if (this.hydrated) return;
     try {
-      const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith('macha.'));
+      const keys = (await AsyncStorage.getAllKeys()).filter(owned);
       const entries = await AsyncStorage.multiGet(keys);
       for (const [key, value] of entries) if (value !== null) this.cache.set(key, value);
     } catch {

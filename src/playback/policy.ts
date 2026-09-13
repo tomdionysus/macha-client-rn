@@ -149,3 +149,81 @@ export function seekStillPending(pending: PendingSeek, reportedMs: number, nowMs
 export function restoredVolume(reported: number, intended: number): number | undefined {
   return reported < intended ? intended : undefined;
 }
+
+/**
+ * Whether a seek must reposition the *generation* rather than just the player.
+ *
+ * Measured on an Android device 2026-09-13, and this is the failure it exists to
+ * stop. A transformed generation is produced forward from its origin, and the
+ * node holds only a bounded window of it. Seeking an hour into a film asks for a
+ * segment hundreds past anything being built, and the node refuses it
+ * **immediately** — `beyond_hold_window`, sub-millisecond, nothing is working
+ * toward it. media3 does not retry that: it is a fatal `Source error` on first
+ * occurrence. This client then read a fatal player error as a bad node, stopped
+ * a perfectly healthy session and rebuilt on another node, discarding the
+ * transcode already produced.
+ *
+ * None of that is the node's fault and none of it is fixable by waiting longer:
+ * the server's hold covers segments it is *working on*, and this one it had
+ * never been asked to start. The fix is to move production to where the viewer
+ * went, which a seek-only PATCH does cheaply — the plan state is retained, the
+ * segment indices are plan-absolute, and the URLs stay valid.
+ *
+ * **Keyed on what the player has buffered, deliberately, and not on a guess at
+ * the node's window.** We cannot see the node's `segment_hold_window` and must
+ * not keep a second copy of it — two independently chosen constants colliding is
+ * already four bugs in this project. Buffered-end is knowable here and errs the
+ * safe way: production may be further ahead than the buffer, so this can ask for
+ * a reposition that was not strictly needed. That costs one cheap PATCH. Being
+ * wrong the other way costs a healthy node and every frame it had built.
+ *
+ * **Forward seeks only.** A bounded window implies a far *backward* seek could
+ * also fall outside it, but that has not been measured and this does not guess:
+ * an unverified claim about the server is exactly what produced the defect above.
+ */
+export function seekRequiresReposition(
+  session: PlaybackSession | undefined,
+  targetMs: number,
+  bufferedEndMs: number,
+): boolean {
+  // No session is a downloaded original played off the disk. There is no node,
+  // no generation, and nothing to reposition.
+  if (!session) return false;
+  // Direct play is a byte range over a complete file: every offset already
+  // exists and the node will serve any of them.
+  if (!session.source.isManifest) return false;
+  return targetMs > bufferedEndMs;
+}
+
+/**
+ * Whether a player error is evidence about the *endpoint*.
+ *
+ * The distinction this client got wrong. A fatal error while a seek we asked for
+ * is still outstanding, on a generation the node is still producing, says we
+ * asked for something that does not exist yet — not that the node is failing.
+ * Failing over on it abandons a working node, throws away its work, and starts
+ * the same transcode again somewhere else.
+ *
+ * The same argument core already makes for stalls: a source that has never
+ * delivered a frame has not proved anything about where it came from. Here it is
+ * a seek rather than a cold start, but the reasoning is identical — the evidence
+ * is about the request, not the server.
+ *
+ * Deliberately narrow. Anything *not* in that window still blames the endpoint,
+ * because a transformed stream failing during ordinary playback is exactly what
+ * failover exists for, and this must not become a blanket excuse that leaves a
+ * viewer stuck on a genuinely dead node.
+ */
+export function errorBlamesEndpoint(
+  session: PlaybackSession | undefined,
+  pendingSeek: PendingSeek | undefined,
+  nowMs: number,
+): boolean {
+  if (!session || !pendingSeek) return true;
+  // Direct play has no production to outrun; an error there is the node's.
+  if (!session.source.isManifest) return true;
+  // Past the deadline the seek is no longer a credible explanation, and the
+  // same guard that stops a lost seek freezing the position stops it excusing
+  // an endpoint forever.
+  return nowMs - pendingSeek.atMs >= SEEK_DEADLINE_MS;
+}
