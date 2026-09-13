@@ -1,3 +1,28 @@
+# Branches and releases
+
+Tom's convention across every Macha repo, set 2026-09-13.
+
+Work happens on `develop`, a long-lived branch with a deliberately generic name.
+Releases live on `main`, and a release **is** a tag on `main`.
+
+Tags are bare semver — `0.4.1`, never `v0.4.1` — and annotated rather than
+lightweight, so `git describe` and `--sort=v:refname` behave.
+
+**Do not name a branch after a version.** A version-named branch is a promise
+about what the next version will be, made before the work that decides it. This
+repo had a `release/0.5.0` carrying a patch within a day of its being created.
+
+**Put the version bump in the release commit**, so the tag points at a tree that
+is exactly what ships rather than at one missing its own version number.
+
+`npm run version:check` compares `package.json`, `app.json` and the tag, and
+derives `android.versionCode` as `major*10000 + minor*100 + patch`. Run it before
+tagging. It exists because **Android compares `versionCode` and ignores
+`versionName` entirely**: every build before 0.4.1 shipped `versionCode 1`, so
+0.1.0 and 0.4.0 were the same build as far as the package manager was concerned.
+The matching `versionName` drift went unnoticed for months for the same reason —
+nothing compared the two files.
+
 # Expo HAS CHANGED
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
