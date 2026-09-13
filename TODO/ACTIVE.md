@@ -14,56 +14,156 @@ source or a device, it says so; where it was taken on trust, it says that too.
 Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
-Last rationalised 2026-09-13, after 0.5.0.
+Last rationalised 2026-09-13, after 0.5.1, for a session picking this up cold.
 
 ---
 
 ## Start here
 
-**Branch and version.** Work is on `develop`; `main` holds releases and a release
-is a tag on it. `package.json` and `app.json` say **0.5.0** (`versionCode 500`);
-the newest tag on `main` is **0.4.1**, so 0.5.0 is committed but **not yet
-released**. Run `npm run version:check` before tagging — it compares
-`package.json`, `app.json` and the tag. The convention is in `AGENTS.md`.
+**Released: 0.5.1** (`versionCode 501`), tagged on `main` and pushed, running on
+the A85. `main` and `develop` are level. Work happens on `develop`; a release is
+an annotated bare-semver tag on `main`, and the version bump goes **in** the
+release commit. `AGENTS.md` has the convention.
 
-**Never add `Co-Authored-By: Claude` or `Claude-Session:` trailers to a commit.**
-Every commit in this repo was rewritten on 2026-09-13 to remove them, which moved
-the `0.4.0` and `0.4.1` tags to new SHAs. Do not reintroduce them.
+**Run `npm run version:check` before tagging — and do not trust it alone.** It
+compares `package.json`, `app.json` and the tag, and is **blind to the generated
+`android/` project**, which is where version drift actually happens. See the P1.
 
-**Do not `git push`.** Tom pushes. Do the local work, then hand over the command.
+**Never push unless Tom says so in that message**, and never add
+`Co-Authored-By: Claude` or `Claude-Session:` trailers — every commit was
+rewritten on 2026-09-13 to remove them, which moved the `0.4.0` and `0.4.1` tags
+to new SHAs.
 
-**What is unverified, which is the single most useful thing to know.** The
-node-address rows and the whole media-access gate have now been measured on a
-device. **Two things still have never been used by a person:** the QR scanner,
-and a *successful* login. A third has never run on hardware at all: the gate's
-`no-session` branch, which needs `allow_anonymous` off to reach.
+**Dependencies are live and move under you.** `@macha/core` is a `file:` link
+resolving through `dist`, so another session rebuilding core changes what this
+client compiles against **mid-edit**. That happened during the 0.5.1 release and
+broke the typecheck in three places. Core now stages `dist` atomically so a
+partial tree is impossible, but the version can still change without warning:
+**re-run typecheck and tests after any core rebuild.** Currently green on core
+**0.11.0** (verified, 90 tests, 12 files).
 
-**Devices.** Deploying is `adb install -r android/app/build/outputs/apk/release/app-release.apk`
-after `npx expo prebuild --platform android` and a Gradle `assembleRelease`; the
-first build after a plugin change is long, because prebuild clears `android/`
-(which is gitignored and generated — nothing is lost).
+**What is verified on hardware, which is the useful half of knowing.** Measured
+on the A85 against the live cluster: the node-address rows, the media access gate
+and its header warning, the access-aware empty copy, Continue Watching filtering,
+seek repositioning, a wrong password, a **successful** login, and sign-in
+surviving a force-stop. **Never used by a person:** the QR scanner. **Never run
+on hardware at all:** the gate's `no-session` branch, which needs
+`allow_anonymous` off to reach, and the node-row paste path, which `adb shell
+input text` cannot emulate.
 
-- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.4.1**
-  as of 2026-09-13. Endpoints configured, and they are a **remote TLS
-  cluster** — `https://macnessa.macha.network` and two siblings, not a local
-  node. `10.44.1.x` is live, not gone: phone `.127`, this Mac `.200`.
-- **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15, paired
-  over wireless debugging at `192.168.1.125`. Has **0.4.0**, and **no endpoints
-  configured**, so it opens on the connect screen — which makes it the right
-  device for first-run, QR and login in one pass.
-- **The Smart_TV that answers ADB is not a test target.** It self-identifies as
-  `model:Smart_TV` and its address moves (`10.34.1.115`, later `10.34.1.116`).
-  Never install here. Verify `ro.product.model` before any install.
+**Devices.** Deploy with `adb install -r
+android/app/build/outputs/apk/release/app-release.apk` after `npx expo prebuild
+--platform android` and a Gradle `assembleRelease`. **Do not skip prebuild after
+a version bump** — `android/` is generated and Gradle reads the generated
+`build.gradle`, so the APK will carry the old version silently.
 
-Wireless debugging drops when a phone sleeps or the network changes, and the
-advertised port is random. `adb mdns services` finds it; `adb connect` to a
-stale port says `Connection refused` when the host is up and
-`failed to connect` with no errno when it is up but unpaired. Pairing needs a
-code from the screen and only Tom can read it.
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.5.1**, signed
+  in as `rnclient` (all five roles). Its cluster is a **remote TLS** one —
+  `https://macnessa.macha.network` and `ramaroja`, both on server **0.40.0**.
+  `10.44.1.x` is live. **Its address and port move constantly**: `adb mdns
+  services` finds it, and it drops whenever the phone sleeps.
+- **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
+  **0.4.0** and **no endpoints configured**, so it opens on the connect screen —
+  the right device for first-run and QR in one pass.
+- **The Smart_TV that answers ADB is not a test target.** Verify
+  `ro.product.model` before any install; it is often attached alongside the
+  phone.
+
+**Check the foreground before driving the phone.** Blind `adb input` chains have
+landed in another app mid-sequence. `dumpsys window | grep mCurrentFocus` first,
+and abort if it is not `foundation.macha.client`.
+
+**Peer sessions.** Address core as **`Macha NPM Core`** — *not* the name
+`ListAgents` prints for it. There are two `Macha Server` rows; the live one needs
+its `[ref]`.
+
+---
+
+## P1 — The 0.10.0/0.11.0 port, and the one security item in it
+
+**Status: scoped and estimated, not started.** Core is at **0.11.0** and this
+client already **builds, tests and ships against it** — 0.5.1 was released on
+0.10.0's `dist`, and the tree is green on 0.11.0 (typecheck clean, 90 tests,
+verified rather than assumed). What is missing is *using* what those releases
+added.
+
+**The one item that is a security change rather than a tidy-up.** The bearer now
+persists for **up to 30 days** in plaintext `AsyncStorage`, where before 0.5.1 it
+died with the process. Same storage, same permissions — but the exposure window
+went from one session to a month, readable on a rooted device or in a backup.
+That is a consequence of a fix that was otherwise entirely good, and it is the
+argument for sequencing this sooner rather than later.
+
+**Checked against the Expo 57 docs rather than assumed:** `expo-secure-store`
+exposes **synchronous `getItem`/`setItem`**, so it satisfies core's `StorageLike`
+directly — no hydrate-at-startup cache, unlike `ClientStore`. `removeItem` wraps
+`deleteItemAsync` fire-and-forget, the pattern `ClientStore.enqueue` already
+uses, so the adapter is about five lines. Its config plugin also exposes
+**`configureAndroidBackup`**, which closes the backup half of the exposure above
+deliberately rather than incidentally.
+
+**Estimate: ~1.5-2 hours of work, plus ~1.5 hours of build and device
+verification.** The code is the small part — `expo-secure-store` ships a config
+plugin, so it needs `prebuild` and a **cold Gradle build, 1h15m last time**,
+almost all waiting.
+
+The mechanical hour:
+
+- `secureStorage` via `expo-secure-store` — the reason to do this at all.
+- `signOut()` — core now revokes itself and throws on failure, which is what this
+  client hand-rolled. Delete our composition, keep the rethrow.
+- `probeNow()` — retires the `stop()`/`start()` radio workaround. Minutes.
+- `isMachaStorageKey()` — replaces the two-prefix filter added in 0.5.1.
+- `noteArtworkLoaded` — see the P2 below.
+
+**Suggested sequencing:** take the mechanical hour and the rebuild; leave
+`lastIdentityChange` as its own decision, because that is design rather than
+wiring and nothing bites for a month. See the next item.
+
+**Do not rename `@macha/core` as part of this.** Separate chore, Tom's call, and
+two of three clients key the dependency that way.
+
+---
+
+## P1 — At 30 days a signed-in viewer silently becomes nobody
+
+
+**Consequence of the accepted TTL, surfaced by core after the decision. Not a
+re-raise of the TTL — this is client work.**
+
+Core's refresh timer **does not refresh; it re-mints**, and a re-mint presents no
+credentials. So at the 30-day mark a signed-in session is replaced by whatever an
+empty credential set authenticates. Core's reasoning is that this is correct
+because browsing beats no session.
+
+**That reasoning does not hold on this cluster.** Anonymous here holds **no
+roles**, so the re-mint does not degrade a viewer to browsing — it degrades them
+to nothing. What they will actually see, mid-use and with no explanation, is the
+library emptying and "This account cannot view media": the exact refused state
+this client spent 0.5.0 building, arriving as if something had broken.
+
+Worse than a logout, because a logout at least says what happened.
+
+**What to do about it, all client-side and none of it urgent:**
+
+- `SessionManager.lastIdentityChange` (`{from?, to?, at}`, new in core 0.10.0)
+  is how we notice. Core deliberately says nothing about what the change
+  *means* — a 401 cannot distinguish expiry from revoke from a
+  `credential_generation` bump — so the wording is ours.
+- The honest fix is to ask the viewer to sign in again **before** it happens,
+  rather than explain it afterwards. Thirty days from mint is knowable in
+  advance; the session carries `expires_unix_ms`.
+- The access gate already renders this state correctly. What it lacks is the
+  distinction between "this cluster refuses you" and "your session just aged
+  out", which are the same picture and very different sentences.
+
+**Do not fold this into the TTL item.** That one is decided and closed. This is
+about what the client does when the decision takes effect.
 
 ---
 
 ## P1 — What still needs a person holding a phone
+
 
 Nothing here can be done from this machine alone. The Galaxy is the better
 device for the first two — clean install, no endpoints, opens on the connect
@@ -94,31 +194,8 @@ login above confirms it for a signed-in user.
 
 ---
 
-## P1 — Delete `firstReachable`; core ships that gate now
-
-**Small, and it removes a mirror.** `src/app/connect.tsx` has its own pre-save
-connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)`
-does the same job and more: it returns `unconfirmed`, naming endpoints that
-answered without a 2xx, so the screen can say "reached, but it did not identify
-itself as a Macha server" rather than silently accepting a mistyped address —
-and it separates "still pending" from "unreachable" behind a UI deadline, so a
-slow node does not read as a dead one.
-
-**Why a copy exists at all is the part worth keeping.** Core's gate was broken
-until 0.9.0 — it counted an endpoint available only on `response.ok` against
-`/api/v1/catalogue/status`, which every node answers 401 to unauthenticated, so
-it could accept nothing and a fresh install could not be configured. This client
-routed around a genuine defect rather than by mistake. But nobody goes back
-without being told, which is how one rule ends up in four places with four
-opinions. Core has recorded the reciprocal lesson: when a defect in a shared
-function is fixed, tell the clients that routed around it.
-
-If any of ours is kept, say what shape core's result does not give — core asked,
-because that would be a gap in theirs rather than a preference.
-
----
-
 ## P1 — `version:check` passes while the APK lies
+
 
 **Found 2026-09-13 while tagging 0.5.1.** `android/` is **generated by
 `expo prebuild` from `app.json`**, and Gradle reads `versionCode`/`versionName`
@@ -148,249 +225,33 @@ is easy, silent and costs nothing visible until a version matters.
 
 ---
 
-## P2 — Wire `MediaApi.noteArtworkLoaded` when artwork is next touched
+## P1 — Delete `firstReachable`; core ships that gate now
 
-New in core, and it pairs with something this client already does. `Artwork.tsx`
-walks candidate URLs in order and moves on only when one actually fails.
-`noteArtworkLoaded(url)` — **called on success only** — keeps an artwork URL
-byte-identical across an endpoint swap, which otherwise renames every poster and
-re-downloads bytes the device already holds.
 
-Related and already true: **key any artwork cache on `ref.id`, never on
-`ref.url`.** `id` is the SHA-256 of the artwork bytes — content-addressed and
-identical on every node — while the signed `url` is re-signed per catalogue read.
-Two other clients built id→url memos to work around that churn; none was needed,
-and we never built one. Server 0.40.0 quantizes `exp` into a TTL bucket, so the
-URL is now stable for up to 24 hours anyway.
+**Small, and it removes a mirror.** `src/app/connect.tsx` has its own pre-save
+connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)`
+does the same job and more: it returns `unconfirmed`, naming endpoints that
+answered without a 2xx, so the screen can say "reached, but it did not identify
+itself as a Macha server" rather than silently accepting a mistyped address —
+and it separates "still pending" from "unreachable" behind a UI deadline, so a
+slow node does not read as a dead one.
 
----
+**Why a copy exists at all is the part worth keeping.** Core's gate was broken
+until 0.9.0 — it counted an endpoint available only on `response.ok` against
+`/api/v1/catalogue/status`, which every node answers 401 to unauthenticated, so
+it could accept nothing and a fresh install could not be configured. This client
+routed around a genuine defect rather than by mistake. But nobody goes back
+without being told, which is how one rule ends up in four places with four
+opinions. Core has recorded the reciprocal lesson: when a defect in a shared
+function is fixed, tell the clients that routed around it.
 
-## P1 — Signing in must be permanent until logout
-
-**Tom's requirement, 2026-09-13:** signing in should last until the viewer logs
-out, like any other app, on RN, web and both TVs. Two separate problems, and only
-the first is ours.
-
-**FIXED HERE: the token was written every launch and never read back.** Core
-caches the session under **`macha-session`** — hyphenated. This client namespaces
-its own keys `macha.` and hydrated AsyncStorage with a `startsWith('macha.')`
-filter, so core's key was silently excluded. A login therefore survived exactly
-as long as the process did.
-
-Nothing errored and nothing logged, which is why it lasted: an anonymous session
-re-mints in milliseconds, so the only symptom was a *person* being signed out on
-every cold start — invisible until an account actually mattered, which is to say
-until today. `src/state/storage.ts` now restores both prefixes, anchored so a
-third party's `machaSomething` cannot wander in, and `storage.test.ts` fails
-against the old filter.
-
-**My first diagnosis was wrong and is worth recording as such.** I said
-`ephemeralStorage` was memory-backed. It is not — it is `clientStore`, persistent
-on purpose, with a comment saying a phone's run is the process. The plausible
-mechanism fitted the symptom exactly and was wrong, which is this project's
-standing failure mode.
-
-**DECIDED 2026-09-13: 30 days stands, and that closes this.** Tom: "30 days is
-good for now." No sliding expiry, no longer TTL, no refresh tokens. **Do not
-re-raise it as a defect** — the consequence is understood and accepted: a
-signed-in viewer is logged out 30 days after minting, counted from *creation*
-rather than last use, so it expires even with daily use. The original
-requirement was "permanent until logout"; this is knowingly short of that.
-
-The three schemes and their trade-offs are recorded below in case the decision
-is revisited. What made it affordable is that the client half is done: the token
-now survives a restart, so the 30 days is actually usable rather than being cut
-short by the first cold start.
-
-**Background, retained for whenever this is revisited.** `SessionConfig::anonymous_ttl` is **30 days
-from creation**, and the comment beside it states there is no sliding renewal in
-v1. So a perfectly persisted token still logs the viewer out 30 days after they
-signed in. Raised with the server session; three options put to them:
-
-- **Sliding expiry with a threshold** (recommended) — extend when a session is
-  used and under half its TTL remains. No new endpoint, no new concept in four
-  clients, and revocation already works. The threshold is not tidiness:
-  `AuthSession` is gossiped to every node, so extending per request would mean a
-  replicated write per request.
-- **Longer TTL plus a "remember me" at mint** — cheapest; a stolen token then
-  lives a year unrotated.
-- **Refresh token and short access token** — the OAuth2 answer, real per-device
-  revocation, and far the most work. The right answer only if Macha becomes
-  multi-tenant or publicly exposed.
-
-**WHERE THE TOKEN LIVES IS A SEPARATE QUESTION, AND WEB IS NOT LIKE THE OTHERS.**
-A bearer in any JS-reachable storage is XSS-readable, so the web client should
-hold **nothing** — the correct answer is an httpOnly, Secure, SameSite cookie set
-by the node, which already serves that client same-origin. No client-side seam
-can represent "store nothing", which is why one mechanism cannot serve all four.
-
-Native is the opposite: hold the token, but not where we hold it now. **Ours is
-AsyncStorage plaintext**, readable on a rooted device or in a backup;
-`expo-secure-store` is the fix and is **not currently a dependency**. Raised with
-core as a possible `secureStorage?: StorageLike` seam, optional, used only for a
-credentialed session. Tizen is the weakest of the four — app-private storage, no
-hardware backing — and worth stating rather than assuming parity.
-
-**Core's seam is the wrong shape for this.** `ephemeralStorage` is a binary; the
-distinction that matters is *anonymous and disposable* versus *credentialed and
-durable*. We already point it at persistent storage, which also persists
-anonymous tokens — the thing core deliberately avoided on the web.
-
----
-
-## P1 — WRITTEN, NOT YET DEVICE-VERIFIED: seek repositions the generation
-
-Both fixes for the measured failover defect are written and tested; **neither has
-run on hardware.** The cluster went to 0.40.0 immediately afterwards, so the
-re-run is pending the nodes coming back.
-
-- **`seekRequiresReposition` / `repositionTo`** — a forward seek past what the
-  player has buffered, on a transformed generation, now issues a seek-only PATCH
-  and repoints the player at the URL from the response before resuming. The
-  repoint is **forced**, not conditional on the URL having changed: a seek PATCH
-  creates a new generation, the stream URL carries the generation in its path,
-  and the old one answers **404 by design** so a retry loop cannot keep an
-  abandoned encoder alive. Our existing `applyUpdate` only repoints when the URL
-  differs, which would have worked in testing and failed on exactly the path
-  where the generation is the only part that differs. That warning came from the
-  server session and is the difference between correct and nearly correct.
-- **`errorBlamesEndpoint`** — a fatal player error while a seek we asked for is
-  still outstanding no longer condemns the endpoint, spends failover budget, or
-  records a failure. Deliberately narrow: outside that window, and for direct
-  play, failover still fires, because a transformed stream failing in ordinary
-  playback is what it exists for.
-
-**Keyed on buffered-end rather than on the node's window, on purpose.** We cannot
-see `segment_hold_window` and must not keep a second copy of it. Buffered-end
-errs safe: production may be further ahead, so this can ask for a reposition that
-was not needed, which costs one cheap PATCH. Being wrong the other way costs a
-healthy node and every frame it had built.
-
-**The music path is knowingly not fixed.** A seek beyond production on a
-transformed track is still refused; correcting it means reloading the track at
-the new URL rather than writing a position. Lock-screen and notification scrubs
-never reach our JavaScript at all, which is the one case the server's
-implicit-seek option would have covered — the operator rejected it, so that gap
-stands.
-
----
-
-## P1 — MEASURED: a `segment_not_ready` 500 evicts a healthy node
-
-**Measured on the A85, 2026-09-13. The expectation recorded below was wrong.**
-
-Seeking into territory the transcoder had not reached, on a `transcode`
-generation served by **macnessa (gbni-1)**:
-
-    15:57:56       seek
-    15:58:00.724   HttpDataSource$InvalidResponseCodeException: Response code: 500
-                   → ExoPlaybackException: Source error  (fatal, OkHttpDataSource.open:309)
-    15:58:00.769   [playback] failover-attempt from macnessa
-    15:58:00.877   session-stopped, failed-session-closed  endpointId=macnessa
-    15:58:07.000   fresh session answered on ramaroja (es-1); ~6.2 s gap
-
-Three facts, none of which were known before:
-
-1. **The 500 does arrive** — ~4.7 s from seek, well inside media3's deadline.
-2. **media3 does not retry it.** It is immediately *fatal* on the HLS path. The
-   server's 6000 ms hold is therefore the **only** retry budget in the system;
-   there is nothing behind it.
-3. **This client turns a retry signal into a node eviction.** `segment_not_ready`
-   means "wait, I am building it". We stop the session, record the endpoint as
-   failed for that generation, and rebuild on another node — discarding the
-   transcode already produced, for a node that was working perfectly.
-
-**Why the old reasoning failed.** It said this "cannot happen" because segment
-requests bypass `src/api/http.ts` and so cannot reach `isEndpointFailure` or the
-registry. True as far as it goes — and irrelevant. The status never reaches the
-registry; it reaches the **player error path**, and `PlaybackProvider`'s failover
-does the rest. An inherited claim that survived because nobody had opened a
-device. It is also why the server's 500-vs-503 design is not merely inert here
-but actively harmful: we cannot read the code, so a hold and a broken generation
-are the same event, and both evict a node.
-
-**The fix is ours and is not a status check** — we cannot read a status. It is
-that a player error on a *transcode* generation should not immediately condemn
-the endpoint. A fresh generation that has never delivered a frame has not proved
-anything about the node, which is the same argument the stall-watchdog item below
-already makes for a different symptom.
-
-**Cold start, separately: the hold is never reached.** Switching direct →
-transcode took **1722 ms** for the node to admit the generation and ~2.2 s to
-first frame, then played 2:30 of content in ~2.5 min of wall clock with **zero**
-load failures. Transcode on gbni-1 is faster than realtime for this title, so
-nothing was ever late.
-
-**That 500 was NOT the hold expiring, and a longer hold would not have helped.**
-Corrected by the server session, which read the code rather than the timeline.
-`public_stream_response` has **two** refusal paths: a segment inside the
-`segment_count + segment_hold_window` (8 segments) is *held* up to
-`segment_timeout` (6000 ms); a segment **beyond** that window is refused
-**immediately**, sub-millisecond, with `reason=beyond_hold_window`. A seek to the
-hour mark lands hundreds of segments past production, so it took the second path.
-The 4.7 s was entirely ours — seek handling, playlist processing, round trip.
-
-Widening the window would mean authorising the encoder to run an hour ahead,
-which is a different design rather than a knob. **The fix is that production has
-to move to where the viewer seeked**, and the server already supports that: a
-seek-only PATCH repositions the generation at the nearest random-access point
-cheaply, keeping the plan state and the URLs.
-
-**The server assumed we cannot do that, and is wrong about this client.** Their
-reasoning was that a native seek never reaches JavaScript. Ours does:
-`SeekBar` calls `onSeek` on release (`src/ui/SeekBar.tsx:71`) → `usePlayback()
-.seekTo` → `PlaybackProvider`, which already tracks `pendingSeekRef` because
-both engines keep reporting the old position after a seek. The ±10 s buttons go
-the same way. **So the capability exists; we simply do not use it** — we seek the
-player and never tell the node.
-
-**The client fix, therefore:** on a transformed generation, a seek beyond what
-has been produced should PATCH the session with the new position *before* seeking
-the player, rather than letting the player ask for a segment nobody is building.
-Not yet written. Only seeks that originate outside our UI — a lock-screen scrub
-on the music path — would still need the server-side implicit-seek behaviour.
-
-**Still true, and still worth having for whoever tunes the hold:** ~10000 ms on
-video (OkHttp defaults) and ~8000 ms on music (media3 defaults) before the
-transport gives up. That bounds `segment_timeout` from above, but it is
-irrelevant to the `beyond_hold_window` path measured here.
-
----
-
-## P1 — Original reasoning, kept because it was wrong in an instructive way
-
-**Status:** cheap to verify, expensive to have wrong. Probably already safe.
-
-The server holds a request for `streaming.segment_timeout` when a fragment is not
-yet produced, then answers **500 `segment_not_ready`** with a `Retry-After`.
-**That 500 is a hold, not evidence about the node** — retrying is correct,
-demoting the endpoint is not. **503 `stream_failed` is the terminal one.** A
-client treating 5xx uniformly evicts healthy nodes for doing their job, and it
-looks exactly like flaky infrastructure.
-
-**The server half, confirmed from source.** 6000 ms is the code default
-(config.hpp:461), valid 1000..20000, and **not** overridden in the cluster YAML,
-so the nodes here run the default. The refusal carries `Retry-After: 1` and
-`Cache-Control: no-store` (playback.cpp:792-800), and **`init.mp4` takes the same
-path as a fragment** — the playlist is served up front, so a client asks for it
-before the muxer has written it. `streaming.md:111` explains why 500 and not 503.
-
-**Expected answer here is that it cannot happen.** Segment, init and playlist
-requests are issued by the native players straight to the stream URL and never
-pass through `src/api/http.ts`, so a segment status cannot reach
-`isEndpointFailure` or the registry at all. That safety is architectural — but it
-has never been positively verified, and the API paths that *do* go through core's
-classification are a separate question.
-
-**Two device-side measurements remain open and are ours**, and the server session
-wants the result: whether a cold session on either engine ever actually receives
-that 500 before aborting, and the prefetch arithmetic. 6000 rests on static
-constants read from Android artifacts, with iOS never read at all — and the
-server side of that constant has no owner either.
+If any of ours is kept, say what shape core's result does not give — core asked,
+because that would be a gap in theirs rather than a preference.
 
 ---
 
 ## P2 — Two defects left in the access gate deliberately
+
 
 Both raised, both declined at the time, both still true.
 
@@ -410,7 +271,26 @@ Both raised, both declined at the time, both still true.
 
 ---
 
+## P2 — Wire `MediaApi.noteArtworkLoaded` when artwork is next touched
+
+
+New in core, and it pairs with something this client already does. `Artwork.tsx`
+walks candidate URLs in order and moves on only when one actually fails.
+`noteArtworkLoaded(url)` — **called on success only** — keeps an artwork URL
+byte-identical across an endpoint swap, which otherwise renames every poster and
+re-downloads bytes the device already holds.
+
+Related and already true: **key any artwork cache on `ref.id`, never on
+`ref.url`.** `id` is the SHA-256 of the artwork bytes — content-addressed and
+identical on every node — while the signed `url` is re-signed per catalogue read.
+Two other clients built id→url memos to work around that churn; none was needed,
+and we never built one. Server 0.40.0 quantizes `exp` into a TTL bucket, so the
+URL is now stable for up to 24 hours anyway.
+
+---
+
 ## P2 — Verify the container restatement reaches the wire
+
 
 **Status: fixed in core; verification outstanding.** Needs a node stopped
 mid-playback, so it happens on Tom's next run rather than on demand.
@@ -450,6 +330,7 @@ did. Core lost time to exactly this.
 
 ## P2 — A session is leaked on process death, and only the server can close it
 
+
 **Filed as P3 on the wrong clock, corrected.** It said "a node reclaims an idle
 session in about a minute", which is `pipeline_idle` — the *engine*. The session,
 and with it the video transcode entitlement, lives until `session_idle` at **30
@@ -467,6 +348,7 @@ cannot send a `DELETE`. Only the server-side change under consideration covers
 it. Kept as the standing argument for that change rather than as work to do.
 
 ## P2 — Nothing anywhere knows about speaker layout
+
 
 **Status:** putative for this client, live elsewhere.
 
@@ -488,6 +370,7 @@ an independent black-picture path. The `web` fallback branch does leave them
 unset: dead code on a device, but recorded rather than trusted.
 
 ## P2 — Stall detection, if it is ever wired
+
 
 **Status:** deliberately not started. Depends on decisions not yet made.
 
@@ -514,6 +397,7 @@ argument. The standby defect once cited as a reason against it has been retracte
 
 ## P3 — Dead viewer-session identity
 
+
 `MachaProvider.tsx:107` generates a per-process UUID and hands it to
 `ClusterPlaybackApi`, whose constructor takes it as `_viewerSession` — the
 underscore being the previous author's note that it goes nowhere. It also sits in
@@ -530,43 +414,8 @@ Delete the UUID, the constructor parameter and the dependency.
 
 ---
 
-## P1 — At 30 days a signed-in viewer silently becomes nobody
-
-**Consequence of the accepted TTL, surfaced by core after the decision. Not a
-re-raise of the TTL — this is client work.**
-
-Core's refresh timer **does not refresh; it re-mints**, and a re-mint presents no
-credentials. So at the 30-day mark a signed-in session is replaced by whatever an
-empty credential set authenticates. Core's reasoning is that this is correct
-because browsing beats no session.
-
-**That reasoning does not hold on this cluster.** Anonymous here holds **no
-roles**, so the re-mint does not degrade a viewer to browsing — it degrades them
-to nothing. What they will actually see, mid-use and with no explanation, is the
-library emptying and "This account cannot view media": the exact refused state
-this client spent 0.5.0 building, arriving as if something had broken.
-
-Worse than a logout, because a logout at least says what happened.
-
-**What to do about it, all client-side and none of it urgent:**
-
-- `SessionManager.lastIdentityChange` (`{from?, to?, at}`, new in core 0.10.0)
-  is how we notice. Core deliberately says nothing about what the change
-  *means* — a 401 cannot distinguish expiry from revoke from a
-  `credential_generation` bump — so the wording is ours.
-- The honest fix is to ask the viewer to sign in again **before** it happens,
-  rather than explain it afterwards. Thirty days from mint is knowable in
-  advance; the session carries `expires_unix_ms`.
-- The access gate already renders this state correctly. What it lacks is the
-  distinction between "this cluster refuses you" and "your session just aged
-  out", which are the same picture and very different sentences.
-
-**Do not fold this into the TTL item.** That one is decided and closed. This is
-about what the client does when the decision takes effect.
-
----
-
 ## Cluster membership can shrink and regrow on its own
+
 
 **Not a fault, and it will look like one.** gbni-2 (`inverbeg`) was removed by
 Tom on 2026-09-13, so the Cluster screen correctly reads **2 known endpoints**
@@ -589,6 +438,7 @@ does not consume.
 ---
 
 ## Waiting on other sessions
+
 
 - **Address the core session as `Macha NPM Core`** — *not* the name `ListAgents`
   prints for it (`Macha Core NPM Module @macha/core`), which `SendMessage`
@@ -667,6 +517,7 @@ does not consume.
 
 ## Possible server change worth watching
 
+
 **Tying the video transcode entitlement to the engine rather than the session** is
 under consideration, so pipeline reclaim at 60 s frees the slot and a resuming
 session re-acquires it. It closes the hole no client can — crashes, power loss,
@@ -676,6 +527,7 @@ client would have to handle rather than treat as an error. No action until the
 server session says which way it goes.
 
 ## Deferred by Tom
+
 
 - **Seamless failover.** Recovery works but is not seamless, and the gap is
   transport, not player: expo-video builds its `OkHttpDataSource` internally with
@@ -688,6 +540,7 @@ server session says which way it goes.
   factory, so the injection point expo-video denies this client exists there.
 
 ## Checked and already correct
+
 
 - **TV key events cannot reach a bridgeless build, and this client has no
   exposure.** The Android TV session found that `useTVEventHandler` waits on
