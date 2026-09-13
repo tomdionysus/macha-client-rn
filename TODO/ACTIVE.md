@@ -52,21 +52,36 @@ action key now breaks the line instead of submitting.
 
 ---
 
-## Done at 0.4.0 — the node field could never reach line two
+## The node field: one box became one row per node, after the first fix failed
 
-`src/app/connect.tsx` has carried `multiline` since before this round, splits on
-newlines *and* commas, and says "one per line" in its hint. None of that was
-reachable from a phone: with `inputMode="url"` the Android action key is **Go**,
-and on a multiline field that submitted instead of breaking the line, so a second
-node could not be typed. `submitBehavior="newline"` states which of the two the
-key does. The hint now also mentions commas, which the parser already accepted,
-so there is a way in even where a keyboard offers no return at all.
+**The first attempt is recorded because it was measured and it lost.** The field
+had `multiline`, split on newlines *and* commas, and said "one per line" in its
+hint, and none of it was reachable from a phone. The diagnosis was the keyboard:
+with `inputMode="url"` the Android action key is **Go**, which submits rather
+than breaking the line. The fix was `submitBehavior="newline"`, which states
+that the key should insert a line break instead. It shipped in 0.4.0, went onto
+two phones, and **Tom reported the field still offers one line and no way to
+type a second**. So the diagnosis was at best incomplete: RN's `submitBehavior`
+governs what RN does with a submit, not whether the IME offers a newline key at
+all, and for a URI-variation field it appears not to.
 
-The Settings row that displays the seeds was clamped at two lines by `ListRow`'s
-default, which reads as a limit on how many nodes there can be rather than a
-truncated view of how many there are; it now sizes to the list. **Both are
-unverified on a device** — the keyboard behaviour is the reason the change
-exists and is exactly the part that needs the phone to confirm.
+**What replaced it stops depending on a key that may not exist.** One row per
+node, an "Add another node" control, and a remove control once there is more
+than one. No Enter is required at any point in the flow. The URL keyboard stays,
+since nothing now needs a newline from it.
+
+Pasting is the one case that still needs parsing, and it is in
+`src/state/endpointList.ts` with tests: a value arriving in a single row that
+carries whitespace, commas or semicolons is a list, and it expands across rows
+rather than sitting in one row as text no separator in this app would later
+split. `removeRow` and `addRow` never leave the screen with no field to type
+into, and `adoptEndpoint` — the scanner's path in — fills the empty row a fresh
+screen starts with rather than appending below it.
+
+**Unverified on a device.** The thing it replaces was also unverified when it
+shipped, which is how it reached two phones while still being wrong. This one
+cannot fail for the same reason, because it asks nothing of the keyboard, but
+that is an argument rather than a measurement.
 
 ---
 

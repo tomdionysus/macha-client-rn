@@ -1,14 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';
+import { addRow, adoptEndpoint, editRow, removeRow, splitEndpointEntries } from '../state/endpointList';
 import { Button } from '../ui/controls';
-import { ScanIcon } from '../ui/Icons';
+import { CloseIcon, PlusIcon, ScanIcon } from '../ui/Icons';
 import { MachaLogo } from '../ui/Logo';
-import { colors, radius, space, type as typography } from '../ui/theme';
+import { colors, radius, space, type as typography, TOUCH_TARGET } from '../ui/theme';
 
 const CONNECTION_CHECK_TIMEOUT_MS = 6_000;
 
@@ -23,28 +24,26 @@ export default function ConnectScreen() {
   const insets = useSafeAreaInsets();
   const { scanned } = useLocalSearchParams<{ scanned?: string }>();
 
-  const [address, setAddress] = useState(endpoints.join('\n'));
+  const [rows, setRows] = useState<string[]>(endpoints.length > 0 ? [...endpoints] : ['']);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
 
-  // A scanned address is added to the field rather than substituted for it, and
-  // is not connected with automatically: someone who has already typed a seed
-  // has not asked for it to be thrown away, and an address that arrives from a
-  // camera is worth seeing before it is used.
+  // A scanned address takes the empty row a fresh screen starts with, or adds
+  // one of its own, rather than replacing what is already there — someone who
+  // has typed a seed has not asked for it to be thrown away. It is not
+  // connected with automatically either: an address that arrived from a camera
+  // is worth seeing before it is used.
   const applied = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!scanned || applied.current === scanned) return;
     applied.current = scanned;
     setMessage(undefined);
-    setAddress((current) => {
-      const lines = current.split(/[\n,]/).map((line) => line.trim()).filter(Boolean);
-      return lines.includes(scanned) ? current : [...lines, scanned].join('\n');
-    });
+    setRows((current) => adoptEndpoint(current, scanned));
   }, [scanned]);
 
   const connect = useCallback(async () => {
-    const candidates = address
-      .split(/[\n,]/)
+    const candidates = rows
+      .flatMap((row) => splitEndpointEntries(row))
       .map((entry) => coerceEndpointUrl(entry))
       .filter(Boolean);
 
@@ -68,7 +67,7 @@ export default function ConnectScreen() {
     } finally {
       setChecking(false);
     }
-  }, [address, configure, router]);
+  }, [configure, rows, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -82,28 +81,43 @@ export default function ConnectScreen() {
           cluster is discovered from there.
         </Text>
 
-        <Text style={styles.label}>Node address</Text>
-        <TextInput
-          value={address}
-          onChangeText={setAddress}
-          placeholder={'192.168.1.20:7438\n192.168.1.21:7438'}
-          placeholderTextColor={colors.textFaint}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          inputMode="url"
-          multiline
-          // The field has always accepted several nodes; typing the second one
-          // was the problem. A URL keyboard's action key is "Go", and on a
-          // multiline field that submitted instead of breaking the line, so
-          // there was no way to reach line two from the phone. This states
-          // which of the two the key does.
-          submitBehavior="newline"
-          style={[styles.input, styles.multiline]}
+        <Text style={styles.label}>{rows.length > 1 ? 'Node addresses' : 'Node address'}</Text>
+        {rows.map((row, index) => (
+          <View key={index} style={styles.row}>
+            <TextInput
+              value={row}
+              onChangeText={(value) => setRows((current) => editRow(current, index, value))}
+              placeholder="192.168.1.20:7438"
+              placeholderTextColor={colors.textFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              inputMode="url"
+              style={[styles.input, styles.rowInput]}
+            />
+            {rows.length > 1 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove node ${index + 1}`}
+                hitSlop={8}
+                onPress={() => setRows((current) => removeRow(current, index))}
+                style={({ pressed }) => [styles.remove, pressed && styles.removePressed]}>
+                <CloseIcon size={16} color={colors.textFaint} />
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+
+        <Button
+          label="Add another node"
+          variant="quiet"
+          icon={<PlusIcon size={16} color={colors.textDim} />}
+          onPress={() => setRows((current) => addRow(current))}
+          style={styles.add}
         />
         <Text style={styles.hint}>
-          One node per line, or separated by commas — seed as many as you like and the rest of the cluster is
-          discovered from whichever answers. Plain HTTP on port 7438 is assumed.
+          Seed as many nodes as you like — the rest of the cluster is discovered from whichever answers first.
+          Pasting a list into any field spreads it across fields. Plain HTTP on port 7438 is assumed.
         </Text>
 
         <Button
@@ -192,12 +206,27 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 50,
   },
-  multiline: {
-    // Three lines rather than two: a box that can only show what you have
-    // already typed reads as a field for one value, whatever it accepts.
-    minHeight: 112,
-    textAlignVertical: 'top',
-    lineHeight: 22,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginBottom: space.sm,
+  },
+  rowInput: {
+    flex: 1,
+  },
+  remove: {
+    width: TOUCH_TARGET,
+    height: TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePressed: {
+    opacity: 0.6,
+  },
+  add: {
+    alignSelf: 'flex-start',
+    marginBottom: space.md,
   },
   hint: {
     ...typography.caption,
