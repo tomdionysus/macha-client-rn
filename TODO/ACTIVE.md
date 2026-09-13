@@ -430,6 +430,21 @@ server session says which way it goes.
 
 ## Checked and already correct
 
+- **TV key events cannot reach a bridgeless build, and this client has no
+  exposure.** The Android TV session found that `useTVEventHandler` waits on
+  `onHWKeyEvent`, which only the legacy `ReactRootView` emits; bridgeless routes
+  through `JSKeyDispatcher`, which never emits it and discards the event unless a
+  native view holds focus. They ended up owning a Kotlin bridge over
+  `Window.Callback`. Checked here rather than filed: `useTVEventHandler`,
+  `TVEventHandler`, `onHWKeyEvent`, `hasTVPreferredFocus`, `tvParallaxProperties`,
+  `react-native-tvos` and `Platform.isTV` return **nothing** across `src` and
+  `index.js`. We are `newArchEnabled=true`, so the dead path exists — nothing
+  here asks for a key event, and the only hardware input handled is the media
+  transport, which arrives through track-player's service. **Inert rather than
+  inapplicable:** the day this client grows a keyboard shortcut or a remote, it
+  inherits the bug whole.
+
+
 Recorded so they are not re-raised.
 
 - **Core's two endpoint normalisers do not disagree.** Raised by the core
