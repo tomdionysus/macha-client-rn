@@ -148,6 +148,23 @@ is easy, silent and costs nothing visible until a version matters.
 
 ---
 
+## P2 — Wire `MediaApi.noteArtworkLoaded` when artwork is next touched
+
+New in core, and it pairs with something this client already does. `Artwork.tsx`
+walks candidate URLs in order and moves on only when one actually fails.
+`noteArtworkLoaded(url)` — **called on success only** — keeps an artwork URL
+byte-identical across an endpoint swap, which otherwise renames every poster and
+re-downloads bytes the device already holds.
+
+Related and already true: **key any artwork cache on `ref.id`, never on
+`ref.url`.** `id` is the SHA-256 of the artwork bytes — content-addressed and
+identical on every node — while the signed `url` is re-signed per catalogue read.
+Two other clients built id→url memos to work around that churn; none was needed,
+and we never built one. Server 0.40.0 quantizes `exp` into a TTL bucket, so the
+URL is now stable for up to 24 hours anyway.
+
+---
+
 ## P1 — Signing in must be permanent until logout
 
 **Tom's requirement, 2026-09-13:** signing in should last until the viewer logs
@@ -173,7 +190,19 @@ on purpose, with a comment saying a phone's run is the process. The plausible
 mechanism fitted the symptom exactly and was wrong, which is this project's
 standing failure mode.
 
-**NOT FIXED, AND NEEDS THE SERVER.** `SessionConfig::anonymous_ttl` is **30 days
+**DECIDED 2026-09-13: 30 days stands, and that closes this.** Tom: "30 days is
+good for now." No sliding expiry, no longer TTL, no refresh tokens. **Do not
+re-raise it as a defect** — the consequence is understood and accepted: a
+signed-in viewer is logged out 30 days after minting, counted from *creation*
+rather than last use, so it expires even with daily use. The original
+requirement was "permanent until logout"; this is knowingly short of that.
+
+The three schemes and their trade-offs are recorded below in case the decision
+is revisited. What made it affordable is that the client half is done: the token
+now survives a restart, so the 30 days is actually usable rather than being cut
+short by the first cold start.
+
+**Background, retained for whenever this is revisited.** `SessionConfig::anonymous_ttl` is **30 days
 from creation**, and the comment beside it states there is no sliding renewal in
 v1. So a perfectly persisted token still logs the viewer out 30 days after they
 signed in. Raised with the server session; three options put to them:
@@ -501,6 +530,64 @@ Delete the UUID, the constructor parameter and the dependency.
 
 ---
 
+## P1 — At 30 days a signed-in viewer silently becomes nobody
+
+**Consequence of the accepted TTL, surfaced by core after the decision. Not a
+re-raise of the TTL — this is client work.**
+
+Core's refresh timer **does not refresh; it re-mints**, and a re-mint presents no
+credentials. So at the 30-day mark a signed-in session is replaced by whatever an
+empty credential set authenticates. Core's reasoning is that this is correct
+because browsing beats no session.
+
+**That reasoning does not hold on this cluster.** Anonymous here holds **no
+roles**, so the re-mint does not degrade a viewer to browsing — it degrades them
+to nothing. What they will actually see, mid-use and with no explanation, is the
+library emptying and "This account cannot view media": the exact refused state
+this client spent 0.5.0 building, arriving as if something had broken.
+
+Worse than a logout, because a logout at least says what happened.
+
+**What to do about it, all client-side and none of it urgent:**
+
+- `SessionManager.lastIdentityChange` (`{from?, to?, at}`, new in core 0.10.0)
+  is how we notice. Core deliberately says nothing about what the change
+  *means* — a 401 cannot distinguish expiry from revoke from a
+  `credential_generation` bump — so the wording is ours.
+- The honest fix is to ask the viewer to sign in again **before** it happens,
+  rather than explain it afterwards. Thirty days from mint is knowable in
+  advance; the session carries `expires_unix_ms`.
+- The access gate already renders this state correctly. What it lacks is the
+  distinction between "this cluster refuses you" and "your session just aged
+  out", which are the same picture and very different sentences.
+
+**Do not fold this into the TTL item.** That one is decided and closed. This is
+about what the client does when the decision takes effect.
+
+---
+
+## Cluster membership can shrink and regrow on its own
+
+**Not a fault, and it will look like one.** gbni-2 (`inverbeg`) was removed by
+Tom on 2026-09-13, so the Cluster screen correctly reads **2 known endpoints**
+where it used to read 3. Verified in both remaining nodes' membership files:
+each lists one known peer plus a tombstone for `[inverbeg.macha.network]:7437`
+at 18:47:42Z.
+
+**That tombstone is a freshness boundary, not a permanent exclusion.** The
+server has no concept of permanent removal today. If that machine is ever
+reachable again and completes a handshake it rejoins, and the Cluster screen
+goes back to three **with nobody having done anything**. So a node count that
+changes by itself, in either direction, is the system working — do not chase it
+as a bug, and do not build anything that assumes membership only shrinks when
+somebody asks.
+
+Both reachable nodes run **0.40.0**. 0.40.1 is built but undeployed and adds
+only repair diagnostics under `/api/v1/status/diagnostics`, which this client
+does not consume.
+
+---
+
 ## Waiting on other sessions
 
 - **Address the core session as `Macha NPM Core`** — *not* the name `ListAgents`
@@ -532,11 +619,20 @@ Delete the UUID, the constructor parameter and the dependency.
   force an off-cycle health probe is `monitor.stop()` then `monitor.start()`,
   which core has confirmed is safe — it costs a probe already in flight and
   restarts the interval. Replace it when `probeNow()` exists.
-- **Core has renamed itself `@machafoundation/core`.** The web
-  client has migrated its imports; this client still writes `@macha/core` in 23
-  files. **Not broken** — npm resolves it as an alias to the same directory, and
-  a clean `npm install --dry-run` was verified — so it is a consistency chore for
-  whenever the clients are next aligned, not a fire.
+- **The package is `@machafoundation/core`; this client calls it `@macha/core`
+  in 27 files.** Tom's instruction via the core session 2026-09-13: use the full
+  name. Core had it wrong in 17 places of its own and has fixed them.
+
+  **Why nothing breaks, precisely:** our `package.json` declares
+  `"@macha/core": "file:../macha-ts"`, and npm lets a `file:` dependency be keyed
+  under *any* name — so it aliases a package that calls itself
+  `@machafoundation/core`. Imports resolve through the alias, not through the
+  package's own name.
+
+  **So the rename is not a find-and-replace.** It is the dependency key, a
+  reinstall, a regenerated `package-lock.json`, and 27 files. Worth doing when
+  the clients are next aligned; it buys consistency rather than correctness, and
+  it is not urgent.
 - **Core's accounts layer is what login here is built on, and it is untested and
   unreviewed.** The core session volunteered that: there is no test file for
   `UsersApi`, `MachaUsersApi` or `ClusterUsersApi`, and core's own suite does not
