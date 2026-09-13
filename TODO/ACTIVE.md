@@ -12,7 +12,7 @@ than carrying it.
 Compiled 2026-09-10 from this client plus the core, web-client, Android TV and
 server sessions. Where a peer's claim was checked rather than taken, it says so.
 
-## Committed at 0.4.0
+## Committed at 0.4.0, patched at 0.4.1
 
 Everything that was in the working tree at 0.3.5 went in as `0.4.0`, on top of
 `b223191`:
@@ -78,10 +78,12 @@ split. `removeRow` and `addRow` never leave the screen with no field to type
 into, and `adoptEndpoint` — the scanner's path in — fills the empty row a fresh
 screen starts with rather than appending below it.
 
-**Unverified on a device.** The thing it replaces was also unverified when it
-shipped, which is how it reached two phones while still being wrong. This one
-cannot fail for the same reason, because it asks nothing of the keyboard, but
-that is an argument rather than a measurement.
+**Shipped as 0.4.1, and unverified on a device.** The thing it replaces was
+also unverified when it shipped, which is how it reached two phones while still
+being wrong. This one cannot fail for the same reason, because it asks nothing
+of the keyboard — but that is an argument rather than a measurement, and the
+last argument of that shape was wrong. **Neither phone has 0.4.1 on it**: both
+dropped off the network before it was built.
 
 ---
 
