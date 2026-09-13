@@ -8,6 +8,141 @@ Newest first.
 
 ---
 
+## 2026-09-13 — every build this client ever made was `versionCode 1`
+
+Found while tagging, and it is the most expensive thing in this batch.
+
+`app.json` set no `android.versionCode`, so Expo defaulted it to 1 and every APK
+ever built here shipped as version 1. **Android compares that integer and ignores
+`versionName` entirely**, so 0.1.0 and 0.4.0 were the same build as far as the
+package manager was concerned. `install -r` masked it completely.
+
+The install was never the risk. The risk is on-device debugging: reading new
+source while watching old bytecode, with nothing at either end to say the two had
+diverged. **The Android TV session confirmed the same bug in that client and
+supplied the sharper case** — five genuinely different builds installed to the
+television in one session, all as `versionCode 1`, during a session that was
+entirely on-device debugging.
+
+Fixed by deriving it from the version as `major*10000 + minor*100 + patch`
+(0.4.1 → 401): monotonic, and it reads back as the version it came from. The TV
+client adopted the same derivation unchanged so the two Android clients read
+alike. `npm run version:check` now compares `package.json`, `app.json` and the
+tag, checking the tag only when the commit has one.
+
+**A related claim in this file was wrong and is corrected.** A P3 item said
+`android/app/build.gradle` carried a stale `versionName "0.1.0"` that "wants
+wiring to the `app.json` version". `android/` is **gitignored and generated**,
+and `versionName` was already wired: a prebuild wrote `0.4.0` with no hand-edit.
+What the device reported was a stale generated tree, not a stale source of truth.
+
+**Branch and release convention, set by Tom the same day**, now in `AGENTS.md`:
+work on `develop`, releases are tags on `main`, tags bare semver and annotated,
+never name a branch after a version, and put the bump in the release commit so
+the tag points at a tree that is exactly what ships. All four rules came from
+getting one of them wrong first — `release/0.5.0` was carrying a patch within a
+day of being created.
+
+---
+
+## 0.4.1 — the node field, and a fix that was measured and lost
+
+**Recorded because the first attempt shipped and failed on a device**, which is
+worth more than the fix that replaced it.
+
+The connect screen's field had `multiline`, split on newlines *and* commas, and
+said "one per line" in its hint. None of it was reachable from a phone. The
+diagnosis: with `inputMode="url"` the Android action key is **Go**, which submits
+instead of breaking the line. The fix was `submitBehavior="newline"`. It shipped
+in 0.4.0, went onto two phones, and Tom reported the field still offered one line
+with no way to type a second.
+
+**So the diagnosis was at best incomplete.** RN's `submitBehavior` governs what
+RN does with a submit; it does not make the IME offer a newline key at all, and
+for a URI-variation field it evidently does not. No third keyboard flag was
+tried.
+
+**What replaced it asks nothing of the keyboard.** One row per node, a control to
+add another, a remove control once there is more than one, no Enter anywhere in
+the flow. The URL keyboard stays, since nothing needs a line break from it now.
+Pasting is the only part with logic — `src/state/endpointList.ts`, nine tests:
+separators expand across rows rather than sitting in one row as text nothing
+would later split, the screen never ends up with no field to type into, and a
+scanned address takes the empty row a fresh screen starts with.
+
+The Settings row that lists the seeds was separately clamped at two lines by
+`ListRow`'s default, which reads as a limit on how many nodes there can be; it
+now sizes to the list.
+
+---
+
+## 0.4.0 — accounts, QR scanning, and the first native rebuild
+
+Two features and the build change that carries them.
+
+**Accounts are entirely core's.** `src/api/users.ts` is a re-export; the only
+local decisions are React wiring and what to draw. Asked before building, as the
+mirror rule requires. Roles are a **closed set with no implication between them**
+(`media_viewer`, `importer`, `manager`, `manage_users`), `isSignedIn` is the only
+test for whether somebody chose to be anyone, and no account is special-cased by
+name — the server's `mutable` block says what may be changed.
+
+`POST /api/v1/session` is one route with or without credentials: omitting them
+authenticates `anonymous`. Signing in therefore **replaces** the token rather
+than upgrading it, and signing out drops it and mints a fresh anonymous one, so
+there is never a state with no session.
+
+**Two orderings this client had to get right, neither of which core does for it:**
+
+- **Playback stops before both sign-in and sign-out.** After the token changes a
+  playback session created under the old identity can no longer be closed, and
+  the node holds it against `max_video_transcodes` until `session_idle` at thirty
+  minutes — on a one-slot node, the entire transcode capacity, spent on a login.
+  Core confirmed it connects logout to nothing in playback. The core session
+  recorded the ordering as belonging on `signIn`/`signOut`'s doc comments so it
+  is not rediscovered a third time.
+- **The revoke runs before the local sign-out, and a failed revoke is reported.**
+  Dropping a token locally is not a logout. When the revoke cannot be delivered
+  the viewer is still signed out here — having asked to be signed out and
+  remaining signed in is the one outcome that must not happen — and Settings says
+  the old session is live elsewhere until it expires. **The web client does not
+  do this**: it calls `logout()` and never `signOut()`, holding a revoked token
+  until a later 401. Core says one of the two clients is wrong and that deciding
+  it is Tom's call.
+
+**The marker reads four states, not two.** `unknown` (nobody answered) and
+`unstated` (the node answered and named no user) both render nothing; only
+`anonymous` and `signedIn` are drawn. Identity is re-read on every token change
+rather than remembered, which is deliberate cover for a core defect: a 401 is
+answered by re-minting, a re-mint carries no credentials, so a password or role
+change silently downgrades a signed-in viewer to anonymous. The marker corrects
+itself; it does not explain itself, and the cause stays core's.
+
+**QR scanning went in ahead of any pairing format.** The scanner reports payloads
+and interprets none of them; `src/scan/endpoint.ts` is the only file that reads a
+node address out of one. It exists because the plain coercion, measured before
+the parser was written, turns `macha://pair?token=abc` and `Macha` into
+`http://macha:7438` and `mailto:tom@example.com` into `http://example.com:7438`
+— perfect-looking endpoints no node answers on, after which the connect attempt
+reports an unreachable server, which is true and the wrong diagnosis.
+**No pairing payload format exists anywhere** — core grepped, the web client
+confirmed, and both agree that a format invented independently in two clients is
+worse than not having one.
+
+**`expo-camera` made this the first build needing a native rebuild.**
+`expo prebuild` clears and regenerates `android/`; nothing is lost because it is
+gitignored. The installed package requests `CAMERA` and does **not** request
+`RECORD_AUDIO`, which is `recordAudioAndroid: false` doing what it was asked.
+
+**What the A85 install proved:** the app launches, stays up, crash buffer empty;
+`versionName` went `0.1.0` → `0.4.0` on the device; the health monitor reported
+`reachable: 1, known: 2`. The second seed, `ramaroja.macha.network:7438`,
+resolves and pings from both the phone and the Mac but answers nothing on 7438
+from either — a seed pointing at a node that is not serving, rather than anything
+this client does wrong.
+
+---
+
 ## 2026-09-10 — the seek bar fought the viewer, and one number was a lie
 
 Three defects behind one report — "the seek bar does not work, it 'fights' you".

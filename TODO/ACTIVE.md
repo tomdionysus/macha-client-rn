@@ -9,198 +9,108 @@ it). There is no P0 today. Items marked **putative** are speculative and may
 never happen — carried deliberately, because being surprised by one costs more
 than carrying it.
 
-Compiled 2026-09-10 from this client plus the core, web-client, Android TV and
-server sessions. Where a peer's claim was checked rather than taken, it says so.
+**An inherited claim is not evidence.** Where a peer's claim was checked against
+source or a device, it says so; where it was taken on trust, it says that too.
+Several entries below exist only because somebody opened the file instead of
+repeating what they were told.
 
-## Committed at 0.4.0, patched at 0.4.1
-
-Everything that was in the working tree at 0.3.5 went in as `0.4.0`, on top of
-`b223191`:
-
-- the seek bar fixes and the volume-restore guard, with their tests;
-- three corrected code comments about the removed bearer token;
-- the rewritten `README.md`, the `AGENTS.md` additions, and this folder;
-- QR scanning: `expo-camera`, `src/ui/QrScanner.tsx`, `src/app/scan.tsx`,
-  `src/scan/endpoint.ts` and its tests, and the connect screen's entry point;
-- login and the account marker, on core's users API;
-- the node field on the connect screen, which accepted several nodes all along
-  but gave a phone no way to type the second one.
-
-**Pushed** to `origin/offline-downloads-and-playback-instructions` on
-2026-09-12, `b223191` and both 0.4.0 commits together.
-
-**0.4.0 is on the phone**, built release (debug keystore, as the Expo template
-signs it) and installed to the Blackview A85 `A85EEA0000005410` on Android 12.
-`expo prebuild` was required and cleared `android/` first — the generated tree
-predated `expo-camera` and its manifest had no `CAMERA` permission. The
-installed package now requests `CAMERA` and does **not** request `RECORD_AUDIO`,
-which is the config-plugin setting doing what it was asked.
-
-**What the install actually proves:** the app launches, stays up, and the crash
-buffer is empty; `versionName` went `0.1.0` → `0.4.0` on the device, which is the
-evidence for the P3 correction below; and the health monitor reports
-`reachable: 1, known: 2` — `http://10.44.1.51:7438` answers, the other seed
-`http://ramaroja.macha.network:7438` does not. That second one resolves and pings
-from both the phone and the Mac (85.87.136.89) but answers nothing on 7438 from
-either, so it is a seed pointing at a node that is not serving rather than
-anything this client is doing wrong.
-
-**What it does not prove, and needs a person holding the phone:** the camera
-permission flow and a real scan, a login against a node and all four marker
-states, and — the one that motivated the change — whether the node field's
-action key now breaks the line instead of submitting.
+Last rationalised 2026-09-13.
 
 ---
 
-## The node field: one box became one row per node, after the first fix failed
+## Start here
 
-**The first attempt is recorded because it was measured and it lost.** The field
-had `multiline`, split on newlines *and* commas, and said "one per line" in its
-hint, and none of it was reachable from a phone. The diagnosis was the keyboard:
-with `inputMode="url"` the Android action key is **Go**, which submits rather
-than breaking the line. The fix was `submitBehavior="newline"`, which states
-that the key should insert a line break instead. It shipped in 0.4.0, went onto
-two phones, and **Tom reported the field still offers one line and no way to
-type a second**. So the diagnosis was at best incomplete: RN's `submitBehavior`
-governs what RN does with a submit, not whether the IME offers a newline key at
-all, and for a URI-variation field it appears not to.
+**Branch and version.** Work is on `develop`; `main` holds releases and a release
+is a tag on it. Current release is **0.4.1** (`versionCode 401`). `develop` is
+several commits ahead of `main` with documentation and tooling only. Run
+`npm run version:check` before tagging anything — it compares `package.json`,
+`app.json` and the tag. The convention itself is in `AGENTS.md`.
 
-**What replaced it stops depending on a key that may not exist.** One row per
-node, an "Add another node" control, and a remove control once there is more
-than one. No Enter is required at any point in the flow. The URL keyboard stays,
-since nothing now needs a newline from it.
+**What is unverified, which is the single most useful thing to know.** Three
+features are written, committed and on two phones or about to be, and **not one
+of them has been used by a person**: the QR scanner, login with the account
+marker, and the node-address rows. The rows replaced a fix that shipped to two
+phones while being wrong, so "it typechecks" has already proved worthless here
+once.
 
-Pasting is the one case that still needs parsing, and it is in
-`src/state/endpointList.ts` with tests: a value arriving in a single row that
-carries whitespace, commas or semicolons is a list, and it expands across rows
-rather than sitting in one row as text no separator in this app would later
-split. `removeRow` and `addRow` never leave the screen with no field to type
-into, and `adoptEndpoint` — the scanner's path in — fills the empty row a fresh
-screen starts with rather than appending below it.
+**Devices.** Deploying is `adb install -r android/app/build/outputs/apk/release/app-release.apk`
+after `npx expo prebuild --platform android` and a Gradle `assembleRelease`; the
+first build after a plugin change is long, because prebuild clears `android/`
+(which is gitignored and generated — nothing is lost).
 
-**Shipped as 0.4.1, and unverified on a device.** The thing it replaces was
-also unverified when it shipped, which is how it reached two phones while still
-being wrong. This one cannot fail for the same reason, because it asks nothing
-of the keyboard — but that is an argument rather than a measurement, and the
-last argument of that shape was wrong. **Neither phone has 0.4.1 on it**: both
-dropped off the network before it was built.
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.4.0**.
+  Endpoints already configured. Was on `10.44.1.x`; that network is gone.
+- **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15, paired
+  over wireless debugging at `192.168.1.125`. Has **0.4.0**, and **no endpoints
+  configured**, so it opens on the connect screen — which makes it the right
+  device for first-run, QR and login in one pass.
+- **The Smart_TV that answers ADB is not a test target.** It self-identifies as
+  `model:Smart_TV` and its address moves (`10.34.1.115`, later `10.34.1.116`).
+  Never install here. Verify `ro.product.model` before any install.
 
----
-
-## In progress — Login and the account marker
-
-**Status: written, typechecking, 44 tests green, unverified against a node.**
-Built on core's accounts work, which is **unreleased and has no tests of its
-own** — the core session said so unprompted, and it is the main risk here.
-
-**Nothing about accounts is implemented in this client.** `src/api/users.ts` is
-a re-export of core's `UsersApi`/`MachaUsersApi`/`ClusterUsersApi`, and the only
-local decisions are React wiring and what to draw. Asked before building, as the
-mirror rule requires, and the answer was that core has all of it: roles are
-`media_viewer`, `importer`, `manager`, `manage_users` as a **closed set with no
-implication between them**, `isSignedIn` is the only test for whether somebody
-chose to be anyone, and `hasRole` is a plain membership test. Do not add a second
-opinion about any of that here.
-
-**What login does, precisely.** `POST /api/v1/session` is the same route with or
-without credentials — omitting them authenticates `anonymous`, supplying them
-authenticates whoever they name. So signing in **replaces** the token rather than
-upgrading it, and signing out drops the token and immediately mints a fresh
-anonymous one. There is never a state with no session.
-
-**Two things this client had to get right that core does not do for it:**
-
-- **Playback is stopped before both sign-in and sign-out.** After the token
-  changes, a playback session created under the old identity can no longer be
-  closed, and the node holds it against `max_video_transcodes` until
-  `session_idle` at thirty minutes. On a one-slot node that is the entire
-  transcode capacity, spent on a login. Core confirmed it connects logout to
-  nothing in playback; the ordering is ours.
-- **The revoke runs before the local sign-out, and its failure is reported
-  rather than swallowed.** Dropping a token locally is not a logout — the
-  session stays valid on every node until it expires. When the revoke cannot be
-  delivered the viewer is still signed out here, because having asked to be
-  signed out and remaining signed in is the one outcome that must not happen,
-  and Settings then says the old session is still live elsewhere.
-
-**The marker reads four states, not two.** `src/account/marker.ts`, tested.
-`unknown` (nobody answered) and `unstated` (the node answered and named no user,
-which is what a 0.37.2 node does) both render **nothing**. Only `anonymous` and
-`signedIn` are drawn. Offering "Log in" because the whoami failed would be
-claiming nobody is signed in, which is a claim this client cannot make without an
-answer; offering it on a node with no accounts would be a promise the server
-cannot keep.
-
-**Identity is re-read on every token change** (`sessions.subscribe`) rather than
-remembered from the sign-in. This is deliberate cover for a **known core defect
-the core session flagged and is not fixing this round**: a 401 is answered by
-re-minting, a re-mint carries no credentials, so a password or role change
-**silently downgrades a signed-in viewer to anonymous**. A marker drawn from a
-remembered username would go on naming somebody who is no longer signed in. What
-the viewer actually sees is their initial quietly becoming the guest glyph —
-self-correcting, but not an explanation. If that proves confusing on a device,
-the fix is core's, not a toast here.
-
-**Checked, not inherited:** core also warned that a pre-save connection check
-counts an endpoint usable only on an OK response while every node answers 401
-unauthenticated — a measured bootstrap lockout on a fresh install. **It does not
-apply to this client.** `firstReachable` in `src/app/connect.tsx` already treats
-401 as proof a Macha node is listening, with a comment saying why.
-
-**What is left:**
-
-- everything on a real node: a real login, a wrong password, a logout, and the
-  marker through all four states. None of it has met a server;
-- the same native rebuild the QR work needs;
-- **`/api/v1/users/me`, roles beyond display, and password change are not
-  built.** Settings shows the username and the server's own role names and
-  nothing else. That was the scope asked for.
+Wireless debugging drops when a phone sleeps or the network changes, and the
+advertised port is random. `adb mdns services` finds it; `adb connect` to a
+stale port says `Connection refused` when the host is up and
+`failed to connect` with no errno when it is up but unpaired. Pairing needs a
+code from the screen and only Tom can read it.
 
 ---
 
-## In progress — QR scanning, ahead of users
+## P1 — Three shipped features nobody has used
 
-**Status: written and typechecking, unverified on a device.** Nothing depends on
-it yet; the connect screen is the only caller.
+**Status: the whole of 0.4.0 and 0.4.1's user-facing work.** Needs a person
+holding a phone; nothing here can be done from this machine alone.
 
-Added because users are coming and whatever pairs one to this client will arrive
-as a code on another screen. The capability is deliberately split so that work
-does not have to unpick this one:
+The Galaxy is the better device for it — clean install, no endpoints, opens on
+the connect screen.
 
-- `src/ui/QrScanner.tsx` is the camera and nothing else. It reports payloads and
-  interprets none of them. A pairing screen reuses it as it stands.
-- `src/scan/endpoint.ts` is the interpretation the connect screen needs, and the
-  only file that would be written again for a payload meaning something else.
+- **The node rows.** Can a second node actually be added now? This is the one
+  that has already been got wrong once: `multiline` plus `submitBehavior` shipped
+  in 0.4.0 and the field still offered one line. The replacement asks nothing of
+  the keyboard, which is an argument rather than a measurement. **Neither phone
+  has 0.4.1 yet.**
+- **The camera.** The permission prompt, a real code read at a real distance,
+  and the second refusal — where the prompt becomes a link to Settings rather
+  than another request. The viewfinder is decoration; the scanner reads the whole
+  frame.
+- **Login and the marker.** A real login, a wrong password, a logout, and the
+  marker through all four of its states. Note that the marker **cannot currently
+  name a signed-in viewer on a deployed node** — see the next item — so a
+  successful login against 0.38.0 shows nothing until that is fixed.
 
-**Why the parse is not just `coerceEndpointUrl`.** That function is for a text
-field, where every character was typed by someone meaning to type an address. A
-camera has no such guarantee. Measured against the plain coercion before the
-parser existed: `macha://pair?token=abc` and `Macha` both return
-`http://macha:7438`, and `mailto:tom@example.com` returns
-`http://example.com:7438` — syntactically perfect endpoints no node has ever
-answered on. The connect attempt then reports an unreachable server, which is
-true and the wrong diagnosis. Those three are the cases in
-`src/scan/endpoint.test.ts` that failed first; the wifi and vCard codes in the
-same file were already rejected and are held to keep them that way.
+---
 
-**The scanner deduplicates on payload rather than latching after one read.**
-`onBarcodeScanned` fires per frame, and a one-shot latch also ends the scan —
-when a code turns out to be wrong the viewer's next move is to point at a
-different one, and a latched scanner is dead while they do it.
+## P1 — The marker cannot name a signed-in viewer, and the fix is known
 
-**What is left, and it needs the phone:**
+**Status: diagnosed, not written. Small.** This is a defect in work already on
+two phones.
 
-- a native rebuild — `expo-camera` is a native module, and the installed APK
-  predates it. Nothing here runs until then;
-- the permission flow on both platforms, including the second refusal, where the
-  prompt becomes a link to Settings rather than another request;
-- a real code read at a real distance. The viewfinder is decoration — the
-  scanner reads the whole frame, which is why it is a plain square and not a
-  mask implying otherwise.
+`CurrentSession.username` is optional in core because a deployed node answers
+`GET /api/v1/session` with `id`, `roles` and timestamps and **names no user**.
+The web client confirmed this is not theoretical: on 0.38.0 the route returns
+`user_id` but not `username`, and they built their account marker on `username`
+being there, so a signed-in viewer could never be named. The server is adding it;
+until every node reports it, the reliable source of a name is
+`GET /api/v1/users/me`.
 
-`recordAudioAndroid: false` and `microphonePermission: false` are set on the
-config plugin: this client scans and never records, and a media app asking for a
-microphone it does not use is the kind of thing people uninstall over.
+Here, `describeAccount` maps "no username stated" to `unstated` and renders
+nothing, which is right when nobody is signed in and **wrong when somebody is**.
+
+**The fix, as the web client made it:** when the whoami succeeds but names no
+user, call `users.me()` and take the username from the account record; a refusal
+means the server will not say, which is the same as not knowing. `describeAccount`
+gains no new states and its tests stand.
+
+**Do the readiness gate in the same pass.** `SessionManager.fetch` waits for a
+mint only when one is already in flight; before one starts it goes out
+tokenless, is answered 401, and returns it unretried because it sent no token.
+An early whoami therefore reads as "no roles". This client survives it by
+re-reading on every token change, so the first mint corrects it — but that is
+luck, not design, and the web client lost a whole run's worth of privileged UI
+to the same shape.
+
+**There is no `display_name` anywhere and none is planned for v1** — the web
+session asked and declined it. Initials come from `username` or from nothing.
 
 ---
 
@@ -339,32 +249,6 @@ and must not be rediscovered:
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
 argument. The standby defect once cited as a reason against it has been retracted.
 
----
-
-## P3 — Android reports a version that has never matched the app
-
-**Half of this was wrong, corrected 2026-09-12 by running the thing.**
-`android/` is **gitignored and generated**, and `versionName` is already wired to
-`app.json`: a prebuild for the 0.4.0 build wrote `versionName "0.4.0"` with no
-hand-edit anywhere. What was observed on the device was a stale generated tree,
-not a stale source of truth — the APK on the phone was assembled from an
-`android/` that predated several bumps.
-
-**`versionCode 1` is the real remainder.** It stays 1 because nothing sets
-`android.versionCode` in `app.json`, so every build ships the same code. Android
-compares that number and not the name, so two different builds are
-indistinguishable to the package manager.
-
-Still cosmetic **here** specifically, and still worth not conflating with the
-Android TV client's version of it: `expo-module-gradle-plugin` requires
-`versionName` in `defaultConfig` and fails autolinking outright when it is
-*absent*. Ours is present and generated — a different bug with a different cost.
-
-Cosmetic **here** specifically, and worth not conflating with the Android TV
-client's version of it: `expo-module-gradle-plugin` requires `versionName` in
-`defaultConfig` and fails autolinking outright when it is *absent*. Ours is
-present and merely stale — a different bug with a different cost.
-
 ## P3 — Dead viewer-session identity
 
 `MachaProvider.tsx:107` generates a per-process UUID and hands it to
@@ -385,21 +269,37 @@ Delete the UUID, the constructor parameter and the dependency.
 
 ## Waiting on other sessions
 
-- **Core, committed at `c8b1bb8` (0.7.0) and beyond, not pushed.** In it:
-  `abortError()` replacing twelve `DOMException` sites (this client's find);
-  `PlaybackRuntime.attach` widened to `PlaybackHost`; the two watchdogs; a
-  platform gate compiling core with no `DOM` lib; the container restatement; and
-  the failover session close.
-
-  **This client picks all of it up on the next build, and the build on the phone
-  is older than some of it.** The `file:../macha-ts` link resolves through
-  `dist/`, so what ships is whatever `dist` held when the APK was assembled.
-  Verify by behaviour, not by version: with `abortError()` in the bundle a
+- **Core is at 0.8.1 and has renamed itself `@machafoundation/core`.** The web
+  client has migrated its imports; this client still writes `@macha/core` in 23
+  files. **Not broken** — npm resolves it as an alias to the same directory, and
+  a clean `npm install --dry-run` was verified — so it is a consistency chore for
+  whenever the clients are next aligned, not a fire.
+- **Core's accounts layer is what login here is built on, and it is untested and
+  unreviewed.** The core session volunteered that: there is no test file for
+  `UsersApi`, `MachaUsersApi` or `ClusterUsersApi`, and core's own suite does not
+  touch them. Treat a failure in that area as plausibly core's before assuming it
+  is this client's.
+- **Two core bugs that bit the web client are fixed upstream and reach us on the
+  next build.** A refused password no longer marks every node unhealthy —
+  `mintAnonymousSessionAnyNode` records success and stops walking on 401/403,
+  because every node checks the same replicated table. And session validation now
+  treats 401 **and 403** as "this token is dead everywhere" rather than a
+  transport fault, which matters during a rolling upgrade when an old session's
+  role vocabulary is refused by every route.
+- **`ClusterUsersApi.list()` is broken in core and cannot bite us.** The server
+  writes the collection as `body["users"]` (`users_api.cpp:241`) while core reads
+  `response.items`, so `list()` yields `undefined`. Verified in both sources
+  directly. This client never calls `list()`; the web client reaches it through
+  core rather than through its own code.
+- **What a build actually contains is still unanswerable.** `file:../macha-ts`
+  resolves through `dist/`, so an APK carries whatever `dist` held when Gradle
+  ran. Verify by behaviour, not by version — with `abortError()` in the bundle a
   cancelled request surfaces as `name === 'AbortError'` rather than a
-  `ReferenceError`. Grepping the release Hermes bytecode proves nothing either
-  way — tried, and it returns nothing for either identifier.
-- **`EndpointHealthMonitor` now cache-busts its probe URL** (`?_=<ms>`), so it
-  will appear in logs here. It exists because `cache: 'no-store'` means three
+  `ReferenceError`. Grepping release Hermes bytecode proves nothing either way;
+  that was tried and returns nothing for either identifier. A core tag per
+  published version would close this, and has been suggested to them.
+- **`EndpointHealthMonitor` cache-busts its probe URL** (`?_=<ms>`), so it
+  appears in logs here. It exists because `cache: 'no-store'` means three
   different things across the three hosts and nothing at all on Tizen 3.
 - **Standby dead on arrival — retracted as a core defect.** The explanation was
   wrong (see COMPLETED). The Android TV client is the first that can promote a
