@@ -416,6 +416,27 @@ and must not be rediscovered:
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
 argument. The standby defect once cited as a reason against it has been retracted.
 
+## P3 — The throughput axis of the ranking cascade is inert here
+
+**Checked, not assumed, on 2026-09-15.** `MachaProvider.tsx:132` constructs
+`new EndpointRegistry([])`, whose third constructor parameter is an optional
+`EndpointBandwidth`. Nothing in this client creates one, and core's
+`EndpointHealthMonitor` does not create one either.
+
+So `axisValue('throughput')` returns undefined for every endpoint, the axis
+eliminates nobody, and the cascade falls straight through to latency. **Not a
+bug** — core degrades gracefully by design, and the cascade below throughput is
+what has actually been ranking nodes all along. It also means this client writes
+no `macha-client-bandwidth:` records, so that key in core's registry is
+irrelevant here.
+
+Worth knowing rather than fixing: ranking is running on one fewer axis than the
+cascade's documentation implies, and if a node is ever slow-but-responsive —
+healthy, low latency, poor throughput — nothing here can currently see it. Wire
+an `EndpointBandwidth` if that case ever shows up; there is no evidence it has.
+
+---
+
 ## P3 — Dead viewer-session identity
 
 
