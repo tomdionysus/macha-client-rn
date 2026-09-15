@@ -105,8 +105,16 @@ releases added.
 **One thing 0.11.1 already cost, settled and not to be reopened:** core's
 `isMachaStorageKey` must **not** replace `owned()` in `state/storage.ts`, whatever
 core's docs say — it is core's key registry, not this client's. The reasoning is
-in the comment there and pinned by the hydrate test. Core has since narrowed its
-own guidance and pinned the boundary from its side too.
+in the comment there and pinned by the hydrate test.
+
+Core has narrowed that guidance and pinned the boundary from its side, but **on
+its `develop` branch, not in anything you can install** — `0.11.1` is what npm
+holds and its `isMachaStorageKey` still answers false for all six of this
+client's keys, checked by calling it in `node_modules` rather than reading
+core's working tree. The distinction matters here more than it looks: core's
+`0.9.0`, `0.10.0` and `0.11.0` were tagged in git and never published. **Read
+core's behaviour from `node_modules`, never from `../macha-ts`**, which is its
+`develop` and has been up to three releases ahead.
 
 **The one item that is a security change rather than a tidy-up.** The bearer now
 persists for **up to 30 days** in plaintext `AsyncStorage`, where before 0.5.1 it
