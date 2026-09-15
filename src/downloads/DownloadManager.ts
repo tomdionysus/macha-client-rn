@@ -2,7 +2,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { describeError } from '../api/errors';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
-import type { PlaybackInstruction } from '@machafoundation/core';
+import type { EndpointBandwidth, PlaybackInstruction } from '@machafoundation/core';
+import { type TransferObservation, throughputSample } from './throughputSample';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
 
@@ -62,6 +63,16 @@ export class DownloadManager {
     private readonly store: DownloadStore,
     private readonly playbackApi: ClusterPlaybackApi,
     private readonly mediaApi: MediaApi,
+    /**
+     * Where finished transfers are reported, so the endpoint registry can rank
+     * on measured throughput rather than latency alone.
+     *
+     * A download is the only transfer on this client that JS can time. Playback
+     * and artwork are both owned by native modules that never expose the bytes,
+     * and everything else is JSON well under core's sampling floor. Optional
+     * because nothing here should fail to download for want of a measurement.
+     */
+    private readonly bandwidth?: EndpointBandwidth,
   ) {}
 
   /** Rebuilt on the next read after a mutation, and not before. */
@@ -231,6 +242,11 @@ export class DownloadManager {
       session = await this.playbackApi.create(record.media, instruction, 0);
       const fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
+      // Built from the progress callbacks so the measurement covers the body
+      // transfer only — the session POST and cluster walk above are not this
+      // link's throughput. See `throughputSample.ts`.
+      let observed: TransferObservation | undefined;
+
       const resumable = FileSystem.createDownloadResumable(
         session.source.url,
         fileUri,
@@ -245,6 +261,14 @@ export class DownloadManager {
           // the UI at most a few times a second.
           this.live.set(mediaId, { bytesWritten: totalBytesWritten, bytesTotal });
           const now = Date.now();
+          observed = observed
+            ? {
+                ...observed,
+                longestGapMs: Math.max(observed.longestGapMs, now - observed.lastAt),
+                lastAt: now,
+                lastBytes: totalBytesWritten,
+              }
+            : { firstAt: now, firstBytes: totalBytesWritten, lastAt: now, lastBytes: totalBytesWritten, longestGapMs: 0 };
           if (now - this.lastPersistAt >= PERSIST_INTERVAL_MS) {
             this.lastPersistAt = now;
             this.store.patch(mediaId, { bytesWritten: totalBytesWritten, bytesTotal });
@@ -260,6 +284,8 @@ export class DownloadManager {
         return;
       }
       if (!result?.uri) throw new Error('The download produced no file.');
+
+      this.recordThroughput(session, observed);
 
       this.live.delete(mediaId);
       const artworkUri = await this.storeArtwork(record.media, mediaId);
@@ -285,6 +311,31 @@ export class DownloadManager {
       this.active = undefined;
       this.notifyThrottled(true);
     }
+  }
+
+  /**
+   * Tell the registry what this download measured, when it measured anything.
+   *
+   * Only a session that names its endpoint can be attributed — core keys
+   * throughput by endpoint id, and a sample filed against the wrong node is
+   * worse than none, since ranking would then act on it. `endpoint` is optional
+   * on a `PlaybackSession`, so this is a real branch rather than a guard for
+   * form's sake.
+   *
+   * Every sample here comes from whichever node the registry already preferred,
+   * because that is the node the session resolver picked. Throughput therefore
+   * accumulates on the incumbent and rarely on a challenger, so it will mostly
+   * confirm a ranking rather than overturn one. That is a known limit of
+   * sampling from downloads and is recorded in `TODO/ACTIVE.md`; it is not a
+   * reason to record nothing.
+   */
+  private recordThroughput(session: PlaybackSession, observed: TransferObservation | undefined): void {
+    if (!this.bandwidth || !observed) return;
+    const endpointId = session.endpoint?.id;
+    if (!endpointId) return;
+    const sample = throughputSample(observed);
+    if (!sample) return;
+    this.bandwidth.record(endpointId, sample.bytes, sample.durationMs);
   }
 
   /**

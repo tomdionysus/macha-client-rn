@@ -416,24 +416,47 @@ and must not be rediscovered:
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
 argument. The standby defect once cited as a reason against it has been retracted.
 
-## P3 — The throughput axis of the ranking cascade is inert here
+## P3 — Throughput now has evidence, but only from the node it already picked
 
-**Checked, not assumed, on 2026-09-15.** `MachaProvider.tsx:132` constructs
-`new EndpointRegistry([])`, whose third constructor parameter is an optional
-`EndpointBandwidth`. Nothing in this client creates one, and core's
-`EndpointHealthMonitor` does not create one either.
+**Wired 2026-09-15**, having been inert since the cascade was written.
+`MachaProvider.tsx` now constructs core's `EndpointBandwidth` and passes it as
+`EndpointRegistry`'s third argument; `DownloadManager` reports each finished
+download through it. Core's `EndpointBandwidth` was never missing — nothing here
+had ever constructed one, so `axisValue('throughput')` was undefined for every
+endpoint and the axis eliminated nobody.
 
-So `axisValue('throughput')` returns undefined for every endpoint, the axis
-eliminates nobody, and the cascade falls straight through to latency. **Not a
-bug** — core degrades gracefully by design, and the cascade below throughput is
-what has actually been ranking nodes all along. It also means this client writes
-no `macha-client-bandwidth:` records, so that key in core's registry is
-irrelevant here.
+**Downloads are the only transfer this client can time.** Playback is expo-video's
+and artwork is expo-image's — both native, and neither exposes the bytes to JS.
+Everything else is JSON below core's 32KB sampling floor. So the sample source is
+narrow by necessity, not by choice.
 
-Worth knowing rather than fixing: ranking is running on one fewer axis than the
-cascade's documentation implies, and if a node is ever slow-but-responsive —
-healthy, low latency, poor throughput — nothing here can currently see it. Wire
-an `EndpointBandwidth` if that case ever shows up; there is no evidence it has.
+**Measurement is between the first and last progress callback**, not from the
+call site: a download is preceded by a session POST and a cluster walk, and
+core's `record()` is explicit that the duration must cover reading the body.
+`downloads/throughputSample.ts` holds that decision as a pure function, tested,
+because `DownloadManager` needs `expo-file-system` to exist. A transfer that goes
+quiet for more than 10s is discarded — downloads use a `BACKGROUND` session, so
+the bytes keep arriving with the app away while the callbacks stop, and wall
+clock across that window would describe the user's attention rather than the
+link, demoting a node that served the download perfectly.
+
+**The known limit, and the reason this is P3 rather than done.** The endpoint a
+download uses is the one ranking already preferred, so samples accumulate on the
+incumbent and almost never on a challenger. `evaluatePreferredSwap` needs
+`compareThroughput` on both sides and `bytesPerSecond` needs
+`THROUGHPUT_MIN_SAMPLES` (2), so in practice throughput can confirm a ranking but
+will rarely overturn one. It earns its keep on failover, when downloads do land
+on more than one node.
+
+**What would actually fix it is core-side and has been raised with them:**
+`EndpointHealthMonitor` already probes every endpoint on a cycle. If a probe
+fetched a fixed-size body, every endpoint — challengers included — would
+accumulate throughput evidence, on every client rather than only ones that
+stream through JS. Worth pursuing; this wiring is not wasted if it lands, since
+a real download is better evidence than a probe.
+
+Not verified on hardware. Nothing here can be, until someone downloads something
+on the A85 and the persisted `macha-client-bandwidth:` record is read back.
 
 ---
 

@@ -6,6 +6,7 @@ import { ClusterCatalogueApi } from '../api/catalogue';
 import {
   ClusterEndpointRouter,
   ContinueWatchingStore,
+  EndpointBandwidth,
   EndpointHealthMonitor,
   EndpointRegistry,
   PlaybackQueueStore,
@@ -129,7 +130,21 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const [clientId, setClientId] = useState('');
   const [generation, setGeneration] = useState(0);
 
-  const registry = useMemo(() => new EndpointRegistry([]), []);
+  /**
+   * Measured throughput per endpoint, persisted under this install's client id.
+   *
+   * Keyed on `clientId`, so it is absent for the first render and built once
+   * hydration supplies one — its storage key is fixed at construction, and an
+   * instance built before then would file every measurement under an empty id.
+   * That rebuilds the registry with it, which costs nothing here: before
+   * hydration `endpoints` is empty, so nothing has started, no health has
+   * accumulated and the monitor effect has not run. `services` already
+   * rebuilds on `clientId` for the same reason.
+   */
+  const bandwidth = useMemo(() => (clientId ? new EndpointBandwidth(clientId) : undefined), [clientId]);
+  // Without this third argument the throughput axis of core's ranking cascade
+  // has no evidence, eliminates nobody and silently falls through to latency.
+  const registry = useMemo(() => new EndpointRegistry([], Date.now, bandwidth), [bandwidth]);
   const router = useMemo(() => new ClusterEndpointRouter(registry), [registry]);
   // Read by MediaApi through a ref, so learning our access does not rebuild
   // every service and bump `generation` under every mounted screen.
@@ -201,14 +216,14 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       musicLibrary: new MusicLibraryStore(clientId || 'anonymous'),
       users: new ClusterUsersApi(router, auth),
       downloads,
-      downloadManager: new DownloadManager(downloads, playbackApi, mediaApi),
+      downloadManager: new DownloadManager(downloads, playbackApi, mediaApi, bandwidth),
       connectivity,
       clientId,
     };
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation]);
+  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation, bandwidth]);
 
   // Going offline (or coming back) changes what every screen should be
   // showing, so it invalidates loaded data exactly like reconfiguring the
