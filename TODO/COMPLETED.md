@@ -8,6 +8,81 @@ Newest first.
 
 ---
 
+## 2026-09-15 — core 0.12.0: throughput became core's, and one viewer-visible regression was caught before it shipped
+
+**Migrated the same day it published**, gated on `npm view` answering `0.12.0`
+rather than on being told it had. That gate mattered: an earlier "publish is
+complete, refactor now" was wrong — the publish had failed `EOTP` and never
+uploaded — and the check caught it before anything was written. The tell worth
+keeping, from the Android TV client: an absent version with an *unmoved*
+`time.modified` is "did not happen", an absent version with a moved one is
+"still propagating". The extra instrument from this end: grep the installed
+`dist` for the new symbols, because an absent version says nothing about why
+while absent symbols say there is nothing to refactor against regardless.
+
+**What changed here.** `EndpointRegistry`'s third constructor argument is gone;
+core attaches the bandwidth store inside `createMachaServices`. This client
+hand-builds its services, so it attaches its own via the public
+`attachBandwidth` — and **has to**, because `recordTransferByUrl` is a silent
+no-op with nothing attached. `DownloadManager` now reports through
+`recordTransferByUrl` with the session's source URL. `throughputSample.ts` and
+its six tests were untouched, which is what made the migration one call.
+
+**The client id is a function, and that is the whole of the fix to a NO-GO.**
+Core originally derived its store key from `MachaClientConfiguration.clientId()`
+inside `createMachaServices`, which mints when the key is absent. This client's
+services are built **during render**, before `clientStore` hydrates, and an
+unhydrated cache is indistinguishable from an absent key — so it would have
+minted a fresh identity every launch and orphaned the previous record, silently,
+looking exactly like the axis not working. That was returned as a NO-GO.
+
+Core's remedy was better than the one proposed to it. Rather than restoring a
+`clientId` option — which would have handed the wiring back to hosts, the thing
+Tom had overruled — core made the id lazy and non-minting, and stopped
+`restore()` latching while it is undefined. The framing it built on came from
+this client and is worth keeping: **a read that returns nothing is harmless; a
+write that invents an identity destroys the previous one.** So this client
+passes `() => clientStore.isHydrated ? getClientId() : undefined`, and
+`state/clientId.test.ts` pins the hazard.
+
+### The regression that was caught, which is the part that mattered to a viewer
+
+`SessionNotStartedError` extends `MachaConnectionError` — chosen deliberately so
+that `MediaApi.serve`'s downloaded-library fallback keeps working untouched. It
+does. It also routes through the branch that calls `reportUnreachable()`, and
+**that error arrives before `start()` on every cold start**: `AppShell` holds
+children back until `hydrated`, so screens mount on the render it flips, and
+React runs child effects before parent effects, so a screen's first load fires
+before the provider's effect starts the session manager.
+
+A healthy, answering cluster would therefore be marked offline on every launch,
+and `shouldProbe()` suppresses real requests for twenty seconds after that — so
+the viewer gets their downloads instead of their library, every time they open
+the app. Nothing errors, nothing logs.
+
+Fixed with a `SessionNotStartedError` branch ahead of the transport one, serving
+the stored library without touching connectivity — the same reasoning the
+refusal branch already carried. Proved by deleting the branch: `media.test.ts`
+fails on exactly the `isOffline` assertion and nothing else.
+
+**One instruction from core was declined after checking.** It asked for the
+comment in `account/access.ts` describing a tokenless 401 to be corrected as
+stale. Reading `fetch` in the installed build rather than the release note:
+it throws only when there is no registry, and a request made after a *failed
+mint* still goes out tokenless and still returns its 401 unretried, because core
+re-mints only when it actually sent a token. The comment was already right and
+was left alone. The provider's version was widened instead, since "early" now
+fails in two different ways.
+
+**Measured, finally, by the web client, and it changes what this axis is:** a
+movie listing is 416 KB and shows 67 KB, both over the 32 KB sampling floor —
+but `/api/v1/status` is 5.7 KB and `catalogue/status` 303 bytes, both under. The
+health cycle contributes no throughput evidence at all. Throughput is
+browse-driven, and on this platform a viewer who resumes a download without
+browsing produces none except through `DownloadManager`. Refusing to estimate
+that number was right; the unpaginated-therefore-large inference held for the
+catalogue calls and would have been wrong applied to the status traffic.
+
 ## 2026-09-15 — core moved to its real name, and a recommendation that would have broken hydration
 
 **The dependency was named after a package that does not exist.** `@macha/core`

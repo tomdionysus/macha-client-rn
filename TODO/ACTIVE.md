@@ -154,66 +154,6 @@ two of three clients key the dependency that way.
 
 ---
 
-## P1 — `SessionManager.fetch` will throw where it used to answer 401
-
-**Arriving in the next core release; blocked on knowing what it throws.** Core
-is changing `fetch` so that before `start()` and after `stop()` it raises a
-"not started" error instead of sending a tokenless request, collecting a 401 and
-returning it. This client re-exports core's `SessionManager` (`api/session.ts`),
-so it lands here in full.
-
-**The pre-`start()` window is hit on every cold start, not in an edge case.**
-`AppShell` returns early until `hydrated`, so screens mount on the render where
-it flips true — and React runs child effects before parent effects, so a
-screen's first load fires *before* `MachaProvider`'s seeding effect calls
-`sessions.start(registry)`. Checked in `app/_layout.tsx:47` and
-`providers/MachaProvider.tsx:181-192`, not assumed.
-
-**What breaks is the offline fallback, in exactly one place.** `MediaApi.serve`
-(`api/media.ts:46-75`) catches in two branches: `MachaConnectionError` falls back
-to the device's library, and `isAuthRefusal` — a `MachaApiError` of 401 or 403 —
-falls back too, precisely so a raw bearer-token message never reaches a library
-screen. A "not started" error is neither, so it would reach `throw error` and
-surface as an error where the stored library was the right answer.
-
-**The access gate is unaffected**, which is worth stating because it looks like
-it should be. `describeMediaAccess` reads the manager's own state — `settled`,
-`hasToken`, `mintRefused` — never a response status, so a throw changes nothing
-there. The account-read effect is also fine: it already has a rejection handler
-that sets `known: false`, which is the correct reading of "could not ask".
-
-**Do not fix this by matching on the message.** Core has been asked for the
-thrown type — class, `name`, or `code` — so it can be classified the way
-`MachaConnectionError` and `MachaApiError` are. A string match on "not started"
-is the kind of guess this project keeps paying for. The comments at
-`account/access.ts:18-24` and `MachaProvider.tsx:405` describe the *old*
-behaviour and must be corrected in the same change.
-
----
-
-## P1 — Two `EndpointBandwidth` instances would fight over one storage key
-
-**Raised with core, not yet answered.** Core intends to wire throughput ranking
-itself from `httpCompat.ts`, which already times every transfer and knows the
-endpoint. This client wired its own on 2026-09-15: `MachaProvider` constructs an
-`EndpointBandwidth` and passes it as `EndpointRegistry`'s third argument, fed
-from `DownloadManager`.
-
-If core constructs its own instance internally while a host also supplies one,
-**both write `macha-client-bandwidth:<clientId>`** — and `write()` serialises the
-whole record map through `setItem`, so the two clobber each other rather than
-merging. Ranking would then act on whichever instance wrote last, which is
-invisible until node selection misbehaves.
-
-Three possible shapes, and core's answer decides which: the registry keeps
-accepting a host-supplied instance and core feeds that same one (downloads and
-HTTP both contribute, best outcome); core owns it entirely and the host argument
-goes away (then this client's wiring is removed, not left writing to a key
-nobody reads); or both exist and the key must be split. **Do not upgrade core
-past this release without checking**, since nothing would fail loudly.
-
----
-
 ## P1 — At 30 days a signed-in viewer silently becomes nobody
 
 
@@ -484,47 +424,44 @@ and must not be rediscovered:
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
 argument. The standby defect once cited as a reason against it has been retracted.
 
-## P3 — Throughput now has evidence, but only from the node it already picked
+## P3 — Throughput is browse-driven, and downloads are the only other source
 
-**Wired 2026-09-15**, having been inert since the cascade was written.
-`MachaProvider.tsx` now constructs core's `EndpointBandwidth` and passes it as
-`EndpointRegistry`'s third argument; `DownloadManager` reports each finished
-download through it. Core's `EndpointBandwidth` was never missing — nothing here
-had ever constructed one, so `axisValue('throughput')` was undefined for every
-endpoint and the axis eliminated nobody.
+**Migrated to core `0.12.0` on 2026-09-15.** Core owns the recorder now:
+`createMachaServices` attaches the bandwidth store for hosts that use it. This
+client hand-builds its services, so `MachaProvider` attaches its own — and
+**must**, because `EndpointRegistry.recordTransferByUrl` is a silent no-op when
+nothing is attached. A hand-building host that skips it looks correctly wired.
 
-**Downloads are the only transfer this client can time.** Playback is expo-video's
-and artwork is expo-image's — both native, and neither exposes the bytes to JS.
-Everything else is JSON below core's 32KB sampling floor. So the sample source is
-narrow by necessity, not by choice.
+**The client id is passed as a function**, resolved by core when the store
+writes rather than when it is constructed, and guarded on
+`clientStore.isHydrated`. That is what lets the store be attached during the
+first render without minting an identity over the real one; the hazard is
+pinned by `state/clientId.test.ts`.
 
-**Measurement is between the first and last progress callback**, not from the
-call site: a download is preceded by a session POST and a cluster walk, and
-core's `record()` is explicit that the duration must cover reading the body.
-`downloads/throughputSample.ts` holds that decision as a pure function, tested,
-because `DownloadManager` needs `expo-file-system` to exist. A transfer that goes
-quiet for more than 10s is discarded — downloads use a `BACKGROUND` session, so
-the bytes keep arriving with the app away while the callbacks stop, and wall
-clock across that window would describe the user's attention rather than the
-link, demoting a node that served the download perfectly.
+**What the web client measured, which settles what this axis actually runs on:**
+a movie listing is 416 KB and shows 67 KB — both far over the 32 KB floor — but
+`/api/v1/status` is 5.7 KB and `catalogue/status` 303 bytes, both under. **So
+the ten-second health cycle contributes no throughput evidence at all.** Two
+samples means two *catalogue reads per endpoint*, not two of anything. Throughput
+is browse-driven.
 
-**The known limit, and the reason this is P3 rather than done.** The endpoint a
-download uses is the one ranking already preferred, so samples accumulate on the
-incumbent and almost never on a challenger. `evaluatePreferredSwap` needs
-`compareThroughput` on both sides and `bytesPerSecond` needs
-`THROUGHPUT_MIN_SAMPLES` (2), so in practice throughput can confirm a ranking but
-will rarely overturn one. It earns its keep on failover, when downloads do land
-on more than one node.
+**Which is why the `DownloadManager` feed matters more here than the original
+argument for it.** A viewer who opens the app and resumes a download without
+listing anything produces no JSON evidence whatsoever, and downloads become the
+only source. That was not the reason it was written — it was written because
+downloads are the only transfer JS can time — but it is the stronger one.
 
-**What would actually fix it is core-side and has been raised with them:**
-`EndpointHealthMonitor` already probes every endpoint on a cycle. If a probe
-fetched a fixed-size body, every endpoint — challengers included — would
-accumulate throughput evidence, on every client rather than only ones that
-stream through JS. Worth pursuing; this wiring is not wasted if it lands, since
-a real download is better evidence than a probe.
+**Still true, and still the reason this is P3:** the endpoint a download uses is
+the one ranking already preferred, so samples accumulate on the incumbent and
+rarely on a challenger. Throughput mostly confirms a ranking rather than
+overturning one, and earns its keep on failover.
 
-Not verified on hardware. Nothing here can be, until someone downloads something
-on the A85 and the persisted `macha-client-bandwidth:` record is read back.
+**Not verified on hardware.** Needs someone downloading on the A85 and the
+`macha-client-bandwidth:` record read back. Attribution is by URL now
+(`recordTransferByUrl` matches against the registry's endpoints), where it used
+to be by `session.endpoint.id`; if media is ever served from an origin that is
+not a node's own base URL, the sample is silently dropped rather than
+misattributed. Worth checking on that same pass.
 
 ---
 
