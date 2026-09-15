@@ -146,6 +146,66 @@ two of three clients key the dependency that way.
 
 ---
 
+## P1 — `SessionManager.fetch` will throw where it used to answer 401
+
+**Arriving in the next core release; blocked on knowing what it throws.** Core
+is changing `fetch` so that before `start()` and after `stop()` it raises a
+"not started" error instead of sending a tokenless request, collecting a 401 and
+returning it. This client re-exports core's `SessionManager` (`api/session.ts`),
+so it lands here in full.
+
+**The pre-`start()` window is hit on every cold start, not in an edge case.**
+`AppShell` returns early until `hydrated`, so screens mount on the render where
+it flips true — and React runs child effects before parent effects, so a
+screen's first load fires *before* `MachaProvider`'s seeding effect calls
+`sessions.start(registry)`. Checked in `app/_layout.tsx:47` and
+`providers/MachaProvider.tsx:181-192`, not assumed.
+
+**What breaks is the offline fallback, in exactly one place.** `MediaApi.serve`
+(`api/media.ts:46-75`) catches in two branches: `MachaConnectionError` falls back
+to the device's library, and `isAuthRefusal` — a `MachaApiError` of 401 or 403 —
+falls back too, precisely so a raw bearer-token message never reaches a library
+screen. A "not started" error is neither, so it would reach `throw error` and
+surface as an error where the stored library was the right answer.
+
+**The access gate is unaffected**, which is worth stating because it looks like
+it should be. `describeMediaAccess` reads the manager's own state — `settled`,
+`hasToken`, `mintRefused` — never a response status, so a throw changes nothing
+there. The account-read effect is also fine: it already has a rejection handler
+that sets `known: false`, which is the correct reading of "could not ask".
+
+**Do not fix this by matching on the message.** Core has been asked for the
+thrown type — class, `name`, or `code` — so it can be classified the way
+`MachaConnectionError` and `MachaApiError` are. A string match on "not started"
+is the kind of guess this project keeps paying for. The comments at
+`account/access.ts:18-24` and `MachaProvider.tsx:405` describe the *old*
+behaviour and must be corrected in the same change.
+
+---
+
+## P1 — Two `EndpointBandwidth` instances would fight over one storage key
+
+**Raised with core, not yet answered.** Core intends to wire throughput ranking
+itself from `httpCompat.ts`, which already times every transfer and knows the
+endpoint. This client wired its own on 2026-09-15: `MachaProvider` constructs an
+`EndpointBandwidth` and passes it as `EndpointRegistry`'s third argument, fed
+from `DownloadManager`.
+
+If core constructs its own instance internally while a host also supplies one,
+**both write `macha-client-bandwidth:<clientId>`** — and `write()` serialises the
+whole record map through `setItem`, so the two clobber each other rather than
+merging. Ranking would then act on whichever instance wrote last, which is
+invisible until node selection misbehaves.
+
+Three possible shapes, and core's answer decides which: the registry keeps
+accepting a host-supplied instance and core feeds that same one (downloads and
+HTTP both contribute, best outcome); core owns it entirely and the host argument
+goes away (then this client's wiring is removed, not left writing to a key
+nobody reads); or both exist and the key must be split. **Do not upgrade core
+past this release without checking**, since nothing would fail loudly.
+
+---
+
 ## P1 — At 30 days a signed-in viewer silently becomes nobody
 
 
