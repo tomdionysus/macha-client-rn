@@ -13,7 +13,7 @@ import {
   type PlaybackInstruction,
   type PlaybackMediaFacts,
   type StreamInstruction,
-} from '@macha/core';
+} from '@machafoundation/core';
 import {
   ensureAudioEngine,
   loadAudioTrack,
@@ -33,7 +33,7 @@ import {
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
-import { progressFor } from '@macha/core';
+import { progressFor } from '@machafoundation/core';
 import { PLAY_COUNT_THRESHOLD_MS } from '../state/musicLibrary';
 import type { MediaSummary } from '../types';
 import { useMacha } from './MachaProvider';
@@ -1235,7 +1235,7 @@ function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string |
  * The server stopped choosing: it reports what a file is and performs exactly
  * what it is told, so asking for `direct` on something this device cannot
  * demux yields the file and a black screen rather than an error. The decision
- * therefore lives entirely here, and it comes from `@macha/core` so that the
+ * therefore lives entirely here, and it comes from `@machafoundation/core` so that the
  * phone, TV and web clients cannot drift apart on the same file.
  *
  * Two deliberate points. A user's explicit choice in the playback sheet wins

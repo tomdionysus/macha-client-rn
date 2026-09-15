@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LIVENESS_PATH } from '@macha/core';
+import { LIVENESS_PATH } from '@machafoundation/core';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';

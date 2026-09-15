@@ -4,7 +4,7 @@ import {
   type PlaybackSession,
   type PlaybackUpdate,
   type StreamInstruction,
-} from '@macha/core';
+} from '@machafoundation/core';
 
 // Playback policy: the decisions this client makes about a session, separated
 // from the runtime that acts on them. They live here rather than in the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlaybackSession } from '@macha/core';
+import type { PlaybackSession } from '@machafoundation/core';
 import { errorBlamesEndpoint, seekRequiresReposition, seekStillPending } from './policy';
 
 const pending = { targetMs: 600_000, atMs: 1_000 };

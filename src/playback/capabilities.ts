@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
-import type { PlaybackCapabilities } from '@macha/core';
-import type { PlaybackPolicyOverrides } from '@macha/core';
+import type { PlaybackCapabilities } from '@machafoundation/core';
+import type { PlaybackPolicyOverrides } from '@machafoundation/core';
 
 /**
  * What this device can decode without the node transforming anything.

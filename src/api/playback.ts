@@ -9,7 +9,7 @@ import {
   type PlaybackPreferencesUpdate,
   type PlaybackSession,
   type PlaybackUpdate,
-} from '@macha/core';
+} from '@machafoundation/core';
 import { deviceCapabilities } from '../playback/capabilities';
 import { transformFor } from '../playback/policy';
 
@@ -29,7 +29,7 @@ export type {
   PlaybackStreamType,
   PlaybackTransform,
   PlaybackUpdate,
-} from '@macha/core';
+} from '@machafoundation/core';
 
 /**
  * Playback sessions across the cluster.

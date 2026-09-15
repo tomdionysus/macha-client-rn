@@ -1,14 +1,13 @@
-const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 
-const config = getDefaultConfig(__dirname);
-
 /**
- * `@macha/core` is consumed through an npm `file:` link, which npm materialises
- * as a symlink out of the project. Metro only watches the project directory,
- * so the package's real location has to be named explicitly or its modules are
- * invisible to the bundler.
+ * `@machafoundation/core` is installed from the registry, so it is a real
+ * directory inside `node_modules` and Metro finds it without help.
+ *
+ * This file used to add `../macha-ts` to `watchFolders`, because core was
+ * consumed through an npm `file:` link that npm materialises as a symlink out
+ * of the project and Metro only watches the project directory. That went with
+ * the link: pointing the bundler at a sibling working tree it no longer
+ * compiles against is how a second copy of core gets into a bundle.
  */
-config.watchFolders = [path.resolve(__dirname, '..', 'macha-ts')];
-
-module.exports = config;
+module.exports = getDefaultConfig(__dirname);

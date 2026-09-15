@@ -1,4 +1,4 @@
-import { isSignedIn, type CurrentSession } from '@macha/core';
+import { isSignedIn, type CurrentSession } from '@machafoundation/core';
 
 /**
  * What the account marker should say, which is four answers rather than two.

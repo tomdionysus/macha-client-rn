@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { describeAccount } from './marker';
-import type { CurrentSession } from '@macha/core';
+import type { CurrentSession } from '@machafoundation/core';
 
 const session = (fields: Partial<CurrentSession>): CurrentSession => ({
   roles: [],

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   readValidatedJson as coreReadValidatedJson,
   writeJson as coreWriteJson,
-} from '@macha/core';
+} from '@machafoundation/core';
 
 /**
  * A tiny persistence seam over AsyncStorage.

@@ -12,7 +12,7 @@ import {
   bootstrapEndpoints,
   configureMachaHost,
   subscribeConnectionState,
-} from '@macha/core';
+} from '@machafoundation/core';
 import { MediaApi } from '../api/media';
 import { ClusterUsersApi, type CurrentSession } from '../api/users';
 import { describeAccount, type AccountDisplay } from '../account/marker';
@@ -35,7 +35,7 @@ import { Connectivity } from '../state/connectivity';
 import { OfflineLibrary } from '../api/offlineLibrary';
 import { DownloadManager } from '../downloads/DownloadManager';
 import { MusicLibraryStore } from '../state/musicLibrary';
-import { PlaylistStore } from '@macha/core';
+import { PlaylistStore } from '@machafoundation/core';
 
 import { clientStore } from '../state/storage';
 

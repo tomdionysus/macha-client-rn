@@ -32,4 +32,4 @@ export {
   SessionManager,
   type AuthenticatedFetch,
   type SessionCredentials,
-} from '@macha/core';
+} from '@machafoundation/core';

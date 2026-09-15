@@ -1,4 +1,4 @@
-import { isGatewayConnectionFailure, normalizeBaseUrl, readResponseBody } from '@macha/core';
+import { isGatewayConnectionFailure, normalizeBaseUrl, readResponseBody } from '@machafoundation/core';
 import { MachaApiError, parseErrorEnvelope, serverUnreachable } from './errors';
 
 /**
@@ -20,7 +20,7 @@ export {
   readResponseBody as readBody,
   type HeaderValues,
   type ParsedResponseBody as ParsedBody,
-} from '@macha/core';
+} from '@machafoundation/core';
 
 export function coerceEndpointUrl(value: string): string {
   const trimmed = value.trim();

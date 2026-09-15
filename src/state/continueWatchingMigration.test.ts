@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ContinueWatchingStore, type PlaybackProgress } from '@macha/core';
+import { ContinueWatchingStore, type PlaybackProgress } from '@machafoundation/core';
 import { clientStore } from './storage';
 import { adoptLegacyContinueWatching } from './continueWatchingMigration';
 

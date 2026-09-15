@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildOrder, statedUpdate, transformFor } from './policy';
-import type { PlaybackSession } from '@macha/core';
+import type { PlaybackSession } from '@machafoundation/core';
 
 /** Only the fields the policy reads. The rest of a session is irrelevant here. */
 const sessionWith = (maxHeight: number | null, maxBitrate: number | null = null) =>

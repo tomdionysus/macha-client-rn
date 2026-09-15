@@ -23,7 +23,7 @@ export type {
   SeasonDetails,
   SeasonSummary,
   ShowDetails,
-} from '@macha/core';
+} from '@machafoundation/core';
 
 import type { CoreMediaDetails, Episode } from './types';
 

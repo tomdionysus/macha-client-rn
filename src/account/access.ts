@@ -1,4 +1,4 @@
-import { hasRole, type CurrentSession, type UserRole } from '@macha/core';
+import { hasRole, type CurrentSession, type UserRole } from '@machafoundation/core';
 
 /**
  * The role a node requires for reads and playback.

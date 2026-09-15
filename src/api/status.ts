@@ -3,7 +3,7 @@
 // and is the reason this file no longer holds a class: reads fail over,
 // while `checkConnectivity` goes through `mutation` because it is a diagnostic
 // POST that makes the node do something and must execute exactly once.
-export { ClusterStatusRouter } from '@macha/core';
+export { ClusterStatusRouter } from '@machafoundation/core';
 export type {
   ByteUsage,
   ClusterHealth,
@@ -15,4 +15,4 @@ export type {
   NodePhase,
   NodeState,
   TelemetryFreshness,
-} from '@macha/core';
+} from '@machafoundation/core';

@@ -28,4 +28,4 @@ export {
   type UserRole,
   type UsersApi,
   type UsersApiErrorCode,
-} from '@macha/core';
+} from '@machafoundation/core';

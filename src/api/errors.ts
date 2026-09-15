@@ -1,4 +1,4 @@
-import { MachaConnectionError } from '@macha/core';
+import { MachaConnectionError } from '@machafoundation/core';
 
 export const SERVER_UNREACHABLE_MESSAGE =
   'Cannot reach a Macha node. Check the address and that the node is running.';
@@ -48,7 +48,7 @@ export class MachaApiError extends Error {
  * needs for `retryableEndpointFailure` to tell a node-local failure from a
  * fact about the file.
  */
-export { parseErrorEnvelope, type ParsedErrorEnvelope } from '@macha/core';
+export { parseErrorEnvelope, type ParsedErrorEnvelope } from '@machafoundation/core';
 
 export function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;

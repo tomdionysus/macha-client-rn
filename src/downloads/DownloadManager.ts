@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { describeError } from '../api/errors';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
-import type { PlaybackInstruction } from '@macha/core';
+import type { PlaybackInstruction } from '@machafoundation/core';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
 

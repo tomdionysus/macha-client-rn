@@ -1,11 +1,11 @@
-import { MachaMediaApi, MachaConnectionError, type ArtworkSource } from '@macha/core';
+import { MachaMediaApi, MachaConnectionError, type ArtworkSource } from '@machafoundation/core';
 import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
 import type { Connectivity } from '../state/connectivity';
 import { isAuthRefusal } from './errors';
 
-export { newestCatalogueFirst } from '@macha/core';
+export { newestCatalogueFirst } from '@machafoundation/core';
 
 /**
  * The UI-facing catalogue facade, with offline fallback.

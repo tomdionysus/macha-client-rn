@@ -165,7 +165,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
  * says that much, and spending "copy" on it is what stops the word meaning
  * anything in the case that needs it: one stream copied while its sibling is
  * re-encoded. Matches how `describePlaybackSession` badges the same sessions
- * in @macha/core.
+ * in @machafoundation/core.
  */
 function describeTransform(session: PlaybackSession): string | undefined {
   const untouched = (transform: PlaybackTransform) => transform === 'copy' || transform === 'omit';

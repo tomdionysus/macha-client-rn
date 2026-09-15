@@ -1,4 +1,4 @@
-import type { ContinueWatchingStore, PlaybackProgress } from '@macha/core';
+import type { ContinueWatchingStore, PlaybackProgress } from '@machafoundation/core';
 import { clientStore } from './storage';
 
 /**
