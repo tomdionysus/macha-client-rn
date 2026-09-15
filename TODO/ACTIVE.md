@@ -34,13 +34,27 @@ compares `package.json`, `app.json` and the tag, and is **blind to the generated
 rewritten on 2026-09-13 to remove them, which moved the `0.4.0` and `0.4.1` tags
 to new SHAs.
 
-**Dependencies are live and move under you.** `@macha/core` is a `file:` link
-resolving through `dist`, so another session rebuilding core changes what this
-client compiles against **mid-edit**. That happened during the 0.5.1 release and
-broke the typecheck in three places. Core now stages `dist` atomically so a
-partial tree is impossible, but the version can still change without warning:
-**re-run typecheck and tests after any core rebuild.** Currently green on core
-**0.11.0** (verified, 90 tests, 12 files).
+**Core comes from the registry now, and no longer moves under you.** The
+dependency is `@machafoundation/core@^0.11.1`, installed from npm and pinned in
+the lockfile by integrity hash. It used to be `@macha/core` as a `file:` link to
+`../macha-ts`, so another session rebuilding core changed what this client
+compiled against **mid-edit** — that happened during the 0.5.1 release and broke
+the typecheck in three places. An immutable tarball cannot do that.
+
+**There is no local link, and you must not add one back.** Tom's call: a
+development loop that resolves differently from what ships is how something
+reaches a release working only locally. When core needs this client's eyes on an
+unreleased change it publishes a prerelease under a dist-tag and you install
+`@machafoundation/core@next` — never a `file:` path. `metro.config.js` lost its
+`watchFolders` entry with the link; it pointed at `../macha-ts`, which is now a
+sibling tree this client does not compile against.
+
+Currently green on core **0.11.1** (verified, 90 tests, 12 files), and verified
+the honest way: a fresh clone with no `macha-ts` anywhere on disk, `npm ci`,
+typecheck, tests, and a real Metro bundle. **Verify that way rather than in this
+tree** — `npm install` will silently keep an existing link, and
+`require('@machafoundation/core/package.json').version` answers `0.11.1` either
+way, so a version check and a green suite prove nothing on their own.
 
 **What is verified on hardware, which is the useful half of knowing.** Measured
 on the A85 against the live cluster: the node-address rows, the media access gate

@@ -8,6 +8,78 @@ Newest first.
 
 ---
 
+## 2026-09-15 — core moved to its real name, and a recommendation that would have broken hydration
+
+**The dependency was named after a package that does not exist.** `@macha/core`
+resolved only because its value was a `file:` path; the entire `@macha` scope is
+unclaimed on npm, and `../macha-ts` has called itself `@machafoundation/core`
+since core settled the name. **npm does not check that a `file:` dependency's
+key matches the package it points at** — verified in a scratch install, not
+assumed — which is why the mismatch was invisible and would have stayed so.
+
+The security case for not leaving it: anyone may register `@macha` and publish
+`core` into it, and any install that loses the `file:` override would fetch a
+stranger's package and run its install scripts. Today that 404s, which is the
+only thing making the failure loud.
+
+**Done:** `@machafoundation/core@^0.11.1` from the registry, all 38 imports
+renamed, lockfile regenerated and resolving to the tarball by integrity hash.
+Only 0.8.1 and 0.11.1 exist on npm — 0.9.0, 0.10.0 and 0.11.0 were tagged in git
+and never published, so a `^0.10.0` range would not have resolved. No local link
+retained, per Tom.
+
+**`metro.config.js` went with it.** Its `watchFolders` entry named `../macha-ts`
+because npm materialises a `file:` dependency as a symlink out of the project
+and Metro only watches the project directory. Left in place it would have
+pointed the bundler at a sibling tree the client no longer compiles against.
+Nothing in vitest would have caught that — `react-native` is stubbed and Metro
+never runs — so the acceptance test was a real `expo export`, which produced a
+4.8MB Hermes bundle from a fresh clone with no `macha-ts` on disk.
+
+**The regeneration also swept two extraneous lockfile entries**, one pointing at
+another session's scratchpad.
+
+**The trap the core session flagged, and it was right:** `npm install` reuses an
+existing link rather than fetching, and because the local tree is *also* 0.11.1
+the version check passes and the suite goes green while you are still compiling
+against the sibling directory. `test -L node_modules/@machafoundation/core` and
+the lockfile `resolved` URL are the honest checks; a fresh clone is the honest
+acceptance test.
+
+### The part of the same message that was wrong for this client
+
+Core 0.11.1 added `macha-client-progress:` to `isMachaStorageKey`, and core's
+doc comment tells hosts to use that helper **rather than a prefix test of their
+own**. This client's `ClientStore.hydrate` uses its own prefix test, so the
+recommendation appeared to land squarely on it. Taking it would have caused the
+incident it is named after.
+
+`isMachaStorageKey` is a registry of the keys **core** owns. `owned()` filters
+every key **this client** must restore, which is a strictly larger set. Core
+lists none of `macha.clientId.v1`, `macha.endpoints.v1`,
+`macha.discoveredEndpoints.v1`, `macha.downloads.v1.`, `macha.musicLibrary.v1.`
+or `macha.progress.v1:`, and no longer lists `macha-session` either. The
+`macha.progress.v1:` detail matters: this client's legacy Continue Watching key
+is **not** the web client's `macha-client-progress:` that 0.11.1 added, so the
+one item described as "directly yours" was in fact the other client's.
+
+Worst of the six is `macha.clientId.v1`, the namespace the per-client stores are
+keyed under — a fresh client id on every cold start would orphan Continue
+Watching, the queue, the playlists and the music library as well. Silent, like
+the sign-out before it.
+
+**Nothing needed changing for `macha-client-progress:`**: `macha-` already
+matches it, and this client clears storage by key rather than by enumeration, so
+the case core fixed does not arise here.
+
+The hydrate test now seeds those six keys, so the swap fails loudly. Checked by
+making it — substituting `isMachaStorageKey` fails on `macha-session` at the
+first assertion — rather than by writing a test that passed on the first run.
+
+**This is the fourth inherited claim to arrive with a plausible mechanism and
+not survive being opened.** It came from a session that had just been right
+about three harder things, which is precisely when one stops checking.
+
 ## 0.5.1 — a seek stopped costing a healthy node, and a login started surviving
 
 Two defects, both **measured on a device** rather than reasoned about, and both
