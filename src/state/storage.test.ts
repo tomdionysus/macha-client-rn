@@ -19,6 +19,17 @@ describe('ClientStore.hydrate', () => {
     await AsyncStorage.setItem('macha-session', '{"token":"t","expiresAtMs":1}');
     // This client's own convention, which always worked.
     await AsyncStorage.setItem('macha.endpoints.v1', '{"version":1,"urls":[]}');
+    // Keys this client owns that core's `isMachaStorageKey` registry does not
+    // list. They are here so that swapping core's helper in for `owned()` —
+    // which core's own doc comment recommends — fails loudly instead of
+    // silently ceasing to restore them. `macha.clientId.v1` is the worst of
+    // them: it namespaces every per-client store, so losing it orphans
+    // Continue Watching, the queue, the playlists and the music library too.
+    await AsyncStorage.setItem('macha.clientId.v1', 'client-1');
+    await AsyncStorage.setItem('macha.discoveredEndpoints.v1', '{"version":1,"urls":[]}');
+    await AsyncStorage.setItem('macha.downloads.v1.client-1', '{"version":1,"items":[]}');
+    await AsyncStorage.setItem('macha.musicLibrary.v1.client-1', '{"favourites":[],"plays":{},"recent":[]}');
+    await AsyncStorage.setItem('macha.progress.v1:client-1', '{"version":1,"items":[]}');
     // Anchored on purpose: another library's key that merely begins with the
     // same letters must not be pulled into this cache.
     await AsyncStorage.setItem('machaSomethingElse', 'x');
@@ -28,6 +39,11 @@ describe('ClientStore.hydrate', () => {
 
     expect(clientStore.getItem('macha-session')).toBe('{"token":"t","expiresAtMs":1}');
     expect(clientStore.getItem('macha.endpoints.v1')).toBe('{"version":1,"urls":[]}');
+    expect(clientStore.getItem('macha.clientId.v1')).toBe('client-1');
+    expect(clientStore.getItem('macha.discoveredEndpoints.v1')).toBe('{"version":1,"urls":[]}');
+    expect(clientStore.getItem('macha.downloads.v1.client-1')).toBe('{"version":1,"items":[]}');
+    expect(clientStore.getItem('macha.musicLibrary.v1.client-1')).toBe('{"favourites":[],"plays":{},"recent":[]}');
+    expect(clientStore.getItem('macha.progress.v1:client-1')).toBe('{"version":1,"items":[]}');
     expect(clientStore.getItem('machaSomethingElse')).toBeNull();
     expect(clientStore.getItem('unrelated')).toBeNull();
   });

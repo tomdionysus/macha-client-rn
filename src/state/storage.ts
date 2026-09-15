@@ -18,8 +18,10 @@ import {
  * Keys this client restores at startup.
  *
  * Two prefixes, because two conventions meet here. This client namespaces its
- * own keys `macha.`; **core namespaces its session cache `macha-session`** —
- * a hyphen, not a dot.
+ * own keys `macha.`; core uses both, and its session cache was hyphenated
+ * `macha-session` until `0.10.0` retired it to `macha.session.v1`. Both forms
+ * are still matched: the dotted one is what core writes today, the hyphenated
+ * one is what a device that has not launched since `0.10.0` still has on it.
  *
  * Filtering on `macha.` alone meant the signed-in token was written to disk
  * faithfully on every launch and never read back, so a login survived exactly as
@@ -28,6 +30,19 @@ import {
  * signed out every cold start, which is invisible until somebody actually signs
  * in. Anchored rather than a bare `macha` so a third party's `machaSomething`
  * cannot wander into this cache.
+ *
+ * **Do not replace this with core's `isMachaStorageKey`,** whose own doc
+ * comment recommends exactly that. It is a registry of the keys *core* owns,
+ * and this is a hydration filter for every key *this client* must restore —
+ * which is a strictly larger set. Core's registry lists none of
+ * `macha.clientId.v1`, `macha.endpoints.v1`, `macha.discoveredEndpoints.v1`,
+ * `macha.downloads.v1.`, `macha.musicLibrary.v1.` or `macha.progress.v1:`.
+ * Swapping it in drops all six, and because `macha.clientId.v1` is the
+ * namespace the per-client stores are keyed under, a lost client id also
+ * orphans Continue Watching, the queue, the playlists and the music library on
+ * every cold start — the same silent shape as the incident above, one layer
+ * further down. Core's helper is right for a *host clearing Macha's data*,
+ * which is not what this is.
  */
 const OWNED_KEY_PREFIXES = ['macha.', 'macha-'] as const;
 
