@@ -3,7 +3,7 @@
   "main": "index.js",
   "version": "0.5.1",
   "dependencies": {
-    "@machafoundation/core": "^0.11.1",
+    "@machafoundation/core": "^0.12.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "expo": "~57.0.20",

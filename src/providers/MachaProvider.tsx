@@ -131,20 +131,32 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const [generation, setGeneration] = useState(0);
 
   /**
-   * Measured throughput per endpoint, persisted under this install's client id.
+   * The endpoint registry, with somewhere to keep measured throughput.
    *
-   * Keyed on `clientId`, so it is absent for the first render and built once
-   * hydration supplies one — its storage key is fixed at construction, and an
-   * instance built before then would file every measurement under an empty id.
-   * That rebuilds the registry with it, which costs nothing here: before
-   * hydration `endpoints` is empty, so nothing has started, no health has
-   * accumulated and the monitor effect has not run. `services` already
-   * rebuilds on `clientId` for the same reason.
+   * Core `0.12.0` took throughput off the constructor: `createMachaServices`
+   * attaches the store for hosts that use it. This client builds its services
+   * by hand, so it attaches its own — and it must, because
+   * `recordTransferByUrl` is a **silent no-op when nothing is attached**. A
+   * hand-building host that skips this looks correctly wired and ranks on
+   * whatever core's own JSON reads happen to see.
+   *
+   * The id is a function on purpose. Core resolves it when the store *writes*,
+   * not when it is constructed, so it can be attached here — during the first
+   * render, before `clientStore` has hydrated — without inventing anything.
+   * `getClientId()` mints when the key is absent, and an unhydrated cache is
+   * indistinguishable from an absent key, so calling it early would mint a
+   * fresh identity on every launch and orphan the previous record. Gating on
+   * `isHydrated` is what makes that impossible; core's `restore()` does not
+   * latch while the id is undefined, so persistence simply begins once there
+   * is one.
    */
-  const bandwidth = useMemo(() => (clientId ? new EndpointBandwidth(clientId) : undefined), [clientId]);
-  // Without this third argument the throughput axis of core's ranking cascade
-  // has no evidence, eliminates nobody and silently falls through to latency.
-  const registry = useMemo(() => new EndpointRegistry([], Date.now, bandwidth), [bandwidth]);
+  const registry = useMemo(() => {
+    const created = new EndpointRegistry([]);
+    created.attachBandwidth(
+      new EndpointBandwidth(() => (clientStore.isHydrated ? getClientId() : undefined)),
+    );
+    return created;
+  }, []);
   const router = useMemo(() => new ClusterEndpointRouter(registry), [registry]);
   // Read by MediaApi through a ref, so learning our access does not rebuild
   // every service and bump `generation` under every mounted screen.
@@ -216,14 +228,14 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       musicLibrary: new MusicLibraryStore(clientId || 'anonymous'),
       users: new ClusterUsersApi(router, auth),
       downloads,
-      downloadManager: new DownloadManager(downloads, playbackApi, mediaApi, bandwidth),
+      downloadManager: new DownloadManager(downloads, playbackApi, mediaApi, registry),
       connectivity,
       clientId,
     };
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation, bandwidth]);
+  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation]);
 
   // Going offline (or coming back) changes what every screen should be
   // showing, so it invalidates loaded data exactly like reconfiguring the
@@ -401,10 +413,13 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
    * The session lifecycle as three facts, kept apart on purpose.
    *
    * `settled` is core's `isReady`: the manager has minted or given up trying.
-   * Before it, nothing below is evidence — a request made early goes out with
-   * no token, is answered 401 and is returned unretried, which reads exactly
-   * like being refused. `mintRefused` is the only one that means a node
-   * actually said no.
+   * Before it, nothing below is evidence, and since core `0.12.0` "early"
+   * fails in two different ways. Before `start()` or after `stop()`, `fetch`
+   * throws `SessionNotStartedError` rather than sending anything. Once started,
+   * a request made after a *failed* mint still goes out with no token, is
+   * answered 401 and is returned unretried — core only re-mints and retries
+   * when it actually sent a token — which reads exactly like being refused.
+   * `mintRefused` is the only one of the three that means a node said no.
    */
   const [sessionFacts, setSessionFacts] = useState({ settled: false, hasToken: false, mintRefused: false });
 

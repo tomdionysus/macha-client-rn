@@ -1,4 +1,4 @@
-import { MachaMediaApi, MachaConnectionError, type ArtworkSource } from '@machafoundation/core';
+import { MachaMediaApi, MachaConnectionError, SessionNotStartedError, type ArtworkSource } from '@machafoundation/core';
 import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
@@ -57,6 +57,22 @@ export class MediaApi {
       this.connectivity?.reportReachable();
       return result;
     } catch (error) {
+      // "We could not ask" — a third answer, and it must not be read as either
+      // of the two below. It arrives before `start()` on every cold start:
+      // `AppShell` mounts screens on the render `hydrated` flips, and React runs
+      // child effects before parent effects, so a screen's first load fires
+      // before the provider's effect has started the session manager.
+      //
+      // This sits *ahead* of the branch below because core `0.12.0` made
+      // `SessionNotStartedError` extend `MachaConnectionError` — which is what
+      // keeps this fallback working for hosts that do nothing, but would
+      // otherwise route it through `reportUnreachable()`. That would mark a
+      // cluster that is up and answering as offline, and `shouldProbe()` then
+      // suppresses real requests for twenty seconds, so a viewer on a healthy
+      // node gets their downloads instead of their library on every launch.
+      // The stored library is still the right answer; the offline verdict is
+      // not. Same reasoning as the refusal branch below, for the same reason.
+      if (library && error instanceof SessionNotStartedError) return stored(library);
       if (library && error instanceof MachaConnectionError) {
         this.connectivity?.reportUnreachable();
         return stored(library);

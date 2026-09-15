@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { describeError } from '../api/errors';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
-import type { EndpointBandwidth, PlaybackInstruction } from '@machafoundation/core';
+import type { EndpointRegistry, PlaybackInstruction } from '@machafoundation/core';
 import { type TransferObservation, throughputSample } from './throughputSample';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
@@ -64,15 +64,17 @@ export class DownloadManager {
     private readonly playbackApi: ClusterPlaybackApi,
     private readonly mediaApi: MediaApi,
     /**
-     * Where finished transfers are reported, so the endpoint registry can rank
-     * on measured throughput rather than latency alone.
+     * Where finished transfers are reported, so ranking can use measured
+     * throughput rather than latency alone.
      *
      * A download is the only transfer on this client that JS can time. Playback
      * and artwork are both owned by native modules that never expose the bytes,
-     * and everything else is JSON well under core's sampling floor. Optional
-     * because nothing here should fail to download for want of a measurement.
+     * and core's own recorder only sees its JSON reads — which are catalogue
+     * listings, so a viewer who opens the app and resumes a download without
+     * browsing produces no other evidence at all. Optional because nothing here
+     * should fail to download for want of a measurement.
      */
-    private readonly bandwidth?: EndpointBandwidth,
+    private readonly registry?: EndpointRegistry,
   ) {}
 
   /** Rebuilt on the next read after a mutation, and not before. */
@@ -316,11 +318,15 @@ export class DownloadManager {
   /**
    * Tell the registry what this download measured, when it measured anything.
    *
-   * Only a session that names its endpoint can be attributed — core keys
-   * throughput by endpoint id, and a sample filed against the wrong node is
-   * worse than none, since ranking would then act on it. `endpoint` is optional
-   * on a `PlaybackSession`, so this is a real branch rather than a guard for
-   * form's sake.
+   * Attribution is by URL because that is the seam core `0.12.0` exposes:
+   * `recordTransferByUrl` matches the URL against the registry's endpoints and
+   * files the sample against whichever one served it. A sample filed against
+   * the wrong node would be worse than none, since ranking would act on it, so
+   * a URL core cannot match is silently dropped rather than guessed at.
+   *
+   * `session.endpoint?.id` is the more direct attribution and this used to use
+   * it. It is not available through the public surface any more, and the URL
+   * match is equivalent while media is served from the node's own base URL.
    *
    * Every sample here comes from whichever node the registry already preferred,
    * because that is the node the session resolver picked. Throughput therefore
@@ -330,12 +336,10 @@ export class DownloadManager {
    * reason to record nothing.
    */
   private recordThroughput(session: PlaybackSession, observed: TransferObservation | undefined): void {
-    if (!this.bandwidth || !observed) return;
-    const endpointId = session.endpoint?.id;
-    if (!endpointId) return;
+    if (!this.registry || !observed) return;
     const sample = throughputSample(observed);
     if (!sample) return;
-    this.bandwidth.record(endpointId, sample.bytes, sample.durationMs);
+    this.registry.recordTransferByUrl(session.source.url, sample.bytes, sample.durationMs);
   }
 
   /**
