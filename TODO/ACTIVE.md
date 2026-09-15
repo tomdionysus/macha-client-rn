@@ -95,11 +95,18 @@ its `[ref]`.
 
 ## P1 — The 0.10.0/0.11.0 port, and the one security item in it
 
-**Status: scoped and estimated, not started.** Core is at **0.11.0** and this
-client already **builds, tests and ships against it** — 0.5.1 was released on
-0.10.0's `dist`, and the tree is green on 0.11.0 (typecheck clean, 90 tests,
-verified rather than assumed). What is missing is *using* what those releases
-added.
+**Status: scoped and estimated, not started.** The client is on
+**`@machafoundation/core@^0.11.1` from the registry** and already **builds,
+tests and ships against it** — 0.5.1 was released on 0.10.0's `dist`, and the
+tree is green on 0.11.1 (typecheck clean, 90 tests, a real Metro bundle, all
+from a fresh clone rather than assumed). What is missing is *using* what those
+releases added.
+
+**One thing 0.11.1 already cost, settled and not to be reopened:** core's
+`isMachaStorageKey` must **not** replace `owned()` in `state/storage.ts`, whatever
+core's docs say — it is core's key registry, not this client's. The reasoning is
+in the comment there and pinned by the hydrate test. Core has since narrowed its
+own guidance and pinned the boundary from its side too.
 
 **The one item that is a security change rather than a tidy-up.** The bearer now
 persists for **up to 30 days** in plaintext `AsyncStorage`, where before 0.5.1 it
@@ -466,11 +473,16 @@ does not consume.
   mapping and drift. And `mintAnonymousSession` now parses the error envelope,
   so `anonymous_disabled` arrives in `code` and a wrong password reports the
   server's own wording rather than a bare status number.
-- **Core is at 0.9.0 and this client is clean against it**, checked rather than
-  assumed: typecheck, tests and a full release build all pass. A `file:` link
-  carries no version signal, so a rebuild can deliver a breaking surface with
-  nothing to announce it — **run the build after any core rebuild.** The three
-  0.9.0 breaks that do not reach us: `validateAnonymousSession*` returning
+- **Core is at 0.11.1 and this client is clean against it**, checked rather than
+  assumed: typecheck, tests and a Metro bundle all pass from a fresh clone. The
+  old warning here — that a `file:` link carries no version signal, so a rebuild
+  could deliver a breaking surface with nothing to announce it — **no longer
+  applies**: core comes from the registry pinned by integrity hash and cannot
+  change under an edit. A core upgrade is now a deliberate version bump, and the
+  thing to check at that moment is whether any key core added is covered by
+  `OWNED_KEY_PREFIXES` in `state/storage.ts`, because core reads through this
+  client's hydration cache and a key it never loaded reads to core as absent.
+  The three 0.9.0 breaks that do not reach us: `validateAnonymousSession*` returning
   `CurrentSession | undefined` rather than `boolean`, `UserRole` gaining
   `view_status` (fatal to an exhaustive `Record<UserRole, …>`), and required new
   fields on `EndpointCandidate` and `ConnectionCheckResult`.
