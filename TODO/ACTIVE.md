@@ -510,6 +510,19 @@ does not consume.
 ## Waiting on other sessions
 
 
+- **Core is going to change the mint-failed window, and this client's access
+  gate is built on its current behaviour.** `0.12.0` refuses only when there is
+  no registry. With a registry and a *failed* mint, `token` is undefined and
+  `inFlight` is cleared, so a request goes out tokenless, is answered 401, and
+  `sent === undefined` short-circuits the re-mint — the 401 comes straight back.
+  That is precisely what `account/access.ts` documents and why `settled` exists:
+  it is the window that reads exactly like a refusal without being one. Core has
+  filed making `fetch` *wait* there when a `refreshTimer` is pending, and refuse
+  when `lastMintFailure` was a real refusal such as `anonymous_disabled`, since
+  waiting on that achieves nothing. **When it lands, re-check
+  `describeMediaAccess` and the comment in `access.ts` together** — a wait turns
+  a fast wrong answer into a slow right one, which changes what `unknown` means
+  in time rather than in kind. It has its own go/no-go round; ask to be on it.
 - **Address the core session as `Macha NPM Core`** — *not* the name `ListAgents`
   prints for it (`Macha Core NPM Module @macha/core`), which `SendMessage`
   rejects because of the `/` and which carries no `[ref]` to fall back on. Two
