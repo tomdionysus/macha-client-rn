@@ -7,9 +7,15 @@ import { clientStore } from './storage';
  * Not to be confused with `macha-client-progress:`, which this comment called
  * the web client's until core was asked and said otherwise. It is **core's
  * own** pre-`0.10.0` key, adopted inside `ContinueWatchingStore.read()` and
- * deleted by its `clearAll()`. Any device that ran a build of this client from
- * before core `0.10.0` has one, so core's adoption is live here too — and it
- * only works because `macha-` is in `OWNED_KEY_PREFIXES` and hydrates it.
+ * deleted by its `clearAll()`. Core's adoption of it works here only because
+ * `macha-` is in `OWNED_KEY_PREFIXES`: core reads through `clientStore`, whose
+ * `getItem` answers from a cache hydrated by prefix, so a key this client never
+ * loaded reads to core as *absent* rather than missing.
+ *
+ * Worth keeping straight, not worth worrying about. Only a device carrying data
+ * from a build older than core `0.10.0` has that key, and Macha has no users, so
+ * nothing in the wild holds one. This documents a coupling between core's
+ * migrations and this client's hydration filter, not a live data-loss risk.
  *
  * `macha.progress.v1:` is ours alone — it predates the convention core now
  * follows — so a migration for it in the shared package would be dead code for
