@@ -4,10 +4,16 @@ import { clientStore } from './storage';
 /**
  * This repo's own pre-rename Continue Watching key.
  *
- * Core adopts the *web* client's legacy key (`macha-client-progress:`) inside
- * its own `read()`. This one is ours alone — `macha.progress.v1:` predates the
- * convention core now follows — so a migration for it in the shared package
- * would be dead code for every other consumer forever.
+ * Not to be confused with `macha-client-progress:`, which this comment called
+ * the web client's until core was asked and said otherwise. It is **core's
+ * own** pre-`0.10.0` key, adopted inside `ContinueWatchingStore.read()` and
+ * deleted by its `clearAll()`. Any device that ran a build of this client from
+ * before core `0.10.0` has one, so core's adoption is live here too — and it
+ * only works because `macha-` is in `OWNED_KEY_PREFIXES` and hydrates it.
+ *
+ * `macha.progress.v1:` is ours alone — it predates the convention core now
+ * follows — so a migration for it in the shared package would be dead code for
+ * every other consumer forever.
  */
 function legacyKey(clientId: string): string {
   return `macha.progress.v1:${clientId}`;

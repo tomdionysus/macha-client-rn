@@ -30,6 +30,13 @@ describe('ClientStore.hydrate', () => {
     await AsyncStorage.setItem('macha.downloads.v1.client-1', '{"version":1,"items":[]}');
     await AsyncStorage.setItem('macha.musicLibrary.v1.client-1', '{"favourites":[],"plays":{},"recent":[]}');
     await AsyncStorage.setItem('macha.progress.v1:client-1', '{"version":1,"items":[]}');
+    // Core's *own* pre-0.10.0 Continue Watching key, which its
+    // `ContinueWatchingStore.read()` adopts when the current key is empty. Core
+    // reads through this store (`configureMachaHost({ storage: clientStore })`)
+    // and `getItem` answers only from the hydrated cache, so failing to hydrate
+    // this would silently defeat core's own migration on any device that ran a
+    // build of this client from before core 0.10.0.
+    await AsyncStorage.setItem('macha-client-progress:client-1', '[]');
     // Anchored on purpose: another library's key that merely begins with the
     // same letters must not be pulled into this cache.
     await AsyncStorage.setItem('machaSomethingElse', 'x');
@@ -44,6 +51,7 @@ describe('ClientStore.hydrate', () => {
     expect(clientStore.getItem('macha.downloads.v1.client-1')).toBe('{"version":1,"items":[]}');
     expect(clientStore.getItem('macha.musicLibrary.v1.client-1')).toBe('{"favourites":[],"plays":{},"recent":[]}');
     expect(clientStore.getItem('macha.progress.v1:client-1')).toBe('{"version":1,"items":[]}');
+    expect(clientStore.getItem('macha-client-progress:client-1')).toBe('[]');
     expect(clientStore.getItem('machaSomethingElse')).toBeNull();
     expect(clientStore.getItem('unrelated')).toBeNull();
   });

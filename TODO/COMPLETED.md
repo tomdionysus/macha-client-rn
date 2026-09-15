@@ -60,8 +60,26 @@ lists none of `macha.clientId.v1`, `macha.endpoints.v1`,
 `macha.discoveredEndpoints.v1`, `macha.downloads.v1.`, `macha.musicLibrary.v1.`
 or `macha.progress.v1:`, and no longer lists `macha-session` either. The
 `macha.progress.v1:` detail matters: this client's legacy Continue Watching key
-is **not** the web client's `macha-client-progress:` that 0.11.1 added, so the
-one item described as "directly yours" was in fact the other client's.
+is **not** `macha-client-progress:`, so the one item described as "directly
+yours" was not.
+
+**A correction inside the correction, and it is the point of this entry.** In
+telling core that, I said `macha-client-progress:` was the *web* client's key.
+It is not — it is **core's own** pre-`0.10.0` key, adopted inside
+`ContinueWatchingStore.read()` and deleted by its `clearAll()`. I took that
+straight from the comment atop `state/continueWatchingMigration.ts` in this
+repo, repeated it to core with a second name attached, and core had to correct
+it. Exactly the failure `AGENTS.md` warns about: a claim forwarded looks
+corroborated when it is only travelling, and being right about the larger point
+is what made this one easy to carry along unexamined.
+
+The comment is now fixed at source, and checking it turned up something
+load-bearing nobody had written down: any device that ran a build of this client
+from before core `0.10.0` still holds that key, so core's adoption is live here,
+and it works **only** because `macha-` is in `OWNED_KEY_PREFIXES`.
+`configureMachaHost({ storage: clientStore })` means core reads through this
+store, and `getItem` answers only from the hydrated cache — a key that is not
+hydrated is a key core sees as absent. Now pinned by the hydrate test.
 
 Worst of the six is `macha.clientId.v1`, the namespace the per-client stores are
 keyed under — a fresh client id on every cold start would orphan Continue
