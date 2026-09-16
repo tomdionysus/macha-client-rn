@@ -424,6 +424,95 @@ and must not be rediscovered:
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
 argument. The standby defect once cited as a reason against it has been retracted.
 
+## Measured on the A85, 2026-09-16 — and one of my own claims did not survive it
+
+Core `0.12.0`, release build, signed in as the standing `webclient` account,
+against the **WAN** cluster the device is actually configured for
+(`macnessa`/`ramaroja` over HTTPS) — **not** the LAN cluster on `10.35.1.x`. The
+cluster was `degraded` at the time: 2 of 3 nodes online, one accepting no
+inbound connections. Tom flagged that, and it matters for reading any of this.
+
+### The cold-start offline flip did not reproduce. My claim was wrong.
+
+I reported — here, and to core, who changed `SessionNotStartedError` partly on
+the strength of it — that a healthy cluster would be marked offline on every
+cold start, and that `shouldProbe()` would then withhold real requests for
+twenty seconds so the viewer got downloads instead of their library.
+
+**On hardware it does not happen.** Cold start with the fix, and cold start with
+the branch deliberately removed, both show the loading spinner and then the full
+library. No offline notice, no problems banner, no downloads-only view. Nothing
+in the logs shows a connectivity transition.
+
+The most likely reason the reasoning was wrong: even if the window is entered,
+the next successful request calls `connectivity.reportReachable()`, which clears
+the flag before anything observable depends on it. The twenty-second suppression
+needs the offline state to *persist*, and it does not.
+
+**What is still true:** removing the branch makes `serve` classify a
+`SessionNotStartedError` as a transport failure and call `reportUnreachable()`.
+`api/media.test.ts` proves that. So the branch is correct and cheap, and it
+stays. What is *not* established is that it prevents anything a viewer would
+ever see. Keep it as correctness, not as a fix for a measured harm.
+
+**The startup delay that is real** is the degraded node: seven route-attempts to
+`macnessa` between 213ms and 230ms, then nothing until **4231ms**, when the walk
+gives up and reaches `ramaroja`. That is a four-second wait on a dead node, and
+it is a cluster-health question rather than a client one.
+
+### Throughput is measured as not ranking, by core's own log
+
+Core `0.12.0` abstains loudly, exactly as it said it would. At 211ms on every
+launch:
+
+    [endpoint-registry] throughput-unavailable
+      { reason: 'insufficient-samples', minimumSamples: 2,
+        detail: 'Ranking fell through to configuration order and no endpoint
+                 has enough recorded transfers for throughput to rank.' }
+
+So on this device throughput ranks nothing yet, and core says so rather than
+silently falling through. That answers the question a Status-screen readout was
+going to answer, without one.
+
+### Catalogue sizes, measured against a real cluster
+
+Against the 32768 B sampling floor, with a `media_viewer` token:
+
+| call | bytes | vs floor |
+|---|---|---|
+| `items?type=movie` | 416241 | 12.7x |
+| `items?type=track` | 849912 | 25.9x |
+| `items?type=album` | 240298 | 7.3x |
+| `items?type=show` | 66911 | 2.0x |
+| `items?type=artist` | 42517 | **1.3x** |
+| `/api/v1/status` | 5395 | under |
+| `catalogue/status` | 300 | under |
+| `/api/v1/health` | 52 | under |
+
+Browse-driven, confirmed independently of the web client. **`artist` at 1.3x is
+the margin worth remembering** — a smaller library puts that listing under the
+floor and it stops being evidence. The query parameter is `type`, not `kind`; a
+wrong one is ignored and returns the whole catalogue (2.9 MB).
+
+### The URL-attribution risk I raised cannot occur
+
+Checked in core rather than on the device: `MachaPlaybackResolver` builds the
+stream URL as `` `${this.baseUrl}${path}` ``, and `recordTransferByUrl` matches
+`url.startsWith(baseUrl + '/')`. The match holds **by construction**, so a
+download can only be misattributed if core changes how it absolutises. Closed.
+
+### Two things worth knowing for the next device session
+
+- **`ReactNativeJS` logs reach `logcat` from a release build.** I told core
+  client-side state was unobservable without a debug build or a new UI surface.
+  That was wrong: `adb logcat | grep ReactNativeJS` shows core's routing, health
+  and registry logs live. It is the cheapest instrument this client has.
+- **The device signed itself out between two runs**, from a named account to
+  anonymous, with Continue Watching and downloads intact. Unexplained. It is the
+  shape of the 30-day item below, but nothing confirms that.
+
+---
+
 ## P3 — Throughput is browse-driven, and downloads are the only other source
 
 **Migrated to core `0.12.0` on 2026-09-15.** Core owns the recorder now:
