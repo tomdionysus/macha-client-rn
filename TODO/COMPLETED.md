@@ -8,6 +8,233 @@ Newest first.
 
 ---
 
+## 2026-09-21 — The last private timeout is gone; the seek window is the serving node's own hold
+
+**`SEEK_DEADLINE_MS = 6_000` in `src/playback/policy.ts` is deleted.** It was
+equal to the server's segment hold and chosen without reference to it — the
+fifth pair of independently chosen constants in this project that had to relate
+and did not, and the only one left in this client.
+
+**What replaces it.** A private `seekDeadlineMs(session)` derives the window as
+`(session.source.budgets?.segmentHoldMs ?? SERVER_SEGMENT_HOLD_MS) +
+SEEK_HOLD_MARGIN_MS`, negatives clamped the way core's `mediaStallTimeoutMs`
+clamps them. `errorBlamesEndpoint` already took the session; `seekStillPending`
+now takes one too, so the two windows cannot drift — that is the whole reason
+it gained a parameter, and a test pins it.
+
+**The margin is 2_000 ms, matching core's `HLS_WALK_HOLD_MARGIN_MS`**, which
+covers the same distance for the same reason. It is deliberately **not** sized
+on media3's retry behaviour, because that is the unsettled contradiction still
+carried as a P1: the bytecode says a segment 500 is retried with backoff, this
+repo measured one fatal on first occurrence, and nobody has put it on a phone.
+If retries turn out to be real the margin is too small — it is still strictly
+more room than the none there was before. The docstring says so rather than
+implying a number that was reasoned from a result.
+
+**Two behaviour changes, in opposite directions, and both were red first.**
+
+| Node | Before | After |
+|---|---|---|
+| States a 10 s hold | Error at 9 s charged to the endpoint, mid-production | Excused; blamed from 12 s |
+| States a 2 s hold | Excused for 6 s, four of them unearned | Blamed from 4 s |
+| States nothing (floor) | Blamed from 6 s exactly | Blamed from 8 s |
+
+**Written the way this repo asks for.** Five tests added to
+`src/playback/seek.test.ts` before the change; three failed, and each failed
+for the reason intended rather than incidentally — the 10 s case returned
+`true` where `false` was wanted, the 2 s case `false` where `true` was wanted,
+and the floor case expired two seconds early. The other two passed against the
+old code and exist to pin the upper bound. A sixth pins the two windows
+together. Two existing boundary tests moved from 6_000/5_999 to 8_000/7_999,
+which is the fallback change and not a new assertion. 106 tests pass, `tsc`
+clean against the linked core (`../macha-ts` at `a19f731`).
+
+**Not verified on hardware, and the reason matters.** Budgets ride the status
+call, which needs `view_status`, so a signed-out run exercises the fallback
+branch only — and the fallback is exactly the row that is hardest to tell from
+the old behaviour by watching. **Sign in before concluding anything about
+budgets on a device.** What would show it: `session.source.budgets` in
+`logcat` beside a `failover-declined { reason: 'seek-outstanding' }` that the
+old window would not have produced.
+
+**Everything else in 0.14.0's budget work remains free here** — the health
+monitor records the figures and `ClusterPlaybackResolver` derives its own
+per-endpoint attempt deadline from them without this client passing an
+override.
+
+---
+
+## 2026-09-20 — 0.6.0 built against linked core and smoke tested on the A85, and three recorded facts turned out to be stale
+
+**The build.** `expo prebuild --platform android` (which cleared and
+regenerated `android/`), then `assembleRelease`. **`BUILD SUCCESSFUL in 23m`,
+737 tasks** — against the **1h15m** this project's ACTIVE had claimed for a
+cold build. Tom pushed back on the figure mid-build and was right: it was an
+inherited number nobody had rechecked, wrong by more than threefold. A 138 MB
+universal APK, signed with the Expo template debug keystore, installed over
+0.5.1 in 1m25s over wireless ADB with no uninstall.
+
+**A diagnostic error worth keeping, because it is the same shape as the ones
+this file collects.** While the build looked stalled I found a fan of `clang`
+processes at 45% each and reported the build as being deep in native
+compilation. They were compiling `athena_core` — `websocket_server.cpp`,
+`redis_datastore.cpp`, `mqtt_event_system.cpp` — a **different project
+entirely** in another session. A plausible mechanism that fitted the symptom,
+attributed without checking whose process it was. The Gradle daemon really was
+busy; the evidence offered for it was somebody else's.
+
+**Provenance of what is on the phone.** The APK reports `0.6.0 / versionCode
+600` and **is not the tagged 0.6.0**. The tag was built against published core
+`0.12.0`; this carries the `file:` link, whose `dist` was built at 22:15 from
+core `e6527f9`, content hash `8005a969…`. The three core commits after it
+touched only records and docs. **Confirmed end to end in `logcat`:** the
+routing lines carry `advisory: true`, which is core's unpublished
+`develop` behaviour and cannot come from any published version. So the link
+demonstrably reaches the device, which is the thing a version string could
+never have told us.
+
+Also worth recording: `dist/index.js` is the barrel and its mtime does **not**
+move when core rebuilds, so it is useless as a freshness signal — the same
+invariance core recorded when a client hashed it and reported "nothing moved".
+And `shasum` includes the path in what it hashes, so two runs from different
+working directories disagree about identical bytes. Both of those briefly
+convinced me core had rebuilt under the build. Hash contents, from inside the
+directory.
+
+### The smoke test, all of it on the A85 against the live cluster
+
+Launch to library, no crash, no fatal in `logcat` at any point. Cluster
+answered in **1.2 s** — against the four-second wait on a dead node recorded on
+2026-09-16, so that degraded node is no longer in the path.
+
+| Step | Result |
+|---|---|
+| Cold launch | Home renders: Continue Watching, Films rail, artwork, account marker, no problems banner |
+| Films tab | Grid of **211** films, filter, artwork streaming in |
+| Detail | Backdrop, poster, synopsis, Play |
+| Play | `session-create` → `session-created` in **44 ms**, `mode: direct`, on the **LAN** node `10.35.1.50` |
+| Playback | Video decodes and advances in real time; reached 6:00 of 1:55:55 |
+| Seek | Three +10 s skips, **no failover and no endpoint failure recorded** |
+| Mini player | Collapse kept the same session — **no `session-create`, no `generation-attempt`** — and the detail screen offered "Resume 7:47" |
+| Close | `DELETE` answered in **24 ms**, `session-stopped`, no leak |
+
+The mini-player line is the one worth keeping: the README states as an
+invariant that moving between `/play` and the mini player never creates a
+session, and that is now measured rather than asserted.
+
+### Three stale facts this run corrected
+
+- **The cluster is on server `0.47.0`**, read from `/api/v1/health`, not the
+  `0.40.0` this project had recorded since 2026-09-16. That is past every
+  floor core `0.14.0` needs — 0.45.0 for `look_ahead_ms`, 0.46.0 for
+  `seekOffsetMs`, 0.46.2 for node budgets — so two items written as latent are
+  live. **Check the node version before calling a 0.14.0 feature dormant.**
+- **The LAN is `10.35.1.x`**, and there is a node at `10.35.1.50`. Playback
+  chose it while the catalogue came from `macnessa` over the WAN, so this
+  device is exercising both paths at once and a measurement has to say which.
+- **The A85 is reached over wireless debugging**, not USB: `adb mdns services`
+  lists `_adb-tls-connect._tcp`, then `adb connect`. A sleeping phone
+  screencaps as **solid black** with the app still correctly in the foreground,
+  which reads exactly like a rendering failure. `dumpsys power` for
+  `mWakefulness`, then `KEYCODE_WAKEUP` and `wm dismiss-keyguard`.
+
+**And one consequence measured rather than reasoned:** a freshly minted
+anonymous session is answered **403** by `/api/v1/status` on the 0.47.0 node.
+Node budgets ride that route, so a client that is signed out gets the
+published floor and never the node's own figure. Sign in before concluding
+anything about budgets.
+
+## 2026-09-20 — back onto the link for development, and what 0.13.0 and 0.14.0 turned out to mean here
+
+**Tom's rule, stated this evening and now in `AGENTS.md`'s spirit if not yet
+its text:** `develop` links core with `file:../macha-ts`; `main` pins the
+published package; a `file:` dependency never reaches `main`; and a release
+confirms the core version is *actually on npm* before pinning it. This
+reverses the 2026-09-15 "registry only" decision recorded two entries below.
+Core's own ACTIVE records the same ruling for all four clients the same day,
+after it had told this client the opposite within the same minute — on the
+strength of the Android TV `AGENTS.md`, a client repo's belief rather than
+Tom's instruction. Where a repo rule and Tom disagree, Tom decides.
+
+**Done here:** `package.json` back to `file:../macha-ts`, `npm install`,
+symlink and `{"resolved": "../macha-ts", "link": true}` confirmed,
+`metro.config.js` naming `../macha-ts` in `watchFolders` again. Typecheck
+clean and 100 tests green against core's `develop` `dist` (0.14.0 plus 32
+unpublished commits, rebuilt 22:06). Also typechecked, without editing
+anything, against the published 0.13.0 and 0.14.0 tarballs by pointing `tsc`
+at each `dist` — clean both times.
+
+**`version:check` grew three checks, each for a drift that had already
+happened.** It refuses a `file:` or `link:` dependency on a tagged commit or
+on `main` (the release gate, made mechanical); it compares the lockfile's own
+`version`, which had sat at `0.5.1` through the whole 0.6.0 release because
+`npm install` only rewrites it when something else changes; and it compares
+the generated `android/app/build.gradle` when one exists. **That last one
+fired immediately:** `android/` still says `0.5.1 / 501`, so no 0.6.0 APK was
+ever built with a prebuild from this tree. The 2026-09-13 P1 about the script
+being blind to the generated project is closed by this.
+
+**What 0.13.0 and 0.14.0 mean for a host of this shape, read from the
+tarballs rather than the release notes.** Storage keys are identical from
+0.12.0 through `develop`. 0.13.0's coordinator work does not reach here, but
+its resolver half does: `sessionAlive` and `regenerate` are public on
+`ClusterPlaybackResolver`, and this client's `failoverSource` has exactly the
+fault they exist for — a player error after a node reaps a paused session
+charges the node that answered honestly. 0.14.0's node budgets arrive on
+`session.source.budgets` and the resolver derives its own attempt deadline
+from them with no change here; the one private timeout left is
+`SEEK_DEADLINE_MS = 6_000`, which equals the server's segment hold exactly.
+Both are P1 in ACTIVE.
+
+**Core's summary, requested and received the same evening, was right on every
+row but one**, and the wrong one was "nothing in 0.13.0 reaches you" — said
+in the same message that named `regenerate` as a method the container
+restatement applies to. Checked in the 0.13.0 `d.ts` rather than argued, and
+sent back with the file. Its correction of this end — `probeNow()` lives on
+`EndpointHealthMonitor`, not `SessionManager` — was right, and the earlier
+ACTIVE note that `probeNow` was "recorded but not built" had been stale since
+at least 0.12.0: every symbol on the port list is in the installed `dist`.
+
+**The A85 run of 2026-09-16, moved here from ACTIVE.** Core `0.12.0`, release
+build, signed in as `webclient`, against the WAN cluster (`macnessa`/
+`ramaroja`, HTTPS, server 0.40.0), which was `degraded` at the time — 2 of 3
+nodes online. Tom flagged that, and it matters for reading any of it.
+
+- **The cold-start offline flip did not reproduce, and the claim was mine.** I
+  had reported — here, and to core, who changed `SessionNotStartedError`
+  partly on the strength of it — that a healthy cluster would be marked
+  offline on every cold start. On hardware, with the fix and with the branch
+  deliberately removed, both cold starts show the spinner then the full
+  library. Most likely the next successful request calls `reportReachable()`
+  before anything observable depends on the flag. **What is still true:**
+  removing the branch makes `serve` classify a `SessionNotStartedError` as a
+  transport failure, proved by `api/media.test.ts`. Keep it as correctness,
+  not as a fix for a measured harm.
+- **Throughput is measured as not ranking, by core's own log:** at 211 ms on
+  every launch, `[endpoint-registry] throughput-unavailable {reason:
+  'insufficient-samples', minimumSamples: 2}`. Core abstains loudly, as it
+  said it would.
+- **Catalogue sizes against the 32768 B sampling floor**, `media_viewer`
+  token: `items?type=movie` 416241 B (12.7x), `track` 849912 (25.9x), `album`
+  240298 (7.3x), `show` 66911 (2.0x), `artist` 42517 (**1.3x**);
+  `/api/v1/status` 5395, `catalogue/status` 300 and `/api/v1/health` 52 all
+  under. Browse-driven, confirmed independently of the web client. The query
+  parameter is `type`, not `kind`; a wrong one returns the whole catalogue
+  (2.9 MB).
+- **The URL-attribution risk I raised cannot occur:** `MachaPlaybackResolver`
+  builds the stream URL as `${baseUrl}${path}` and `recordTransferByUrl`
+  matches `startsWith(baseUrl + '/')`. Holds by construction. Closed.
+- **`ReactNativeJS` logs reach `logcat` from a release build.** I had told
+  core client-side state was unobservable without a debug build. Wrong, and
+  it is the cheapest instrument this client has.
+- Two things left open and carried in ACTIVE: a four-second wait on a dead
+  node before the walk reaches `ramaroja`, and the device signing itself out
+  between runs.
+
+**0.6.0 itself** — "core under its real name, and throughput gets something to
+measure" — was the registry move and the 0.12.0 migration recorded in the two
+entries below, tagged on 2026-09-16. `versionCode 600`.
+
 ## 2026-09-15 — core 0.12.0: throughput became core's, and one viewer-visible regression was caught before it shipped
 
 **Migrated the same day it published**, gated on `npm view` answering `0.12.0`
@@ -189,6 +416,16 @@ Three facts nobody had: **the 500 does arrive** (4.7 s, well inside media3's
 deadline); **media3 does not retry it** — fatal on first occurrence on the HLS
 path, so the server's hold is the entire retry budget in the system; and **this
 client converted a retry signal into a node eviction.**
+
+**The middle one is in doubt as of 2026-09-20 and is carried as a P1 in
+ACTIVE.** Disassembling `DefaultLoadErrorHandlingPolicy` out of the
+Gradle-cached media3 artifacts says an HTTP status error is *not* in the
+do-not-retry set and should fall through to a backoff retry. Either the
+disassembly is being read too narrowly — the HLS chunk path may go terminal
+above the policy — or this device observation was something other than what it
+was recorded as. **Nothing here is retracted**: it was measured on hardware and
+the reading was not. But anything that leans on "the hold is the entire retry
+budget in the system" should check the P1 first.
 
 The server session then corrected the mechanism, and the correction mattered:
 that 500 was **not** the hold expiring. `public_stream_response` has two refusal

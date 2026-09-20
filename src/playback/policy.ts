@@ -1,5 +1,6 @@
 import {
   restatePreferencesClearedByMode,
+  SERVER_SEGMENT_HOLD_MS,
   type PlaybackMode,
   type PlaybackSession,
   type PlaybackUpdate,
@@ -93,13 +94,48 @@ export interface PendingSeek {
 const SEEK_SETTLED_TOLERANCE_MS = 1_500;
 
 /**
+ * How far above the serving node's hold a seek is still allowed to land.
+ *
+ * The hold is what the *node* spends: a fragment at the production frontier is
+ * held until it exists, and only then answered. Everything after that is this
+ * side of the wire — whatever the player does with the answer, and the first
+ * byte of the one that follows. A window equal to the hold leaves none of that
+ * room, which is precisely how `SEEK_DEADLINE_MS = 6_000` came to expire at the
+ * exact moment a correctly-behaving node was answering.
+ *
+ * Two seconds, matching core's `HLS_WALK_HOLD_MARGIN_MS`, which covers the same
+ * distance for the same reason. **It is not sized on media3's retry behaviour**,
+ * which is an open contradiction in `TODO/ACTIVE.md` — the bytecode says a
+ * segment 500 is retried with backoff, this repo measured one fatal on first
+ * occurrence, and nobody has settled it on hardware. If retries are real the
+ * margin is too small; it is still strictly more room than none.
+ */
+const SEEK_HOLD_MARGIN_MS = 2_000;
+
+/**
  * How long to wait before believing the player again regardless.
  *
  * Without this, a seek that never lands — a failed generation, a stream that
  * ends short of the target — would freeze the reported position permanently,
  * which is a worse bug than the one being fixed.
+ *
+ * **Derived from the node that issued the generation, never chosen here.**
+ * Core 0.14.0 carries `segmentHoldMs` on the source for the node actually
+ * serving it, and `SERVER_SEGMENT_HOLD_MS` is the published floor for a node
+ * too old to say, one with a status call that has not landed, or a session
+ * without the `view_status` role those figures ride on. This client's own
+ * 6_000 was chosen without reference to the server and happened to equal it —
+ * the fifth pair of independently chosen constants in this project that had to
+ * relate and did not, and the only one left here.
+ *
+ * Both directions matter. A node holding for ten seconds was being called a
+ * failure at six; a node holding for two was being excused for four seconds it
+ * had no claim to.
  */
-const SEEK_DEADLINE_MS = 6_000;
+function seekDeadlineMs(session: PlaybackSession | undefined): number {
+  const stated = session?.source.budgets?.segmentHoldMs;
+  return (stated === undefined ? SERVER_SEGMENT_HOLD_MS : Math.max(0, stated)) + SEEK_HOLD_MARGIN_MS;
+}
 
 /**
  * Whether a reported position is still the pre-seek one and should be ignored.
@@ -109,8 +145,13 @@ const SEEK_DEADLINE_MS = 6_000;
  * it forward when the seek lands — the scrubber appearing to fight them — and
  * checkpoints the stale position to Continue Watching on the way past.
  */
-export function seekStillPending(pending: PendingSeek, reportedMs: number, nowMs: number): boolean {
-  if (nowMs - pending.atMs >= SEEK_DEADLINE_MS) return false;
+export function seekStillPending(
+  session: PlaybackSession | undefined,
+  pending: PendingSeek,
+  reportedMs: number,
+  nowMs: number,
+): boolean {
+  if (nowMs - pending.atMs >= seekDeadlineMs(session)) return false;
   return Math.abs(reportedMs - pending.targetMs) > SEEK_SETTLED_TOLERANCE_MS;
 }
 
@@ -225,5 +266,5 @@ export function errorBlamesEndpoint(
   // Past the deadline the seek is no longer a credible explanation, and the
   // same guard that stops a lost seek freezing the position stops it excusing
   // an endpoint forever.
-  return nowMs - pendingSeek.atMs >= SEEK_DEADLINE_MS;
+  return nowMs - pendingSeek.atMs >= seekDeadlineMs(session);
 }

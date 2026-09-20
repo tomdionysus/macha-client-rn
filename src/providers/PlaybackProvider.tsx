@@ -851,7 +851,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         const positionMs = Math.max(0, Math.round(currentTime * 1000));
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
-          if (seekStillPending(pendingSeek, positionMs, Date.now())) return;
+          if (seekStillPending(sessionRef.current, pendingSeek, positionMs, Date.now())) return;
           pendingSeekRef.current = undefined;
         }
         positionRef.current = positionMs;
@@ -970,7 +970,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         const positionMs = Math.max(0, Math.round(position * 1000));
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
-          if (seekStillPending(pendingSeek, positionMs, Date.now())) return;
+          if (seekStillPending(sessionRef.current, pendingSeek, positionMs, Date.now())) return;
           pendingSeekRef.current = undefined;
         }
         const durationMs = knownDurationRef.current || Math.max(0, Math.round(duration * 1000));

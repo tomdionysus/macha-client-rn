@@ -14,71 +14,129 @@ source or a device, it says so; where it was taken on trust, it says that too.
 Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
-Last rationalised 2026-09-13, after 0.5.1, for a session picking this up cold.
+Last rationalised 2026-09-20, after 0.6.0 and core 0.14.0, for a session picking
+this up cold. One P1 closed on 2026-09-21 — the private seek deadline, now
+derived from the serving node's stated hold; see COMPLETED.
 
 ---
 
 ## Start here
 
-**Released: 0.5.1** (`versionCode 501`), tagged on `main` and pushed, running on
-the A85. `main` and `develop` are level. Work happens on `develop`; a release is
-an annotated bare-semver tag on `main`, and the version bump goes **in** the
-release commit. `AGENTS.md` has the convention.
+**Released: 0.6.0** (`versionCode 600`), tagged on `main`. `main` and `develop`
+were level at the tag; `develop` now carries the link change below. Work
+happens on `develop`; a release is an annotated bare-semver tag on `main`, and
+the version bump goes **in** the release commit. `AGENTS.md` has the convention.
 
-**Run `npm run version:check` before tagging — and do not trust it alone.** It
-compares `package.json`, `app.json` and the tag, and is **blind to the generated
-`android/` project**, which is where version drift actually happens. See the P1.
+**0.6.0 is built and on the A85** (2026-09-20, `versionCode 600`, smoke
+tested — see COMPLETED). It is **not** the tagged 0.6.0: the tag was built
+against published core 0.12.0, this APK carries the linked core working tree
+at `e6527f9`. Anything measured on the device has to name which of the two it
+was.
+
+**A cold release build is ~23 minutes, not the 1h15m this file used to
+claim.** Measured 2026-09-20: `BUILD SUCCESSFUL in 23m`, 737 tasks, from a
+`prebuild` that had just wiped `android/`. The old figure was inherited and
+never rechecked, and it was wrong by more than 3x — long enough to have put
+people off rebuilding.
+
+**The working tree is dirty and nothing since 0.6.0 is committed.** Twelve
+files. From 2026-09-20: `package.json` and `package-lock.json` (the `file:`
+link), `metro.config.js` (`watchFolders` restored), `scripts/version-check.mjs`
+(three new checks), `AGENTS.md` and `README.md` (the branch rule), and both
+TODO files. From 2026-09-21, the seek-window item now in COMPLETED:
+`src/playback/policy.ts`, `src/playback/seek.test.ts` and
+`src/providers/PlaybackProvider.tsx`. `.claude/settings.json` is **not** either
+session's work — it predates both. Nothing was staged; Tom commits.
 
 **Never push unless Tom says so in that message**, and never add
-`Co-Authored-By: Claude` or `Claude-Session:` trailers — every commit was
-rewritten on 2026-09-13 to remove them, which moved the `0.4.0` and `0.4.1` tags
-to new SHAs.
+`Co-Authored-By: Claude` or `Claude-Session:` trailers.
 
-**Core comes from the registry now, and no longer moves under you.** The
-dependency is `@machafoundation/core@^0.11.1`, installed from npm and pinned in
-the lockfile by integrity hash. It used to be `@macha/core` as a `file:` link to
-`../macha-ts`, so another session rebuilding core changed what this client
-compiled against **mid-edit** — that happened during the 0.5.1 release and broke
-the typecheck in three places. An immutable tarball cannot do that.
+### How core arrives, and the one rule about it
 
-**There is no local link, and you must not add one back.** Tom's call: a
-development loop that resolves differently from what ships is how something
-reaches a release working only locally. When core needs this client's eyes on an
-unreleased change it publishes a prerelease under a dist-tag and you install
-`@machafoundation/core@next` — never a `file:` path. `metro.config.js` lost its
-`watchFolders` entry with the link; it pointed at `../macha-ts`, which is now a
-sibling tree this client does not compile against.
+**Tom's rule, 2026-09-20, which overrides the 2026-09-15 "registry only"
+decision recorded in earlier versions of this file:** development on `develop`
+uses `"@machafoundation/core": "file:../macha-ts"` so this client and core move
+in parallel; a release on `main` pins the **published** package. A `file:`
+dependency must never reach `main`. Core's own `TODO/ACTIVE.md` records the
+same ruling for all four clients the same day.
 
-Currently green on core **0.11.1** (verified, 90 tests, 12 files), and verified
-the honest way: a fresh clone with no `macha-ts` anywhere on disk, `npm ci`,
-typecheck, tests, and a real Metro bundle. **Verify that way rather than in this
-tree** — `npm install` will silently keep an existing link, and
-`require('@machafoundation/core/package.json').version` answers `0.11.1` either
-way, so a version check and a green suite prove nothing on their own.
+So today `package.json` says `file:../macha-ts`, `node_modules/@machafoundation/core`
+is a symlink, the lockfile records `{"resolved": "../macha-ts", "link": true}`,
+and `metro.config.js` names `../macha-ts` in `watchFolders` again because npm
+materialises a `file:` dependency as a symlink out of the project and Metro
+only watches the project directory.
 
-**What is verified on hardware, which is the useful half of knowing.** Measured
-on the A85 against the live cluster: the node-address rows, the media access gate
-and its header warning, the access-aware empty copy, Continue Watching filtering,
-seek repositioning, a wrong password, a **successful** login, and sign-in
-surviving a force-stop. **Never used by a person:** the QR scanner. **Never run
-on hardware at all:** the gate's `no-session` branch, which needs
-`allow_anonymous` off to reach, and the node-row paste path, which `adb shell
-input text` cannot emulate.
+**What `../macha-ts` is:** core's `develop`. As of 2026-09-20 it is `0.14.0`
+plus 32 unpublished commits, and its `dist/` — which is what actually resolves
+— was rebuilt at 22:06 that evening. `dist` is built, not committed, so it can
+lag its own `src`; rebuild core before trusting a typecheck, and grep `dist`
+for the symbol you are about to use rather than reading core's `src`.
 
-**Devices.** Deploy with `adb install -r
-android/app/build/outputs/apk/release/app-release.apk` after `npx expo prebuild
---platform android` and a Gradle `assembleRelease`. **Do not skip prebuild after
-a version bump** — `android/` is generated and Gradle reads the generated
-`build.gradle`, so the APK will carry the old version silently.
+**Releasing, in order, and none of it optional:**
 
-- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.5.1**, signed
-  in as `rnclient` (all five roles). Its cluster is a **remote TLS** one —
-  `https://macnessa.macha.network` and `ramaroja`, both on server **0.40.0**.
-  `10.44.1.x` is live. **Its address and port move constantly**: `adb mdns
-  services` finds it, and it drops whenever the phone sleeps.
+1. Confirm the core version you are about to pin is **actually on npm**:
+   `npm view @machafoundation/core version time --json`. Three core versions
+   (0.9.0, 0.10.0, 0.11.0) were tagged and never published, and one publish
+   was announced complete after failing `EOTP`. An absent version with an
+   unmoved `time.modified` did not happen; with a moved one it is still
+   propagating.
+2. `package.json` to that published `^x.y.z` and `npm install` — not a
+   lockfile edit.
+3. `test -L node_modules/@machafoundation/core` must **fail**, and the lockfile
+   `resolved` must be a registry URL. A version string agrees while a stale
+   link is in place; those two checks cannot lie.
+4. `npm run version:check`, typecheck, tests, and a real `expo export`,
+   against the registry copy. vitest stubs `react-native` and never runs
+   Metro, so a green suite proves nothing about bundler resolution.
+5. Prebuild, build, tag, merge. Then hand Tom the push command.
+
+`npm run version:check` refuses a `file:` or `link:` dependency on a tagged
+commit or on `main`, compares the lockfile's own version, and compares the
+generated `android/app/build.gradle` when one exists. It fires on the working
+tree right now only because HEAD still carries the 0.6.0 tag; the first commit
+on `develop` clears that.
+
+**What a build contains is answerable again, but only if you write it down.**
+Under the link an APK carries whatever `../macha-ts/dist` held when Gradle ran.
+Record `git -C ../macha-ts rev-parse --short HEAD` and a hash of every
+`dist/**/*.js` (sorted, hashed again — `dist/index.js` alone is the barrel and
+is invariant under every implementation change) beside any device measurement.
+
+### What is verified on hardware, which is the useful half of knowing
+
+Measured on the A85 against the live cluster: the node-address rows, the media
+access gate and its header warning, the access-aware empty copy, Continue
+Watching filtering, seek repositioning, a wrong password, a **successful**
+login, sign-in surviving a force-stop, and the 2026-09-16 run recorded in
+COMPLETED (cold start, throughput abstaining, catalogue sizes). **Never used
+by a person:** the QR scanner. **Never run on hardware at all:** the gate's
+`no-session` branch, which needs `allow_anonymous` off to reach, and the
+node-row paste path, which `adb shell input text` cannot emulate.
+
+**`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat |
+grep ReactNativeJS` shows core's routing, health and registry logs live. It is
+the cheapest instrument this client has.
+
+### Devices
+
+Deploy with `adb install -r android/app/build/outputs/apk/release/app-release.apk`
+after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
+**Do not skip prebuild after a version bump** — see above.
+
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.6.0**
+  (linked core, see above) as of 2026-09-20. It has **both** a remote TLS
+  cluster (`https://macnessa.macha.network`, `ramaroja`) and a **LAN node at
+  `10.35.1.50`** configured, and on the smoke test playback went to the LAN
+  node while the catalogue came from `macnessa`. **The LAN is `10.35.1.x`
+  now**, not the `10.44.1.x` this file used to give.
+  **It connects over wireless debugging, not USB**: `adb mdns services` lists
+  it as `_adb-tls-connect._tcp`, then `adb connect <host>:<port>`. The port
+  changes, and it drops whenever the phone sleeps — a screenshot of a sleeping
+  phone is solid black, so check `dumpsys power` for `mWakefulness` and send
+  `KEYCODE_WAKEUP` plus `wm dismiss-keyguard` before believing a blank capture.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
-  **0.4.0** and **no endpoints configured**, so it opens on the connect screen —
-  the right device for first-run and QR in one pass.
+  **0.4.0** and **no endpoints configured**, so it opens on the connect screen
+  — the right device for first-run and QR in one pass.
 - **The Smart_TV that answers ADB is not a test target.** Verify
   `ro.product.model` before any install; it is often attached alongside the
   phone.
@@ -87,682 +145,693 @@ a version bump** — `android/` is generated and Gradle reads the generated
 landed in another app mid-sequence. `dumpsys window | grep mCurrentFocus` first,
 and abort if it is not `foundation.macha.client`.
 
-**Peer sessions.** Address core as **`Macha NPM Core`** — *not* the name
-`ListAgents` prints for it. There are two `Macha Server` rows; the live one needs
-its `[ref]`.
+### Peer sessions
+
+Core answers to **`Macha Client Core`** — the name `ListAgents` printed on
+2026-09-20 and the one a send reached first time. Earlier notes here about
+`Macha NPM Core` and a name containing a slash are stale. There are two
+`Macha Server` rows; the live one needs its `[ref]`. Send with
+`notify_when_idle` and carry on; a reply arrives as a cross-session message.
 
 ---
 
-## P1 — The 0.10.0/0.11.0 port, and the one security item in it
+## What core 0.13.0 and 0.14.0 changed, read from the published tarballs
 
-**Status: scoped and estimated, not started.** The client is on
-**`@machafoundation/core@^0.11.1` from the registry** and already **builds,
-tests and ships against it** — 0.5.1 was released on 0.10.0's `dist`, and the
-tree is green on 0.11.1 (typecheck clean, 90 tests, a real Metro bundle, all
-from a fresh clone rather than assumed). What is missing is *using* what those
-releases added.
+**The live cluster is on server `0.47.0`, measured 2026-09-20** at
+`http://10.35.1.50:7438/api/v1/health` — not the `0.40.0` recorded here since
+2026-09-16. That is **past every server floor core 0.14.0 needs**: 0.45.0 for
+`look_ahead_ms`, 0.46.0 for `seekOffsetMs`, 0.46.2 for the node budgets. Two
+items below that were written as latent are therefore live and testable today.
+**Read the node's version before calling any 0.14.0 feature dormant.**
 
-**One thing 0.11.1 already cost, settled and not to be reopened:** core's
-`isMachaStorageKey` must **not** replace `owned()` in `state/storage.ts`, whatever
-core's docs say — it is core's key registry, not this client's. The reasoning is
-in the comment there and pinned by the hydrate test.
+**How to typecheck against a core version without installing it**, since the
+scratchpad this was done in does not survive a session: `npm pack
+@machafoundation/core@<version>`, untar it, and point a `tsconfig` that
+extends this repo's at the unpacked `dist` through `compilerOptions.paths`,
+for both `@machafoundation/core` and `@machafoundation/core/*`. Add
+`"ignoreDeprecations": "6.0"` beside `baseUrl` or TypeScript 6 refuses it, and
+confirm the mapping took with `--traceResolution` — a `paths` miss falls back
+to `node_modules` silently, and you typecheck the version you already had.
 
-Core has narrowed that guidance and pinned the boundary from its side, but **on
-its `develop` branch, not in anything you can install** — `0.11.1` is what npm
-holds and its `isMachaStorageKey` still answers false for all six of this
-client's keys, checked by calling it in `node_modules` rather than reading
-core's working tree. The distinction matters here more than it looks: core's
-`0.9.0`, `0.10.0` and `0.11.0` were tagged in git and never published. **Read
-core's behaviour from `node_modules`, never from `../macha-ts`**, which is its
-`develop` and has been up to three releases ahead.
+Both tarballs were unpacked and their `dist` diffed against the installed
+0.12.0 and against `../macha-ts/dist`, and this client's `src` was typechecked
+against each. **Typecheck is clean against 0.14.0 and against core's current
+`develop`; all 100 tests pass on the link.** Storage keys are identical across
+0.12.0, 0.14.0 and `develop`, so `OWNED_KEY_PREFIXES` needs nothing.
 
-**The one item that is a security change rather than a tidy-up.** The bearer now
-persists for **up to 30 days** in plaintext `AsyncStorage`, where before 0.5.1 it
-died with the process. Same storage, same permissions — but the exposure window
-went from one session to a month, readable on a rooted device or in a backup.
-That is a consequence of a fix that was otherwise entirely good, and it is the
-argument for sequencing this sooner rather than later.
+| Change | Version | Reaches this client? |
+|---|---|---|
+| `PlaybackFailureKind` gains `not-found`; `playbackFailureKindForStatus(404)` no longer says `stream` | 0.13.0 | Not directly — expo-video hides the status. See the P1 below for what does. |
+| `ClusterPlaybackResolver.sessionAlive(id)` and `regenerate(...)` | 0.13.0 | **Yes**, and this client should call them. P1. |
+| `docs/principles-and-laws.md` exists for the first time | 0.13.0 | Read it before touching playback. |
+| Node budgets: `/api/v1/status` `playback.{startup,segment}_timeout_ms` → `EndpointRegistry.recordPlaybackBudgets` → `PlaybackSource.budgets {deadlineMs, segmentHoldMs}` | 0.14.0 | **Yes, mostly free.** The health monitor records them and the resolver derives its per-endpoint attempt deadline from them without being asked. `session.source.budgets` arrives on every session. Only reaches a session that has `view_status`, because that is the route they ride. |
+| `PlaybackSession.seekOffsetMs` / `seekRequestedMs` (server ≥ 0.46.0) | 0.14.0 | **Yes.** P2 below. |
+| `PlaybackSession.lookAheadMs` (server ≥ 0.45.0) | 0.13.0 | Not used here; the coordinator's replacement lead needs it, this client does not build one. |
+| `Player.play(..., transition: 'continue' \| 'relocate')` | 0.14.0 | No — this client does not implement core's `Player`. The distinction it draws is one this client already cannot honour: every source swap here is a visible reload. |
+| `MediaStallWatchdog.useSourceBudgets`, `mediaStallTimeoutMs(source)` | 0.14.0 | Only if stall detection is ever wired (P2). |
+| `SERVER_SESSION_IDLE_MS`, `SERVER_STARTUP_TIMEOUT_MS`, `SEGMENT_NOT_READY_STATUS`, `BROKEN_GENERATION_STATUS`, `SOURCE_NOT_FOUND_STATUS` exported | 0.14.0 | Import rather than restate. This client's `SEEK_DEADLINE_MS` is the one private copy left — P1. |
+| `PlaybackCoordinator` recovery-chain error, `REPLACEMENT_LEAD_TIME_MS`, runway arithmetic | 0.13.0–0.14.0 | No — coordinator only. |
+
+**On `develop` and unpublished** (signatures read from `../macha-ts/dist`,
+not from core's `src`): `SessionManager` gains a lifecycle generation and an
+`abandoned` set ("stop lending a dead token"); `ClusterEndpointRouter.request`
+gains an `advisory` option and `find` an `onAbsence` callback;
+`discoverClusterEndpoints` takes a signal; `PlaybackCoordinator` reports
+`performedMode`/`modeHonoured`; `ClusterPlaybackResolver.failover` restates
+the chooser's transforms itself (`withRestatedTransforms`). None of it
+changes a signature this client calls, and none of it is the mint-failed
+window fix — core re-verified on `develop` the same day that `fetch` still
+hands back a bare 401 after a failed mint.
+
+**Core's own summary arrived 2026-09-20, disagreed on one row, and withdrew
+it when shown the declarations.** It says nothing in 0.13.0 reaches a host that calls the
+resolver directly, and lists `regenerate` in the same message as a resolver
+method `withServedSegmentContainer` applies to. Both `sessionAlive` and
+`regenerate` are public on `ClusterPlaybackResolver` in the 0.13.0 tarball
+(`dist/playback/ClusterPlaybackResolver.d.ts`), and the fault they fix — a
+player error after a reaped session charged to the node — is reached here
+through `failoverSource`. Core accepted the correction the same evening and
+supplied the recovery sequence that goes with it, which is in the P1 below
+and is not derivable from the type declarations. The rest of the reply — budgets,
+constants, storage keys unchanged, `probeNow` living on the monitor rather
+than the manager, the mint-failed window still open and core's — matched
+what the tarballs say.
+
+**Core's one claim to check, checked:** it asked whether a configured
+endpoint survives a force-quit here, because `MachaClientConfiguration` used
+to capture the memory-storage fallback at module scope. This client never
+constructs `MachaClientConfiguration` or calls `createMachaServices` (one
+mention in `src`, a comment); endpoints are read and written through
+`clientStore` directly (`state/connection.ts`). And the 2026-09-16 A85 run
+cold-started to the full library on 0.12.0, which needs the stored endpoint.
+Answered as such, with the caveat that it was 0.12.0 and a release build,
+not the link.
+
+---
+
+## P1 — A reaped session is charged to the node that answered honestly
+
+**From core 0.13.0. The resolver half reaches this client and is unused; the
+coordinator half does not reach us at all.** Core initially told this client
+that nothing in 0.13.0 was reachable here, then withdrew it — `sessionAlive`
+and `regenerate` are public on `ClusterPlaybackResolver`, new in that tarball,
+and are exactly the tools this fault needs.
+
+**The condition.** A viewer pauses for more than `session_idle` (30 minutes;
+`SERVER_SESSION_IDLE_MS`). The node reaps the play session — correctly. The
+viewer resumes, the buffer plays out, media3 asks for the next fragment, gets
+`404 not_found`, and raises a fatal error. `statusChange` sees `error` and
+calls `failoverSource`, whose only exit is `failover`, whose first act is
+`recordEndpointFailure`. So the node that answered honestly is charged,
+dropped, and the viewer is sent to a node that never held the session. Core
+observed exactly that live on 2026-09-17.
+
+**This client cannot see the 404** (`PlayerError` is `{ message }`), so it
+cannot classify the error. **It can ask instead.** `sessionAlive(sessionId)`
+is pinned to the owning node, does no walk, and **records nothing against the
+registry in either direction** — core's comment: a probe that moved the
+registry "would make asking a question cost the node something, which is how
+a diagnostic turns into the fault it was meant to diagnose". So probing before
+spending failover budget is free.
+
+### The sequence, corrected by core on 2026-09-20 — do not build the naive one
+
+The obvious version ("probe; regenerate on false; failover on true or on a
+throw") is wrong in its last clause, and core has measured the cost.
+
+- **`alive === false` → `regenerate`.** Same node, no charge, and core
+  releases the old session *before* creating and waits for it, because the
+  node's one transcode slot is held by the session being replaced.
+- **A `sessionAlive` throw is two unrelated things and they want opposite
+  actions.** "no endpoint provenance" means the resolver holds no record of
+  that id **because it was already released** — nothing is wrong and nothing
+  needs recovering. Treating it as "could not find out" cost a viewer 82
+  seconds of playable video on 2026-09-17: a late fatal named a superseded
+  source, the probe threw, the throw sent it to failover, and failover
+  released a replacement that was already built and waiting. A transport
+  failure is the other case and gets ordinary evidence handling.
+- **`regenerate` has its own distinct throw**, "has no endpoint to regenerate
+  on", when the endpoint has gone from the registry. **There failover is
+  right.** Two throws, two answers, and only one of them is in a docstring.
+- **Regeneration must be bounded.** Core logs
+  `session-regeneration-made-no-progress`: a second not-found at the same
+  position means the regeneration changed nothing and the next step must
+  differ. Without the bound this loops against a node that keeps answering
+  the same way.
+
+**Core survives the superseded-source trap only through coordinator machinery
+this client does not have** — `failNow` checks `pendingReplacement` before
+reaching the probe. So the equivalent has to be built here, and core's advice
+is to **track which session id is current and ignore failures naming a
+superseded one**, rather than matching on the provenance message, which is
+core's text to change.
+
+**And this client's shape makes it worse in a way core's warning does not
+quite cover.** `failoverSource` reads `sessionRef.current`, so a late error
+from a dying source does not probe the old id at all — it probes the **new**
+one, finds it alive, and under the plan above fails over, discarding a
+regeneration completed a second earlier. A dying source keeps talking; core
+has that measured three ways. So the guard cannot be "ignore a throw naming
+a superseded id" alone: **the error itself has to be attributable to a
+generation**, and expo-video does not label it. The likely shape is a short
+quiet period after `player.replace`, in the same spirit as
+`errorBlamesEndpoint`'s seek window, rather than a session-id test. **Decide
+this before writing the probe**, because a wrong guard here turns a fixed
+fault into a worse one.
+
+### One deliberate divergence from core, recorded as a choice
+
+On `alive === true` core does **not** fail over: it logs
+`source-not-found-on-live-session` and stops, because an alive session
+answering 404 for a fragment is a fragment past the end of a live plan, the
+node is fine, and replacing it fixes nothing. **This client cannot tell that
+case apart**, because expo-video hides the status, so `alive → failover`
+stays. It is strictly better than today, where everything fails over, and
+core agrees it is defensible — but it means this client will fail over on a
+case core deliberately does not. **That is a choice, not a side effect.**
+
+### Doing it
+
+- Add `sessionAlive` and `regenerate` to `ClusterPlaybackApi`
+  (`src/api/playback.ts`).
+- Put the decision in `policy.ts` as a pure function over (probe result,
+  throw kind, attempt count, position) so it can be tested without the
+  player, the way `errorBlamesEndpoint` already is. **Prove each branch fails
+  against the current code first** — and check *why* each is red, which is
+  the failure mode core and the web client both hit this week.
+- **Also worth doing proactively:** on `AppState` returning to `active` with
+  a session older than a few minutes, ask before the viewer presses play
+  rather than after the fragment fails. Not measured; the reactive half is
+  enough to stop charging the node.
+- Verify on the A85: pause 31 minutes, resume, read `logcat` for a
+  regenerate rather than a `failover-attempt`.
+
+**Core owes a docs section and has filed it.** The recovery sequence is
+documented nowhere — every method has a docstring, the sequence has none,
+because core only ever documented it through `PlaybackCoordinator`. Three of
+four clients now drive playback below that class. When
+`docs/writing-a-player.md` grows a resolver-level recovery section, check it
+against this item rather than replacing this item with it.
+
+---
+
+## P1 — media3's bytecode says a segment 500 is retried; our device said it is fatal
+
+**Unresolved contradiction, found 2026-09-20 while answering a question from
+core.** It matters because both P1s around it reason about what the player
+does with a refused fragment.
+
+**What the artifacts say.** `DefaultLoadErrorHandlingPolicy`, disassembled
+from the Gradle-cached `media3-exoplayer` AARs and byte-identical in **1.8.0
+and 1.9.0**:
+
+- `isEligibleForFallback` returns true for an `InvalidResponseCodeException`
+  whose status is one of **403, 404, 410, 416, 500, 503**. That governs
+  *fallback* — switching track or location — not retry.
+- `getRetryDelayMsFor` returns `C.TIME_UNSET` (do not retry) only for
+  `ParserException`, `FileNotFoundException`, `CleartextNotPermittedException`,
+  `UnexpectedLoaderException` and a position-out-of-range cause. **An HTTP
+  status error is in none of those**, so it falls through to
+  `min(errorCount * 1000, 5000)` — a retry with backoff.
+
+**What this repo measured.** COMPLETED's 0.5.1 entry records, from the A85
+against a real node on 2026-09-13, that a segment `500` was **fatal on first
+occurrence on the HLS path**. That finding is load-bearing: it is the stated
+reason the server's hold is "the entire retry budget in the system", and it is
+half the argument for `seekRequiresReposition`.
+
+**Both cannot be right.** The plausible reconciliation is that the HLS chunk
+path reaches the loader through `HlsChunkSource.onChunkLoadError` and a
+fallback that is unavailable with a single variant, so something above the
+policy goes terminal before the retry delay is consulted. **That is a guess
+and must not be recorded as anything else** — it is precisely the shape of
+explanation this project keeps being caught by.
+
+**Why P1 rather than a curiosity.** Nothing that cites it is wrong because of
+it, but three things now do. If a segment 500 *is* retried, the seek-reposition
+fix is protecting against something with a different mechanism than recorded,
+and `SEEK_HOLD_MARGIN_MS` — 2_000 ms above the node's hold, shipped 2026-09-21
+— is too small, because the hold would then be spent more than once before the
+player gives up. The margin was written not sized on this deliberately; settling
+it is what says whether that was generous enough.
+
+**How to settle it, and it needs the phone:** play a transformed generation,
+seek well past production, and read `logcat` for whether media3 issues repeat
+fragment requests with roughly 1 s then 2 s backoff before going terminal, or
+goes terminal at once. The 2026-09-13 run had the answer in front of it and
+was not asking this question.
+
+**Core is waiting on a related answer.** It has been running a 425-versus-500
+question with the television session. On this stack a 425 would be retried
+with backoff and would **not** be fallback-eligible, making it the *weaker*
+signal here rather than the stronger one. Core has been told this is a
+bytecode reading rather than a result, and that the experiment belongs on this
+end. **expo-video installs no `LoadErrorHandlingPolicy` of its own**, so the
+default above is what runs.
+
+---
+
+## P1 — The security item, and the rest of the port
+
+**Status: scoped, not started. Corrected 2026-09-20:** every symbol below is
+present in the installed core — checked by grepping `dist` in 0.12.0, 0.14.0
+and `develop` — so an earlier note here that `probeNow()` was "recorded but
+not built" was stale from at least 0.12.0.
+
+**The one item that is a security change rather than a tidy-up.** The bearer
+persists for **up to 30 days** in plaintext `AsyncStorage`, where before 0.5.1
+it died with the process. Same storage, same permissions — but the exposure
+window went from one session to a month, readable on a rooted device or in a
+backup. That is a consequence of a fix that was otherwise entirely good, and
+it is the argument for sequencing this sooner rather than later.
 
 **Checked against the Expo 57 docs rather than assumed:** `expo-secure-store`
-exposes **synchronous `getItem`/`setItem`**, so it satisfies core's `StorageLike`
-directly — no hydrate-at-startup cache, unlike `ClientStore`. `removeItem` wraps
-`deleteItemAsync` fire-and-forget, the pattern `ClientStore.enqueue` already
-uses, so the adapter is about five lines. Its config plugin also exposes
-**`configureAndroidBackup`**, which closes the backup half of the exposure above
-deliberately rather than incidentally.
+exposes **synchronous `getItem`/`setItem`**, so it satisfies core's
+`StorageLike` directly — no hydrate-at-startup cache, unlike `ClientStore`.
+`removeItem` wraps `deleteItemAsync` fire-and-forget, the pattern
+`ClientStore.enqueue` already uses, so the adapter is about five lines. Its
+config plugin also exposes **`configureAndroidBackup`**, which closes the
+backup half of the exposure deliberately rather than incidentally.
 
-**Estimate: ~1.5-2 hours of work, plus ~1.5 hours of build and device
-verification.** The code is the small part — `expo-secure-store` ships a config
-plugin, so it needs `prebuild` and a **cold Gradle build, 1h15m last time**,
-almost all waiting.
+**Estimate: ~1.5–2 hours of work, plus ~1.5 hours of build and device
+verification.** `expo-secure-store` ships a config plugin, so it needs
+`prebuild` and a **cold Gradle build, 1h15m last time**, almost all waiting.
 
 The mechanical hour:
 
-- `secureStorage` via `expo-secure-store` — the reason to do this at all.
-- `signOut()` — core now revokes itself and throws on failure, which is what this
-  client hand-rolled. Delete our composition, keep the rethrow.
-- `probeNow()` — retires the `stop()`/`start()` radio workaround. Minutes.
-- `isMachaStorageKey()` — replaces the two-prefix filter added in 0.5.1.
+- `secureStorage` via `expo-secure-store` in `configureMachaHost` — the reason
+  to do this at all.
+- `signOut()` — core revokes itself and throws on failure, which is what this
+  client hand-rolled in `MachaProvider`. Delete our composition, keep the
+  rethrow.
+- `probeNow()` — retires the `monitor.stop()`/`start()` radio workaround at
+  `MachaProvider.tsx:353`. Core's doc says the workaround "throws away the
+  answer it was about to get in order to ask the question again"; `probeNow`
+  awaits a cycle already running instead. Minutes.
 - `noteArtworkLoaded` — see the P2 below.
 
-**Suggested sequencing:** take the mechanical hour and the rebuild; leave
-`lastIdentityChange` as its own decision, because that is design rather than
-wiring and nothing bites for a month. See the next item.
+**Settled and not to be reopened:** core's `isMachaStorageKey` must **not**
+replace `owned()` in `state/storage.ts`, whatever core's docs say — it is
+core's key registry, not this client's hydration filter. The reasoning is in
+the comment there and pinned by the hydrate test.
 
-**Do not rename `@macha/core` as part of this.** Separate chore, Tom's call, and
-two of three clients key the dependency that way.
+**Suggested sequencing:** take the mechanical hour and the rebuild; leave
+`lastIdentityChange` as its own decision (next item), because that is design
+rather than wiring.
 
 ---
 
 ## P1 — At 30 days a signed-in viewer silently becomes nobody
 
-
 **Consequence of the accepted TTL, surfaced by core after the decision. Not a
 re-raise of the TTL — this is client work.**
 
-Core's refresh timer **does not refresh; it re-mints**, and a re-mint presents no
-credentials. So at the 30-day mark a signed-in session is replaced by whatever an
-empty credential set authenticates. Core's reasoning is that this is correct
-because browsing beats no session.
+Core's refresh timer **does not refresh; it re-mints**, and a re-mint presents
+no credentials. So at the 30-day mark a signed-in session is replaced by
+whatever an empty credential set authenticates. **Core measured it on Tom's
+cluster:** an empty-credential mint returns `roles: []`, and `/catalogue/items`
+then answers `403 requires the 'media_viewer' role`. What the viewer sees,
+mid-use and with no explanation, is the library emptying and "This account
+cannot view media": the exact refused state this client spent 0.5.0 building,
+arriving as if something had broken. Worse than a logout, because a logout at
+least says what happened.
 
-**That reasoning does not hold on this cluster.** Anonymous here holds **no
-roles**, so the re-mint does not degrade a viewer to browsing — it degrades them
-to nothing. What they will actually see, mid-use and with no explanation, is the
-library emptying and "This account cannot view media": the exact refused state
-this client spent 0.5.0 building, arriving as if something had broken.
+**Possibly already seen.** During the 2026-09-16 A85 run the device signed
+itself out between two runs, from a named account to anonymous, with Continue
+Watching and downloads intact. Unexplained; it is the shape of this item, and
+nothing confirms it. The next time it happens, read `lastIdentityChange`.
 
-Worse than a logout, because a logout at least says what happened.
+**What to do about it, all client-side:**
 
-**What to do about it, all client-side and none of it urgent:**
-
-- `SessionManager.lastIdentityChange` (`{from?, to?, at}`, new in core 0.10.0)
-  is how we notice. Core deliberately says nothing about what the change
-  *means* — a 401 cannot distinguish expiry from revoke from a
-  `credential_generation` bump — so the wording is ours.
-- The honest fix is to ask the viewer to sign in again **before** it happens,
-  rather than explain it afterwards. Thirty days from mint is knowable in
-  advance; the session carries `expires_unix_ms`.
-- The access gate already renders this state correctly. What it lacks is the
+- `SessionManager.lastIdentityChange` (`{from?, to?, at}`, in core since
+  0.10.0 and present in the installed `dist`) is how we notice. Core says
+  nothing about what the change *means* — a 401 cannot distinguish expiry from
+  revoke from a `credential_generation` bump — so the wording is ours.
+- The honest fix is to ask the viewer to sign in again **before** it happens.
+  Thirty days from mint is knowable in advance; the session carries
+  `expires_unix_ms`.
+- The access gate already renders the refused state. What it lacks is the
   distinction between "this cluster refuses you" and "your session just aged
   out", which are the same picture and very different sentences.
 
-**Do not fold this into the TTL item.** That one is decided and closed. This is
-about what the client does when the decision takes effect.
+**Do not fold this into the TTL item.** That one is decided and closed.
 
 ---
 
 ## P1 — What still needs a person holding a phone
-
 
 Nothing here can be done from this machine alone. The Galaxy is the better
 device for the first two — clean install, no endpoints, opens on the connect
 screen.
 
 - **The camera.** Never used. The permission prompt, a real code read at a real
-  distance, and the second refusal — where the prompt becomes a link to Settings
-  rather than another request. The viewfinder is decoration; the scanner reads
-  the whole frame.
-- **A successful login.** The **wrong password** path is measured (renders the
-  refusal, clears the password, keeps the username, and — the part that mattered
-  — **demotes no node**; the 401 logged as a `route-success` because the node
-  answered). A successful one has never run, and it answers three questions at
-  once: whether the marker names a signed-in viewer, whether the library
-  repopulates without a restart via the `generation` bump, and whether the
-  gate's `no-role` state clears correctly.
+  distance, and the second refusal — where the prompt becomes a link to
+  Settings rather than another request.
 - **Pasting a list of addresses into a node row.** `editRow`'s split path is
-  unit-tested only. `adb shell input text` types character by character and
-  cannot emulate a clipboard paste, so it needs a person.
+  unit-tested only; `adb shell input text` cannot emulate a clipboard paste.
+- **The 31-minute pause** for the reaped-session P1 above, once it is wired.
+- **The two open segment-hold measurements** in the native-player-error-opacity
+  note (COMPLETED, 2026-09-08): whether a cold session on either engine ever
+  receives a 500 before its own read timeout, and the prefetch arithmetic. Both
+  are cheaper now that the node states its hold: read `session.source.budgets`
+  off `logcat` and compare against media3's 8000 ms music read timeout.
 
 **The marker's inherited claim was wrong and is retired.** It said a deployed
-node "names no user". `session_json` (`macha/src/session_api.cpp:29-36`) writes
-`username` beside `user_id` whenever the session names one, with a comment that
-clients should not need `/users/me` for it. The device agrees independently: the
-marker renders `anonymous`, which `describeAccount` can only reach with a
-non-empty username. **No `users.me()` fallback needs writing.** The successful
-login above confirms it for a signed-in user.
-
----
-
-## P1 — `version:check` passes while the APK lies
-
-
-**Found 2026-09-13 while tagging 0.5.1.** `android/` is **generated by
-`expo prebuild` from `app.json`**, and Gradle reads `versionCode`/`versionName`
-from that generated `build.gradle` — not from `app.json` directly. Bump the
-version and run `assembleRelease` **without** re-running prebuild, and the APK
-carries the *previous* version while every source of truth says otherwise.
-
-**It already happened.** Every build installed to the A85 today after the 0.5.0
-bump was labelled **0.4.1 / versionCode 401**. The JS bundle was current in each,
-so the behaviour measured is valid and none of today's findings are in doubt —
-but the version the device reported was wrong throughout.
-
-`npm run version:check` does **not** catch it: it compares `package.json`,
-`app.json` and the git tag, and never looks at the generated project. So the one
-guard built specifically to stop version drift is blind to the step where the
-drift actually happens. That is the same shape as the original defect it was
-written for — `versionCode 1` on every build, unnoticed for months because
-nothing compared the two files.
-
-**AGENTS.md already documents prebuild as part of deploying**, so the process is
-right and the deviation was mine: skipping prebuild for a fast incremental build
-is easy, silent and costs nothing visible until a version matters.
-
-**Worth fixing rather than remembering:** `version:check` should read
-`android/app/build.gradle` when it exists and fail when it disagrees with
-`app.json`. A guard that only checks the files that already agree is not a guard.
+node "names no user". `session_json` writes `username` beside `user_id`
+whenever the session names one; the device agrees, and a successful login has
+since confirmed it for a signed-in user. No `users.me()` fallback needs writing.
 
 ---
 
 ## P1 — Delete `firstReachable`; core ships that gate now
 
-
 **Small, and it removes a mirror.** `src/app/connect.tsx` has its own pre-save
-connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)`
-does the same job and more: it returns `unconfirmed`, naming endpoints that
-answered without a 2xx, so the screen can say "reached, but it did not identify
-itself as a Macha server" rather than silently accepting a mistyped address —
-and it separates "still pending" from "unreachable" behind a UI deadline, so a
-slow node does not read as a dead one.
+connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)` —
+present in the installed `dist` — does the same job and more: it returns
+`unconfirmed`, naming endpoints that answered without a 2xx, so the screen can
+say "reached, but it did not identify itself as a Macha server" rather than
+silently accepting a mistyped address, and it separates "still pending" from
+"unreachable" behind a UI deadline, so a slow node does not read as a dead one.
 
 **Why a copy exists at all is the part worth keeping.** Core's gate was broken
-until 0.9.0 — it counted an endpoint available only on `response.ok` against
-`/api/v1/catalogue/status`, which every node answers 401 to unauthenticated, so
-it could accept nothing and a fresh install could not be configured. This client
-routed around a genuine defect rather than by mistake. But nobody goes back
+until 0.9.0 — it counted an endpoint available only on `response.ok` against a
+route every node answers 401 to unauthenticated, so a fresh install could not
+be configured. This client routed around a genuine defect. But nobody goes back
 without being told, which is how one rule ends up in four places with four
-opinions. Core has recorded the reciprocal lesson: when a defect in a shared
-function is fixed, tell the clients that routed around it.
+opinions.
 
-If any of ours is kept, say what shape core's result does not give — core asked,
-because that would be a gap in theirs rather than a preference.
+`CONNECTION_CHECK_TIMEOUT_MS = 6_000` in `connect.tsx` goes with it. If any of
+ours is kept, say what shape core's result does not give — core asked, because
+that would be a gap in theirs rather than a preference.
+
+---
+
+## P2 — Honour `seekOffsetMs`; the cluster is already past the floor
+
+**New in core 0.14.0, and no longer latent — the live node is on `0.47.0`,
+measured 2026-09-20.** This file previously said it would stay dormant until
+the cluster moved past 0.40.0. It has.
+
+A remux generation now begins at the last keyframe **at or before** the
+request, and the session reports `seekMs` (the baseline), `seekOffsetMs` (how
+far into the generation the requested position sits) and `seekRequestedMs`.
+Before 0.46.0 a node snapped a remux seek *forward* to the next keyframe, by up
+to 9.3 s measured. `seekOffsetMs === undefined` means an older node.
+
+**Where this client reads `seekMs` as the viewer's position:** `load` sets
+`positionMs: session.seekMs` for a transformed generation, and `repositionTo`
+sets `positionRef`, `bufferedRef` and the bar to `next.seekMs`. On a 0.46.0
+node both are early by the offset, and the player starts at the keyframe rather
+than where the viewer asked. The fix is small: where `seekOffsetMs` is defined,
+seek the player to `seekRequestedMs` after the source is applied and report
+that as the position; where it is undefined, today's behaviour is still right.
+
+**Verify on device before and after**, because what `currentTime` reports for
+a transformed generation here — generation-local or title-absolute — has never
+been written down, and the fix is wrong in opposite directions depending on
+which it is. `timeUpdate` uses `currentTime * 1000` as the title position
+unadjusted, which only works if the fMP4 timestamps are title-absolute.
 
 ---
 
 ## P2 — Two defects left in the access gate deliberately
 
-
 Both raised, both declined at the time, both still true.
 
 - **The `generation` bump fires on the healthy path.** `HomeScreen` loads via
   `useAsync(..., [media, generation])`, and access goes `unknown → granted` on
-  every successful launch, so **every cold start runs the catalogue load twice**.
-  A flapping cluster can oscillate it, re-loading every screen each time —
-  a storm exactly when the cluster is least able to take one. It should key on
+  every successful launch, so **every cold start runs the catalogue load
+  twice**. A flapping cluster can oscillate it. It should key on
   `mayRequestMedia(access)` changing, a boolean that only flips when the answer
   does, rather than on `access.kind`.
 - **One node's 401 stands for the whole cluster.** `isAuthRefusal` in
   `MediaApi.serve` collapses to the local library without trying another node,
-  and the router will not walk on a 4xx (`isEndpointFailure` excludes them).
-  Usually right, because sessions and roles are replicated — but core documents
-  the case where it is not: during a rolling upgrade an older build's session
+  and the router will not walk on a 4xx. Usually right, because sessions and
+  roles are replicated — but during a rolling upgrade an older build's session
   carries a role vocabulary the newer one refuses.
 
 ---
 
 ## P2 — Wire `MediaApi.noteArtworkLoaded` when artwork is next touched
 
-
-New in core, and it pairs with something this client already does. `Artwork.tsx`
-walks candidate URLs in order and moves on only when one actually fails.
-`noteArtworkLoaded(url)` — **called on success only** — keeps an artwork URL
-byte-identical across an endpoint swap, which otherwise renames every poster and
-re-downloads bytes the device already holds.
+`Artwork.tsx` walks candidate URLs in order and moves on only when one actually
+fails. `noteArtworkLoaded(url)` — **called on success only** — keeps an artwork
+URL byte-identical across an endpoint swap, which otherwise renames every
+poster and re-downloads bytes the device already holds.
 
 Related and already true: **key any artwork cache on `ref.id`, never on
-`ref.url`.** `id` is the SHA-256 of the artwork bytes — content-addressed and
-identical on every node — while the signed `url` is re-signed per catalogue read.
-Two other clients built id→url memos to work around that churn; none was needed,
-and we never built one. Server 0.40.0 quantizes `exp` into a TTL bucket, so the
-URL is now stable for up to 24 hours anyway.
+`ref.url`.** `id` is the SHA-256 of the artwork bytes, identical on every node;
+the signed `url` is re-signed per catalogue read. Server 0.40.0 quantizes `exp`
+into a TTL bucket, so the URL is stable for up to 24 hours anyway.
 
 ---
 
 ## P2 — Verify the container restatement reaches the wire
 
-
-**Status: fixed in core; verification outstanding.** Needs a node stopped
-mid-playback, so it happens on Tom's next run rather than on demand.
+**Status: fixed in core (`withServedSegmentContainer`, present in the installed
+`dist`); verification outstanding.** Needs a node stopped mid-playback, so it
+happens on Tom's next run rather than on demand.
 
 **The defect.** A failover from this client **creates** a session rather than
-PATCHing one — `ClusterPlaybackResolver.failover` falls through to `create`. The
-server seeds a PATCH from the existing preferences (playback.cpp:2230) but starts
-a *create* from a default-constructed `PlaybackPreferences` whose container is
-`"fmp4"` (playback.cpp:2023, 220). So a replacement generation was fMP4 whatever
-the original had been, by the node's documented default rather than by accident.
+PATCHing one, and the server starts a create from a default-constructed
+`PlaybackPreferences` whose container is `"fmp4"`. So a replacement generation
+was fMP4 whatever the original had been. Latent on this device only because
+`deviceCapabilities()` claims both `hlsFmp4` and `hlsTs`. Where it bites — the
+web client's measured Samsung case — the replacement prepares, playback never
+starts, nothing is fetched, and about fifteen seconds later the cluster is
+exhausted with healthy nodes in it.
 
-Latent on this device only because `deviceCapabilities()` claims both `hlsFmp4`
-and `hlsTs`. Where it bites — the web client's measured Samsung case — the
-replacement prepares, playback never starts, nothing is fetched, no error is
-reported, and about fifteen seconds later the cluster is exhausted with healthy
-nodes in it, because each silent starvation is charged to the node that served it.
-
-**The fix, in core.** `withServedSegmentContainer` restates
-`failedSession.output.container` inside `failover` — narrowed to
-`'fmp4' | 'mpegts'`, skipping `direct`, untouched when the node reports nothing
-recognisable, and yielding to a container the caller states. Accepted over a
-client-side fix because it restates **what the node actually served** rather than
-what the instruction asked for, and sits on the path every consumer takes.
-
-**What is left is the measurement:** capture the failover's session **POST** —
-a create, not a PATCH, which is the whole reason the container was lost — with
-`container` absent before the change and present after. If `output.container`
-turns out to be absent in practice on this cluster, core's restatement no-ops and
-a client-side fix is needed after all; the same capture answers it.
+**What is left is the measurement:** capture the failover's session **POST**
+with `container` present. If `output.container` turns out to be absent on this
+cluster, core's restatement no-ops and a client-side fix is needed after all.
 
 **Note for whoever takes it:** session ids are namespaced by endpoint
-(`http://a::session-1`) while the URL carries only the node-local half. Match the
-node-local id, or you will conclude a close or a create never happened when it
-did. Core lost time to exactly this.
+(`http://a::session-1`) while the URL carries only the node-local half.
 
 ---
 
 ## P2 — A session is leaked on process death, and only the server can close it
 
+The session, and with it the video transcode entitlement, lives until
+`session_idle` at **30 minutes** (`SERVER_SESSION_IDLE_MS`), not the 60 s
+`pipeline_idle` that reclaims the engine. So process death costs a one-slot
+node its only transcode slot for half an hour.
 
-**Filed as P3 on the wrong clock, corrected.** It said "a node reclaims an idle
-session in about a minute", which is `pipeline_idle` — the *engine*. The session,
-and with it the video transcode entitlement, lives until `session_idle` at **30
-minutes**. So process death costs a one-slot node its only transcode slot for half
-an hour.
-
-`releaseSession` runs on stop, on replacement and on reconfiguration, but not when
-the app is swiped away or killed. Backgrounding deliberately does *not* release —
-`staysActiveInBackground` is true and music is meant to keep playing — so the gap
-is process death specifically. The web client's `keepalive` DELETE does not help
-with it either.
+`releaseSession` runs on stop, on replacement and on reconfiguration, but not
+when the app is swiped away or killed. Backgrounding deliberately does *not*
+release — music is meant to keep playing — so the gap is process death
+specifically.
 
 **No client fix closes this, and no core fix either:** a process that is gone
-cannot send a `DELETE`. Only the server-side change under consideration covers
-it. Kept as the standing argument for that change rather than as work to do.
+cannot send a `DELETE`. Kept as the standing argument for the server-side
+change under consideration (below) rather than as work to do.
 
 ## P2 — Nothing anywhere knows about speaker layout
 
-
 **Status:** putative for this client, live elsewhere.
 
-Core's `choosePlaybackInstruction` decides audio purely on codec and never reads
-`channels`; `PlaybackCapabilities` has no field for what the output can render.
-There is a live report of 5.1 playing into stereo with no downmix on the
-television, from the first second rather than after any interval.
-
-This client claims `ac3` and `eac3` on both platforms with no channel awareness at
-all, so a 5.1 track can be Direct Played to a phone whose output is two speakers.
-Whether media3 downmixes transparently is **unverified** — that is the measurement
-that decides whether this is a phone problem or only a television one.
+Core's `choosePlaybackInstruction` decides audio purely on codec and never
+reads `channels`. This client claims `ac3` and `eac3` on both platforms with no
+channel awareness, so a 5.1 track can be Direct Played to a phone whose output
+is two speakers. Whether media3 downmixes transparently is **unverified** —
+that is the measurement that decides whether this is a phone problem or only a
+television one.
 
 **Related, checked while here:** `hlsVideoCodecs`/`hlsAudioCodecs` are set
-explicitly on android and ios, narrower than the direct lists, because ExoPlayer's
-HLS path is narrower than its progressive extractors. Leaving them unset makes
-core fall back to the *direct* lists silently, which would claim E-AC-3 in fMP4 —
-an independent black-picture path. The `web` fallback branch does leave them
-unset: dead code on a device, but recorded rather than trusted.
+explicitly on android and ios, narrower than the direct lists. Leaving them
+unset makes core fall back to the *direct* lists silently, which would claim
+E-AC-3 in fMP4 — an independent black-picture path. The `web` fallback branch
+does leave them unset: dead code on a device, but recorded rather than trusted.
 
 ## P2 — Stall detection, if it is ever wired
 
-
-**Status:** deliberately not started. Depends on decisions not yet made.
+**Status:** deliberately not started.
 
 Core has `MediaStartWatchdog` / `MediaStallWatchdog`, deliberately *not* wired
-into `PlaybackCoordinator` — each host wires its own, which is why they are
-reachable from here when `prepareAlternate` is not. Three things are already known
-and must not be rediscovered:
+into `PlaybackCoordinator` — each host wires its own. Since 0.14.0 the stall
+watchdog takes its budget from the serving node (`useSourceBudgets(source)`,
+`mediaStallTimeoutMs(source)`), which removes the calibration argument that
+used to be the hard part. Three things are already known and must not be
+rediscovered:
 
-- **A source that has never started has not stalled.** A freshly promoted source
-  reports position 0 with nothing buffered while the node builds the generation.
-  Arming on that first sight killed *every* replacement in the web client:
-  recover onto a healthy node, fail it before it delivered a frame, recover again,
-  exhaust the cluster.
-- **Absent buffering must stay absent.** `note(positionMs, bufferedEndMs?)` takes
-  the buffer figure as optional specifically for expo-video, which publishes a
-  position and nothing trustworthy about buffered ranges. A fabricated zero reads
-  as evidence about the node when the only evidence is that a viewer is waiting.
-- **Any timeout must be calibrated against the server's 6000 ms hold and say so.**
-  Core's is 7 s and its guard test asserts the *relationship*, not the number.
-  Four bugs in this project have been two independently-chosen timeouts colliding.
+- **A source that has never started has not stalled.** Arming on first sight
+  killed *every* replacement in the web client.
+- **Absent buffering must stay absent.** `note(positionMs, bufferedEndMs?)`
+  takes the buffer figure as optional specifically for expo-video, which
+  publishes a position and nothing trustworthy about buffered ranges. A
+  fabricated zero reads as evidence about the node. And a stall reported
+  without a buffer figure must not record endpoint health.
+- **Any timeout must be calibrated against the node's hold and say so** — now
+  `budgets.segmentHoldMs`, not a constant.
 
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
-argument. The standby defect once cited as a reason against it has been retracted.
-
-## Measured on the A85, 2026-09-16 — and one of my own claims did not survive it
-
-Core `0.12.0`, release build, signed in as the standing `webclient` account,
-against the **WAN** cluster the device is actually configured for
-(`macnessa`/`ramaroja` over HTTPS) — **not** the LAN cluster on `10.35.1.x`. The
-cluster was `degraded` at the time: 2 of 3 nodes online, one accepting no
-inbound connections. Tom flagged that, and it matters for reading any of this.
-
-### The cold-start offline flip did not reproduce. My claim was wrong.
-
-I reported — here, and to core, who changed `SessionNotStartedError` partly on
-the strength of it — that a healthy cluster would be marked offline on every
-cold start, and that `shouldProbe()` would then withhold real requests for
-twenty seconds so the viewer got downloads instead of their library.
-
-**On hardware it does not happen.** Cold start with the fix, and cold start with
-the branch deliberately removed, both show the loading spinner and then the full
-library. No offline notice, no problems banner, no downloads-only view. Nothing
-in the logs shows a connectivity transition.
-
-The most likely reason the reasoning was wrong: even if the window is entered,
-the next successful request calls `connectivity.reportReachable()`, which clears
-the flag before anything observable depends on it. The twenty-second suppression
-needs the offline state to *persist*, and it does not.
-
-**What is still true:** removing the branch makes `serve` classify a
-`SessionNotStartedError` as a transport failure and call `reportUnreachable()`.
-`api/media.test.ts` proves that. So the branch is correct and cheap, and it
-stays. What is *not* established is that it prevents anything a viewer would
-ever see. Keep it as correctness, not as a fix for a measured harm.
-
-**The startup delay that is real** is the degraded node: seven route-attempts to
-`macnessa` between 213ms and 230ms, then nothing until **4231ms**, when the walk
-gives up and reaches `ramaroja`. That is a four-second wait on a dead node, and
-it is a cluster-health question rather than a client one.
-
-### Throughput is measured as not ranking, by core's own log
-
-Core `0.12.0` abstains loudly, exactly as it said it would. At 211ms on every
-launch:
-
-    [endpoint-registry] throughput-unavailable
-      { reason: 'insufficient-samples', minimumSamples: 2,
-        detail: 'Ranking fell through to configuration order and no endpoint
-                 has enough recorded transfers for throughput to rank.' }
-
-So on this device throughput ranks nothing yet, and core says so rather than
-silently falling through. That answers the question a Status-screen readout was
-going to answer, without one.
-
-### Catalogue sizes, measured against a real cluster
-
-Against the 32768 B sampling floor, with a `media_viewer` token:
-
-| call | bytes | vs floor |
-|---|---|---|
-| `items?type=movie` | 416241 | 12.7x |
-| `items?type=track` | 849912 | 25.9x |
-| `items?type=album` | 240298 | 7.3x |
-| `items?type=show` | 66911 | 2.0x |
-| `items?type=artist` | 42517 | **1.3x** |
-| `/api/v1/status` | 5395 | under |
-| `catalogue/status` | 300 | under |
-| `/api/v1/health` | 52 | under |
-
-Browse-driven, confirmed independently of the web client. **`artist` at 1.3x is
-the margin worth remembering** — a smaller library puts that listing under the
-floor and it stops being evidence. The query parameter is `type`, not `kind`; a
-wrong one is ignored and returns the whole catalogue (2.9 MB).
-
-### The URL-attribution risk I raised cannot occur
-
-Checked in core rather than on the device: `MachaPlaybackResolver` builds the
-stream URL as `` `${this.baseUrl}${path}` ``, and `recordTransferByUrl` matches
-`url.startsWith(baseUrl + '/')`. The match holds **by construction**, so a
-download can only be misattributed if core changes how it absolutises. Closed.
-
-### Two things worth knowing for the next device session
-
-- **`ReactNativeJS` logs reach `logcat` from a release build.** I told core
-  client-side state was unobservable without a debug build or a new UI surface.
-  That was wrong: `adb logcat | grep ReactNativeJS` shows core's routing, health
-  and registry logs live. It is the cheapest instrument this client has.
-- **The device signed itself out between two runs**, from a named account to
-  anonymous, with Continue Watching and downloads intact. Unexplained. It is the
-  shape of the 30-day item below, but nothing confirms that.
+argument: it would bring the reaped-session and budget work above for free,
+but it needs a `Player` implementation over expo-video, and the standby defect
+once cited as a reason against it has been retracted.
 
 ---
 
 ## P3 — Throughput is browse-driven, and downloads are the only other source
 
-**Migrated to core `0.12.0` on 2026-09-15.** Core owns the recorder now:
-`createMachaServices` attaches the bandwidth store for hosts that use it. This
-client hand-builds its services, so `MachaProvider` attaches its own — and
-**must**, because `EndpointRegistry.recordTransferByUrl` is a silent no-op when
-nothing is attached. A hand-building host that skips it looks correctly wired.
+**Migrated to core 0.12.0 on 2026-09-15, measured abstaining on 2026-09-16.**
+Core owns the recorder; this client hand-builds its services, so
+`MachaProvider` attaches its own bandwidth store — and **must**, because
+`recordTransferByUrl` is a silent no-op when nothing is attached. The client id
+is a function guarded on `clientStore.isHydrated`, pinned by
+`state/clientId.test.ts`.
 
-**The client id is passed as a function**, resolved by core when the store
-writes rather than when it is constructed, and guarded on
-`clientStore.isHydrated`. That is what lets the store be attached during the
-first render without minting an identity over the real one; the hazard is
-pinned by `state/clientId.test.ts`.
+**What settles what this axis runs on:** catalogue listings are 7–26x the
+32 KB sampling floor, `artist` only 1.3x, and the health cycle's status and
+liveness calls are all under it. **So the ten-second health cycle contributes
+no throughput evidence at all; throughput is browse-driven**, and a viewer who
+resumes a download without listing anything produces none except through
+`DownloadManager`. On the A85 core logged `throughput-unavailable /
+insufficient-samples` at 211 ms on every launch, exactly as designed.
 
-**What the web client measured, which settles what this axis actually runs on:**
-a movie listing is 416 KB and shows 67 KB — both far over the 32 KB floor — but
-`/api/v1/status` is 5.7 KB and `catalogue/status` 303 bytes, both under. **So
-the ten-second health cycle contributes no throughput evidence at all.** Two
-samples means two *catalogue reads per endpoint*, not two of anything. Throughput
-is browse-driven.
+**Still the reason this is P3:** the endpoint a download uses is the one
+ranking already preferred, so samples accumulate on the incumbent and rarely
+on a challenger. Throughput mostly confirms a ranking rather than overturning
+one, and earns its keep on failover.
 
-**Which is why the `DownloadManager` feed matters more here than the original
-argument for it.** A viewer who opens the app and resumes a download without
-listing anything produces no JSON evidence whatsoever, and downloads become the
-only source. That was not the reason it was written — it was written because
-downloads are the only transfer JS can time — but it is the stronger one.
-
-**Still true, and still the reason this is P3:** the endpoint a download uses is
-the one ranking already preferred, so samples accumulate on the incumbent and
-rarely on a challenger. Throughput mostly confirms a ranking rather than
-overturning one, and earns its keep on failover.
-
-**Not verified on hardware.** Needs someone downloading on the A85 and the
-`macha-client-bandwidth:` record read back. Attribution is by URL now
-(`recordTransferByUrl` matches against the registry's endpoints), where it used
-to be by `session.endpoint.id`; if media is ever served from an origin that is
-not a node's own base URL, the sample is silently dropped rather than
-misattributed. Worth checking on that same pass.
+**Not verified on hardware:** someone downloading on the A85 and the
+`macha-client-bandwidth:` record read back. Attribution is by URL; core builds
+the stream URL as `${baseUrl}${path}` and matches `startsWith(baseUrl + '/')`,
+so misattribution cannot occur by construction.
 
 ---
 
 ## P3 — Dead viewer-session identity
 
-
-`MachaProvider.tsx:107` generates a per-process UUID and hands it to
+`MachaProvider.tsx` generates a per-process UUID and hands it to
 `ClusterPlaybackApi`, whose constructor takes it as `_viewerSession` — the
-underscore being the previous author's note that it goes nowhere. It also sits in
-a `useMemo` dependency array.
+underscore being the previous author's note that it goes nowhere. It also sits
+in a `useMemo` dependency array.
 
-`Macha-Viewer-Session` is **retired**: the only trace left server-side is a
-comment calling it and `Idempotency-Key` "pure restatements of what the client
-already sent" (`playback.cpp:853`), and core has no reference at all. What
-replaced it is better — the logical viewer session is keyed on
-`request.session->id`, the **auth** session id, which *is* cluster-replicated, so
-every node already knows the viewer without a client header.
-
-Delete the UUID, the constructor parameter and the dependency.
+`Macha-Viewer-Session` is **retired** server-side; the logical viewer session
+is keyed on the **auth** session id, which is cluster-replicated. Delete the
+UUID, the constructor parameter and the dependency.
 
 ---
 
+## Open observations from the A85, 2026-09-16
+
+The run itself is recorded in COMPLETED. Two things from it are still open:
+
+- **The startup delay that is real** is a degraded node: seven route-attempts
+  to `macnessa` between 213 ms and 230 ms, then nothing until **4231 ms**, when
+  the walk gives up and reaches `ramaroja`. A four-second wait on a dead node,
+  and a cluster-health question rather than a client one. Core's `develop`
+  now routes status reads advisorily and takes a signal on discovery, which
+  may change the shape; re-measure on the next run.
+- **The device signed itself out between two runs.** See the 30-day P1.
+
 ## Cluster membership can shrink and regrow on its own
 
-
-**Not a fault, and it will look like one.** gbni-2 (`inverbeg`) was removed by
-Tom on 2026-09-13, so the Cluster screen correctly reads **2 known endpoints**
-where it used to read 3. Verified in both remaining nodes' membership files:
-each lists one known peer plus a tombstone for `[inverbeg.macha.network]:7437`
-at 18:47:42Z.
-
-**That tombstone is a freshness boundary, not a permanent exclusion.** The
-server has no concept of permanent removal today. If that machine is ever
-reachable again and completes a handshake it rejoins, and the Cluster screen
-goes back to three **with nobody having done anything**. So a node count that
-changes by itself, in either direction, is the system working — do not chase it
-as a bug, and do not build anything that assumes membership only shrinks when
-somebody asks.
-
-Both reachable nodes run **0.40.0**. 0.40.1 is built but undeployed and adds
-only repair diagnostics under `/api/v1/status/diagnostics`, which this client
-does not consume.
+**Not a fault, and it will look like one.** gbni-2 (`inverbeg`) was removed on
+2026-09-13, so the Cluster screen correctly reads **2 known endpoints**. Each
+remaining node's membership file lists one known peer plus a tombstone for
+`[inverbeg.macha.network]:7437`. **That tombstone is a freshness boundary, not
+a permanent exclusion**: if that machine completes a handshake again it
+rejoins, and the count goes back to three with nobody having done anything.
+Do not chase a self-changing node count as a bug.
 
 ---
 
 ## Waiting on other sessions
 
-
-- **Core is going to change the mint-failed window, and this client's access
-  gate is built on its current behaviour.** `0.12.0` refuses only when there is
-  no registry. With a registry and a *failed* mint, `token` is undefined and
-  `inFlight` is cleared, so a request goes out tokenless, is answered 401, and
-  `sent === undefined` short-circuits the re-mint — the 401 comes straight back.
-  That is precisely what `account/access.ts` documents and why `settled` exists:
-  it is the window that reads exactly like a refusal without being one. Core has
-  filed making `fetch` *wait* there when a `refreshTimer` is pending, and refuse
-  when `lastMintFailure` was a real refusal such as `anonymous_disabled`, since
-  waiting on that achieves nothing. **When it lands, re-check
-  `describeMediaAccess` and the comment in `access.ts` together** — a wait turns
-  a fast wrong answer into a slow right one, which changes what `unknown` means
-  in time rather than in kind. It has its own go/no-go round; ask to be on it.
-- **Address the core session as `Macha NPM Core`** — *not* the name `ListAgents`
-  prints for it (`Macha Core NPM Module @macha/core`), which `SendMessage`
-  rejects because of the `/` and which carries no `[ref]` to fall back on. Two
-  sends were wasted discovering that.
-- **Both things asked of core on 2026-09-13 have landed.** `SessionManager` now
-  exposes `lastMintFailure` — `{ reason: 'refused' | 'unreachable', status?,
-  code?, message }` — cleared on adopt and notified through `subscribe()`.
-  `reason` was core's addition and the better call: it answers the
-  status-to-meaning question once, so four clients cannot each write their own
-  mapping and drift. And `mintAnonymousSession` now parses the error envelope,
-  so `anonymous_disabled` arrives in `code` and a wrong password reports the
-  server's own wording rather than a bare status number.
-- **Core is at 0.11.1 and this client is clean against it**, checked rather than
-  assumed: typecheck, tests and a Metro bundle all pass from a fresh clone. The
-  old warning here — that a `file:` link carries no version signal, so a rebuild
-  could deliver a breaking surface with nothing to announce it — **no longer
-  applies**: core comes from the registry pinned by integrity hash and cannot
-  change under an edit. A core upgrade is now a deliberate version bump, and the
-  thing to check at that moment is whether any key core added is covered by
-  `OWNED_KEY_PREFIXES` in `state/storage.ts`, because core reads through this
-  client's hydration cache and a key it never loaded reads to core as absent.
-  The three 0.9.0 breaks that do not reach us: `validateAnonymousSession*` returning
-  `CurrentSession | undefined` rather than `boolean`, `UserRole` gaining
-  `view_status` (fatal to an exhaustive `Record<UserRole, …>`), and required new
-  fields on `EndpointCandidate` and `ConnectionCheckResult`.
-- **`view_status` gates the diagnostic routes only** (`/api/v1/status*`), never
-  liveness. A role-less session therefore learns no cluster membership, since
-  `discoverClusterEndpoints` reads `/api/v1/status`, so the failover pool stays
-  at the bootstrap list until someone signs in. **Tom has ruled that correct; do
-  not build around it.**
-- **Core's `probeNow()` is recorded but not built.** Until it lands, the way to
-  force an off-cycle health probe is `monitor.stop()` then `monitor.start()`,
-  which core has confirmed is safe — it costs a probe already in flight and
-  restarts the interval. Replace it when `probeNow()` exists.
-- **The package is `@machafoundation/core`; this client calls it `@macha/core`
-  in 27 files.** Tom's instruction via the core session 2026-09-13: use the full
-  name. Core had it wrong in 17 places of its own and has fixed them.
-
-  **Why nothing breaks, precisely:** our `package.json` declares
-  `"@macha/core": "file:../macha-ts"`, and npm lets a `file:` dependency be keyed
-  under *any* name — so it aliases a package that calls itself
-  `@machafoundation/core`. Imports resolve through the alias, not through the
-  package's own name.
-
-  **So the rename is not a find-and-replace.** It is the dependency key, a
-  reinstall, a regenerated `package-lock.json`, and 27 files. Worth doing when
-  the clients are next aligned; it buys consistency rather than correctness, and
-  it is not urgent.
-- **Core's accounts layer is what login here is built on, and it is untested and
-  unreviewed.** The core session volunteered that: there is no test file for
-  `UsersApi`, `MachaUsersApi` or `ClusterUsersApi`, and core's own suite does not
-  touch them. Treat a failure in that area as plausibly core's before assuming it
-  is this client's.
-- **Two core bugs that bit the web client are fixed upstream and reach us on the
-  next build.** A refused password no longer marks every node unhealthy —
-  `mintAnonymousSessionAnyNode` records success and stops walking on 401/403,
-  because every node checks the same replicated table. And session validation now
-  treats 401 **and 403** as "this token is dead everywhere" rather than a
-  transport fault, which matters during a rolling upgrade when an old session's
-  role vocabulary is refused by every route.
+- **The mint-failed window is still open and is core's**, confirmed by core
+  on 2026-09-20 against its `develop`, and by diff here: `0.12.0` through
+  `0.14.0` ship a byte-identical `SessionManager.js`. Core carries it as a P1
+  visibility failure with no fix date; do not build around it changing this
+  week. **When it lands, re-check `describeMediaAccess` and the comment in
+  `account/access.ts` together**: a wait turns a fast wrong answer into a
+  slow right one, which changes what `unknown` means in time rather than in
+  kind. It has its own go/no-go round; ask to be on it.
+- **Core wants two things from this client, neither urgent:** this platform's
+  own readings of expo-video and media3 (it holds only the television's and
+  will not assume they transfer), and whether the player here does a source
+  handover. Answered 2026-09-20: it does not — one `expo-video` player,
+  `player.replace(source)`, a visible reload, no join point computed; the two
+  priming attempts are in COMPLETED. The expo-video readings core needs are
+  the native-player-error-opacity note (COMPLETED, 2026-09-08) and the ducking
+  entry (2026-09-10); both were read from this tree.
+- **`view_status` gates the diagnostic routes only**, never liveness. A
+  role-less session learns no cluster membership and — new with 0.14.0 — no
+  node budgets, so the failover pool stays at the bootstrap list and the
+  published floors apply until someone signs in. **Tom has ruled that correct;
+  do not build around it.**
+- **Core's accounts layer is what login here is built on, and it is untested
+  and unreviewed.** Core volunteered that: there is no test file for
+  `UsersApi`, `MachaUsersApi` or `ClusterUsersApi`. Treat a failure there as
+  plausibly core's before assuming it is this client's.
 - **`ClusterUsersApi.list()` is broken in core and cannot bite us.** The server
-  writes the collection as `body["users"]` (`users_api.cpp:241`) while core reads
-  `response.items`, so `list()` yields `undefined`. Verified in both sources
-  directly. This client never calls `list()`; the web client reaches it through
-  core rather than through its own code.
-- **What a build actually contains is still unanswerable.** `file:../macha-ts`
-  resolves through `dist/`, so an APK carries whatever `dist` held when Gradle
-  ran. Verify by behaviour, not by version — with `abortError()` in the bundle a
-  cancelled request surfaces as `name === 'AbortError'` rather than a
-  `ReferenceError`. Grepping release Hermes bytecode proves nothing either way;
-  that was tried and returns nothing for either identifier. A core tag per
-  published version would close this, and has been suggested to them.
-- **`EndpointHealthMonitor` cache-busts its probe URL** (`?_=<ms>`), so it
-  appears in logs here. It exists because `cache: 'no-store'` means three
-  different things across the three hosts and nothing at all on Tizen 3.
-- **Standby dead on arrival — retracted as a core defect.** The explanation was
-  wrong (see COMPLETED). The Android TV client is the first that can promote a
-  standby and will report what actually happens. **Do not re-file without that
-  result.**
+  writes `body["users"]` while core reads `response.items`. This client never
+  calls `list()`.
+- **Standby dead on arrival — retracted as a core defect.** The explanation
+  was wrong (see COMPLETED). The Android TV client is the first that can
+  promote a standby and will report what actually happens. **Do not re-file
+  without that result.**
+- **The two React Native clients are two codebases.** Stated by Tom on
+  2026-09-20 to core: nothing measured on the television's tree (its media3
+  module, its `OkHttpDataSource` deadlines, its `PlaybackError.kt`) transfers
+  to this one. Ask again; do not inherit.
 
 ## Possible server change worth watching
 
-
-**Tying the video transcode entitlement to the engine rather than the session** is
-under consideration, so pipeline reclaim at 60 s frees the slot and a resuming
-session re-acquires it. It closes the hole no client can — crashes, power loss,
-force-quit — but it is **client-visible**: a session could be *refused on resume*
-where today admission is guaranteed for its lifetime. That is a new state this
-client would have to handle rather than treat as an error. No action until the
-server session says which way it goes.
+**Tying the video transcode entitlement to the engine rather than the session**
+is under consideration, so pipeline reclaim at 60 s frees the slot and a
+resuming session re-acquires it. It closes the hole no client can — crashes,
+power loss, force-quit — but it is **client-visible**: a session could be
+*refused on resume* where today admission is guaranteed for its lifetime. That
+is a new state this client would have to handle rather than treat as an error.
+With the reaped-session P1 wired, `regenerate` failing on the owning node is
+exactly the branch that state would arrive in. No action until the server
+session says which way it goes.
 
 ## Deferred by Tom
 
-
 - **Seamless failover.** Recovery works but is not seamless, and the gap is
-  transport, not player: expo-video builds its `OkHttpDataSource` internally with
-  no injection point. The routes that would work are a native media3 module with a
-  failover `DataSource`, or TLS on the cluster. Two attempts were made and
-  reverted — see COMPLETED for what they measured.
-
-  **If it ever comes back, it should come back to the Android TV client rather
-  than here.** Its local Media3 module builds its own `DefaultHttpDataSource`
-  factory, so the injection point expo-video denies this client exists there.
+  transport, not player: expo-video builds its `OkHttpDataSource` internally
+  with no injection point. The routes that would work are a native media3
+  module with a failover `DataSource`, or TLS on the cluster. Two attempts were
+  made and reverted — see COMPLETED for what they measured. Core 0.14.0's
+  `continue`/`relocate` transition is the coordinator-side half of the same
+  idea and confirms the framing: whether a swap can be hidden is a property of
+  the two sources, and this client has no second managed presentation to cut
+  to. **If it ever comes back, it should come back to the Android TV client
+  rather than here.**
 
 ## Checked and already correct
 
-
-- **TV key events cannot reach a bridgeless build, and this client has no
-  exposure.** The Android TV session found that `useTVEventHandler` waits on
-  `onHWKeyEvent`, which only the legacy `ReactRootView` emits; bridgeless routes
-  through `JSKeyDispatcher`, which never emits it and discards the event unless a
-  native view holds focus. They ended up owning a Kotlin bridge over
-  `Window.Callback`. Checked here rather than filed: `useTVEventHandler`,
-  `TVEventHandler`, `onHWKeyEvent`, `hasTVPreferredFocus`, `tvParallaxProperties`,
-  `react-native-tvos` and `Platform.isTV` return **nothing** across `src` and
-  `index.js`. We are `newArchEnabled=true`, so the dead path exists — nothing
-  here asks for a key event, and the only hardware input handled is the media
-  transport, which arrives through track-player's service. **Inert rather than
-  inapplicable:** the day this client grows a keyboard shortcut or a remote, it
-  inherits the bug whole.
-
-
 Recorded so they are not re-raised.
 
-- **Core's two endpoint normalisers do not disagree.** Raised by the core
-  session as a review item — `normalizeUrls` going through `normalizeUrl` while
-  `normalizeConnectionEndpoints` goes through `normalizeBaseUrl`, so a URL could
-  be stored in one shape and checked in another, said to matter here because a
-  scanned payload is machine-produced. Checked against the linked build rather
-  than taken: the two are the same four-line function under two names, and over
-  trailing slashes, doubled slashes, whitespace, `/`, `''`, a path, mixed case
-  and a query, they disagree on nothing — the two list forms return identical
-  arrays. The real finding is duplication that *could* drift, not a live split.
-  **It reaches this client either way: it uses `normalizeBaseUrl` alone**, and
-  the scan path ends in `new URL(...).origin`, so `HTTP://HOST:7438/` is stored
-  as `http://host:7438` whatever the code carried. Pinned in
-  `src/scan/endpoint.test.ts`.
-- **Artwork** goes straight to the image element from a signed capability URL.
-  `src/ui/Artwork.tsx` sends headers only when `source.requiresAuthorization`.
-- **No custom HTTP header is sent or read**, on any path — including the two that
-  bypass core's fetch and *cannot* set headers at all: `createDownloadResumable`
-  is called with no headers option, and the native player's `VideoSource` carries
-  none. Sends are `Accept`, `Content-Type`, `Authorization`; the only header read
-  is `retry-after`. The server's `X-Macha-Idempotency` and
-  `X-Macha-Playback-Trace` are ignored here. **The dependency this creates is
-  worth stating: Macha's media URLs must need no headers**, because two of this
-  client's paths could not send one if they did.
+- **The tree compiles against core 0.14.0 and against core's `develop`**, with
+  no edits, checked 2026-09-20 by pointing `tsc` at each `dist` in turn.
+- **No storage key changed between core 0.12.0 and `develop`**, by grep of the
+  three `dist` trees. `OWNED_KEY_PREFIXES` stands.
+- **TV key events cannot reach a bridgeless build, and this client has no
+  exposure.** `useTVEventHandler`, `onHWKeyEvent` and the rest return nothing
+  across `src`. Inert rather than inapplicable: the day this client grows a
+  keyboard shortcut or a remote, it inherits the bug whole.
+- **Core's two endpoint normalisers do not disagree.** Same four-line function
+  under two names; this client uses `normalizeBaseUrl` alone, and the scan path
+  ends in `new URL(...).origin`. Pinned in `src/scan/endpoint.test.ts`.
+- **Artwork** goes straight to the image element from a signed capability URL;
+  headers only when `source.requiresAuthorization`.
+- **No custom HTTP header is sent or read**, including on the two paths that
+  cannot set one: `createDownloadResumable` and the native player's
+  `VideoSource`. **Macha's media URLs must need no headers**, because two of
+  this client's paths could not send one if they did. Core's
+  `PlaybackSource.headers` is documented as never set by core, which keeps
+  that true.
 - **Audio focus and keep-awake.** expo-video requests `AUDIOFOCUS_GAIN` with
-  `USAGE_MEDIA`/`CONTENT_TYPE_MOVIE` — confirmed in `dumpsys audio` on the device,
-  not just in the source — and pauses rather than muting on a real focus loss.
-  `useKeepAwake()` is live at `src/app/play.tsx:84`.
-- **Session drop paths: one leak, and it was core's.** `load`, superseded create,
-  `stop` and `update` all handle their sessions correctly; only `failover` dropped
-  one, and that is fixed in core rather than here.
+  `USAGE_MEDIA`/`CONTENT_TYPE_MOVIE`, confirmed in `dumpsys audio`, and pauses
+  rather than muting on a real focus loss. `useKeepAwake()` is live in
+  `play.tsx`.
+- **Session drop paths: one leak, and it was core's.** `load`, superseded
+  create, `stop` and `update` all handle their sessions correctly; only
+  `failover` dropped one, fixed in core.
+- **`failover` restates the transform itself** (`{ mode, ...transformFor(mode) }`),
+  so core `develop`'s `withRestatedTransforms` changes nothing here; when it
+  publishes, the restatement in `src/api/playback.ts` becomes redundant rather
+  than wrong.
