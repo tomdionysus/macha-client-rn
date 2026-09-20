@@ -8,6 +8,73 @@ Newest first.
 
 ---
 
+## 2026-09-21 — 0.7.0 released, and the `file:` link took three attempts to remove
+
+**Tagged `0.7.0` (`versionCode 700`) on `main`**, pinning published core
+`^0.14.0` where 0.6.0 pinned `^0.12.0`. Minor rather than patch: the only
+client code change is the seek window above, but the shipped tree moves core
+two minors, and node budgets now reach `ClusterPlaybackResolver`'s
+per-endpoint attempt deadline with every session carrying `source.budgets`.
+No client line changed for that, which is not the same as nothing changing.
+
+**Core 0.14.0 was confirmed on npm before anything was pinned** — published
+2026-09-19, `npm view` — and both symbols the new code imports were grepped
+out of the **published tarball** rather than out of `../macha-ts/dist`:
+`SERVER_SEGMENT_HOLD_MS` in `dist/playback/streamProtocol.js`, re-exported
+through the barrel, and `PlaybackSource.budgets` in `dist/types.d.ts`.
+
+### Removing the link is not symmetrical, and the version string lies
+
+Three attempts, recorded because the release procedure now carries it as
+step 0:
+
+1. `package.json` edited to `^0.14.0`, `npm install` — **still a symlink**.
+2. `rm -rf node_modules/@machafoundation`, `npm install` — **still a
+   symlink**, rebuilt from the stale lockfile entry.
+3. `npm install @machafoundation/core@^0.14.0` — a real directory, lockfile
+   `resolved` a registry tarball URL.
+
+Through all three, `require('@machafoundation/core/package.json').version`
+read `0.14.0` and agreed with `package.json`, because core's `develop` carries
+that version too. **`test -L` is the check that cannot be fooled**, exactly as
+the procedure says. Going the other way needs no special handling: restoring
+`file:../macha-ts` worked with a plain `npm install`.
+
+### What gated the tag
+
+`version:check` green (`0.7.0 (versionCode 700), tagged 0.7.0 — consistent`),
+`tsc --noEmit` clean **against the registry copy**, 106 tests, and a real
+`expo export` producing a 4.9 MB Hermes bundle — the only one of the four that
+exercises Metro's resolution, since vitest stubs `react-native` and never runs
+the bundler.
+
+**Yesterday's new gate earned itself immediately.** `version:check` refused
+the tree because `android/app/build.gradle` still said `0.6.0 / 600` from the
+2026-09-20 build. That is precisely the failure it was written for — Gradle
+reads the generated file, not `app.json` — and it fired on the first release
+after being added. `prebuild --clean` regenerated it at 0.7.0/700.
+
+**Storage keys re-checked for the 0.12.0 → 0.14.0 move**, as the core-bump
+rule requires: every key in the published `dist` is `macha-` prefixed and
+`OWNED_KEY_PREFIXES` (`macha.`, `macha-`) covers all eight. Nothing needed.
+
+### One hardening that went in rather than being trusted
+
+`metro.config.js` named `../macha-ts` in `watchFolders` unconditionally, with
+a comment asserting this was harmless on `main`. A watch folder is a crawler
+root rather than a hint, and a clone on a machine with no sibling `macha-ts` —
+which is what a release is *for* — would have been handed a root that does not
+exist. Whether Metro survives that was never measured, so the entry is now
+conditional on the directory existing and the question no longer needs an
+answer.
+
+**Not verified on hardware, and no APK exists for 0.7.0.** Budgets ride the
+`/status` call and need `view_status`, so a signed-out device exercises only
+the published fallback — the row hardest to distinguish from the old
+behaviour by watching.
+
+---
+
 ## 2026-09-21 — The last private timeout is gone; the seek window is the serving node's own hold
 
 **`SEEK_DEADLINE_MS = 6_000` in `src/playback/policy.ts` is deleted.** It was
