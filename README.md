@@ -21,7 +21,7 @@ Macha has four clients, and they share their brains rather than their views:
 
 | | |
 |---|---|
-| **`@macha/core`** (`../macha-ts`) | The shared TypeScript library: cluster routing, session lifecycle, playback decoding and negotiation, the model layer, per-device stores. Linked here with `file:../macha-ts`, so **core's working tree is this client's code** — a rebuild picks up uncommitted changes, and `dist/` is what actually resolves. |
+| **`@machafoundation/core`** (`../macha-ts`) | The shared TypeScript library: cluster routing, session lifecycle, playback decoding and negotiation, the model layer, per-device stores. On `develop` it is linked with `file:../macha-ts`, so **core's working tree is this client's code** — a rebuild picks up uncommitted changes, and `dist/` is what actually resolves. A release on `main` pins the published package instead; see `AGENTS.md`. |
 | **This repo** | The phone. |
 | **Android TV client** | The television, on a local Expo module wrapping Media3 directly. |
 | **Web/TV client** (`../macha-client`) | Browser, Samsung Tizen and TCL sets. Also owns administration. |
@@ -91,7 +91,7 @@ mints an anonymous session; there is no token to type in, on any Macha client.
 
 ```text
 src/
-  api/          Thin adapters over @macha/core. Nothing above this parses Macha JSON.
+  api/          Thin adapters over @machafoundation/core. Nothing above this parses Macha JSON.
                 errors, http, session, catalogue, media, playback, status,
                 offlineLibrary
   state/        Per-device persistence over AsyncStorage, hydrated once at startup

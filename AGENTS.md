@@ -23,6 +23,22 @@ tagging. It exists because **Android compares `versionCode` and ignores
 The matching `versionName` drift went unnoticed for months for the same reason —
 nothing compared the two files.
 
+# Core: linked on `develop`, published on `main`
+
+Tom's rule, 2026-09-20. `@machafoundation/core` is `file:../macha-ts` on
+`develop`, so this client and core move in parallel and `../macha-ts/dist` is
+what resolves — rebuild core before trusting a typecheck. A release on `main`
+pins the published `^x.y.z`, and **a `file:` dependency must never reach
+`main`**: that is a build that works only on one machine.
+
+Before tagging: confirm the core version is really on npm (`npm view
+@machafoundation/core version time --json` — three versions were tagged and
+never published), switch `package.json` to it, `npm install` (not a lockfile
+edit), confirm `test -L node_modules/@machafoundation/core` **fails**, then
+typecheck, tests and a real `expo export` against the registry copy.
+`npm run version:check` refuses a `file:` dependency on a tagged commit or on
+`main`. `TODO/ACTIVE.md` has the full procedure.
+
 # Expo HAS CHANGED
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
