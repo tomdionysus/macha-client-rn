@@ -99,8 +99,15 @@ for the symbol you are about to use rather than reading core's `src`.
    no `npm uninstall` was needed here. Measured on npm 11.9.0 / node 24.14.0,
    one machine, one direction. Both accounts agree on the part that matters:
    **read `resolved` in the lockfile, never `package.json` and never the
-   version string.** Unresolved; if the television session measured the
-   delete-then-install case and saw otherwise, someone has to open it.
+   version string.** Unresolved. **Put to the television session directly on
+   2026-09-21**, rather than back through core - a disagreement about a
+   measurement should not travel through the relay that carried it, which is
+   how a claim picks up a second name without picking up any evidence. Asked
+   whether they actually ran the delete-then-plain-install case or inferred it
+   from the version-range explanation; if they ran it and npm left the link
+   alone, something differs between the two setups (npm version,
+   `lockfileVersion`, workspaces, an `overrides` block) and both of us want to
+   know which. Awaiting their answer.
 1. Confirm the core version you are about to pin is **actually on npm**:
    `npm view @machafoundation/core version time --json`. Three core versions
    (0.9.0, 0.10.0, 0.11.0) were tagged and never published, and one publish
@@ -889,7 +896,14 @@ Do not chase a self-changing node count as a bug.
 - **The two React Native clients are two codebases.** Stated by Tom on
   2026-09-20 to core: nothing measured on the television's tree (its media3
   module, its `OkHttpDataSource` deadlines, its `PlaybackError.kt`) transfers
-  to this one. Ask again; do not inherit.
+  to this one. Ask again; do not inherit. **The television answers to
+  `Macha Android TV RN Client`** - reached directly on 2026-09-21, and that is
+  the right address for anything of theirs rather than core as a relay.
+  Asked them, explicitly framed as a reading from their stack and not as
+  evidence about this one, whether a segment 500 there has ever produced
+  repeat fragment requests with ~1 s then ~2 s backoff before going terminal.
+  A yes would say the bytecode path is reachable somewhere; it would still not
+  be a result about expo-video.
 
 ## Possible server change worth watching
 
