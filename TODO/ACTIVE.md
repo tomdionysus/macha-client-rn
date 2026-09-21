@@ -88,6 +88,19 @@ for the symbol you are about to use rather than reading core's `src`.
    an explicit `npm install @machafoundation/core@^x.y.z` rewrote the lockfile
    entry to a registry tarball URL. The reverse is not symmetrical: going back
    to `file:../macha-ts` works with a plain `npm install`.
+
+   **Core sent different advice a few hours later and it disagrees with this
+   measurement.** Via the Android TV session: that `npm install` keeps the link
+   "because the linked checkout's version satisfies the range so npm does
+   nothing", and that the procedure is remove the directory, `npm uninstall`,
+   then the ranged install. But step 2 above deleted the directory and npm
+   **recreated the link anyway**, which a satisfied range cannot explain -
+   the lockfile entry survives the delete and is what npm restores from - and
+   no `npm uninstall` was needed here. Measured on npm 11.9.0 / node 24.14.0,
+   one machine, one direction. Both accounts agree on the part that matters:
+   **read `resolved` in the lockfile, never `package.json` and never the
+   version string.** Unresolved; if the television session measured the
+   delete-then-install case and saw otherwise, someone has to open it.
 1. Confirm the core version you are about to pin is **actually on npm**:
    `npm view @machafoundation/core version time --json`. Three core versions
    (0.9.0, 0.10.0, 0.11.0) were tagged and never published, and one publish
@@ -243,6 +256,82 @@ not the link.
 
 ---
 
+## P1 — Playback sessions become a REST resource, and the old stream route is removed outright
+
+**Announced by core 2026-09-21, which Tom has put in charge of the transition.
+Planned in the server repo at
+`TODO/2026-09-21-playback-sessions-as-a-resource-plan.md`; not implemented.**
+
+```
+POST   /api/v1/playback/sessions                 201 + Location
+GET    /api/v1/playback/sessions                 NEW - the account's live sessions, under `items`
+GET/PATCH/DELETE /api/v1/playback/sessions/{id}
+GET    /api/v1/playback/sessions/{id}/stream/{token}/{generation}/{name}
+GET    /api/v1/playback/sessions/{id}/stream/{token}/direct
+```
+
+`GET /api/v1/playback/stream/{id}/{token}/...` is **removed outright - no
+dual-serve window, no deprecation period.**
+
+### The route half is free here, and this was measured rather than assumed
+
+Core flagged this client as the most likely to be hurt, because it drives
+`ClusterPlaybackResolver` directly rather than through `PlaybackCoordinator` -
+a layer closer to the wire than the other two clients. **Grepped 2026-09-21
+and the answer is clean:**
+
+- `grep -rn "playback/stream|playback/sessions|/playback/" src` over
+  `.ts`/`.tsx` returns **only relative module imports** (`../playback/policy`
+  and friends). `grep -rn "api/v1" src` returns **two comments**, no code.
+- `DownloadManager` uses `session.source.url` verbatim, for both
+  `FileSystem.downloadAsync` and `recordTransferByUrl`. Direct play hands the
+  same string to expo-video as `{ uri }`.
+- **The only composed URL in the tree** is `` `${baseUrl}${LIVENESS_PATH}` ``
+  at `connect.tsx:153`, and `LIVENESS_PATH` is imported from core.
+- **Nothing parses a session id** - no split, slice, `indexOf` or `::`
+  handling anywhere - despite ids being endpoint-namespaced. They are opaque
+  tokens handed back to the resolver.
+
+**The condition on all of that:** it is free *provided `source.url` stays
+absolute and server-supplied*. Every consumer above feeds a native player or
+a downloader rather than a fetch, so if core ever hands back something
+relative they break at once and **silently**. Worth a test if core's session
+shape is ever reworked.
+
+### The three breaks that are not about routes
+
+- **A second POST no longer supersedes.** Today one bearer has one playback
+  session and a second POST replaces it; that is the defect being fixed. **This
+  client is already in the right shape:** `load()` does
+  `await releaseSession(previous)` before `createSession`, and the await is
+  deliberate - the node's one transcode slot is held by the session being
+  replaced. The only other create is core's `failover`.
+- **Several live sessions per account, so "the session" stops being inferable
+  from the token.** Mostly free through the resolver, which has always tracked
+  by explicit id. **But it tightens the probe design below** - see that item.
+- **A per-account cap becomes a new outcome on create.** Core has told the
+  server it must be a 4xx with a distinct code, because as a 5xx core would
+  walk the cluster collecting identical refusals and charge every healthy node.
+  **Core told the server it holds 2 sessions and transiently 3. That is the
+  coordinator's number, not this client's:** here it is **1, transiently 2** -
+  one `sessionRef`, no standby, no second managed presentation, and the
+  warm-standby and priming attempts both reverted (COMPLETED). Said to core, so
+  the cap is not sized on the assumption that 3 is everyone's ceiling.
+
+### Sequencing, and the trap in it for this client
+
+Core ships a **410 tolerance release first**, nodes move second: core today
+falls to `unknown` on a 410, which it reads as endpoint evidence. Core notes
+this client is on the `file:` link and so gets it as soon as core builds.
+
+**That is true of `develop` and false of the device.** What ships to a phone is
+`main`, which pins a published version, and the A85 is on 0.6.0. "This client
+has the tolerance" and "the tolerance is on hardware" are two different dates
+here, separated by a publish, a release and a 23-minute build. Core has been
+told not to let a node move on the strength of the first.
+
+---
+
 ## P1 — A reaped session is charged to the node that answered honestly
 
 **From core 0.13.0. The resolver half reaches this client and is unused; the
@@ -312,6 +401,11 @@ quiet period after `player.replace`, in the same spirit as
 `errorBlamesEndpoint`'s seek window, rather than a session-id test. **Decide
 this before writing the probe**, because a wrong guard here turns a fixed
 fault into a worse one.
+
+**And it gets harder, not easier, once an account may hold several live
+sessions** - core's point on 2026-09-21, with the REST-resource change above.
+A quiet period after `player.replace` has to hold under that too. Recorded as
+a constraint on the design, not as a reason to consider it settled.
 
 ### One deliberate divergence from core, recorded as a choice
 
@@ -785,6 +879,13 @@ Do not chase a self-changing node count as a bug.
   was wrong (see COMPLETED). The Android TV client is the first that can
   promote a standby and will report what actually happens. **Do not re-file
   without that result.**
+- **Core `0.15.0` is tagged and not on npm** (told 2026-09-21): the walk fix,
+  the bounded recovery, the encoder-speed reading, and one breaking change -
+  `hlsWalkTargets` throws `HlsManifestUnavailableError` instead of returning
+  `[]`. **No caller here** - `grep -rn "hlsWalk|HlsManifestUnavailable|walkTargets" src`
+  is empty - so the break costs this client nothing. **Do not pin it until
+  `npm view` shows it**; three core versions have been tagged and never
+  published. Core has been asked to say when it lands, not when it tags.
 - **The two React Native clients are two codebases.** Stated by Tom on
   2026-09-20 to core: nothing measured on the television's tree (its media3
   module, its `OkHttpDataSource` deadlines, its `PlaybackError.kt`) transfers
