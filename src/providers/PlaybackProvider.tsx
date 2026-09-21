@@ -30,6 +30,7 @@ import {
   restoredVolume,
   seekRequiresReposition,
   seekStillPending,
+  spendsFailoverBudget,
   statedUpdate,
   transformFor,
 } from '../playback/policy';
@@ -793,6 +794,31 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
       return true;
     } catch (error) {
+      // The account is at its session cap. No node refused us and none would
+      // have answered differently, so this is not a recovery that failed — it
+      // is a recovery that was never available. Give the attempt back: the
+      // budget exists to stop a broken title cycling nodes, and spending it
+      // here leaves the next genuine failure with nothing. Core had the same
+      // defect in its own charging and fixed it; this is our version of it.
+      if (!spendsFailoverBudget(error)) {
+        failoverAttemptsRef.current = Math.max(0, failoverAttemptsRef.current - 1);
+        console.log('[macha] [playback] failover-declined', {
+          reason: 'account-session-limit',
+          code: playbackFailureCode(error),
+          attempts: failoverAttemptsRef.current,
+        });
+        if (generationRef.current !== myGeneration) return true;
+        // And say so. Left silent, the viewer gets a paused player and no
+        // reason — the failure mode core warned about when it asked whether
+        // the cap should ship with the routes.
+        setState((current) => ({
+          ...current,
+          status: 'failed',
+          buffering: false,
+          error: accountSessionLimitMessage(error),
+        }));
+        return true;
+      }
       console.log('[macha] [playback] failover-failed', { error: String(error) });
       // Superseded work is not a failure anyone should hear about.
       return generationRef.current !== myGeneration;

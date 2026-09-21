@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { endpointFailure, MachaPlaybackError } from '@machafoundation/core';
 import { MachaApiError } from '../api/errors';
-import { accountSessionLimitMessage, classifyCreateRefusal } from './policy';
+import { accountSessionLimitMessage, classifyCreateRefusal, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not this client's
 // `MachaApiError`. That is the whole reason this classifier is duck-typed:
@@ -99,5 +99,27 @@ describe('a refusal wrapped by the cluster layer', () => {
     const b = { cause: a };
     a.cause = b;
     expect(classifyCreateRefusal(a)).toBe('fatal');
+  });
+});
+
+// The failover budget exists to stop a broken title cycling nodes. An account
+// cap is not a node failing, so spending recovery budget on it leaves a later
+// genuine failure with none — the client-side mirror of core charging every
+// healthy node it walked for an account-scoped refusal.
+describe('spendsFailoverBudget', () => {
+  it('does not spend the budget on the account cap', () => {
+    const capped = new MachaPlaybackError('account already holds 3 sessions (limit 3)', 429, 'account_session_limit');
+    expect(spendsFailoverBudget(capped)).toBe(false);
+    // And through core's wrapper, which is how it actually arrives.
+    expect(spendsFailoverBudget(endpointFailure('e1', 'http://node.example', capped))).toBe(false);
+  });
+
+  it('spends it on everything the budget is actually for', () => {
+    // A node-wide limit is a node that really is full: trying another one is
+    // the right remedy and it should cost an attempt.
+    expect(spendsFailoverBudget(new MachaPlaybackError('node is full', 429, 'resource_limit'))).toBe(true);
+    expect(spendsFailoverBudget(new MachaPlaybackError('broken', 500))).toBe(true);
+    expect(spendsFailoverBudget(new Error('transport'))).toBe(true);
+    expect(spendsFailoverBudget(undefined)).toBe(true);
   });
 });

@@ -126,6 +126,26 @@ export function classifyCreateRefusal(error: unknown): CreateRefusal {
 }
 
 /**
+ * Whether a failed recovery attempt should count against the failover budget.
+ *
+ * **The client-side mirror of the defect core found in itself**, and worth
+ * naming as such. Core charged every healthy node it walked for an
+ * account-scoped refusal, because the charge was gated on a status that says
+ * "try the next node". This client has its own version of that fund: the
+ * failover budget exists to stop a broken title cycling nodes for ever, and
+ * the attempt is counted *before* the call is made.
+ *
+ * An account cap is not a node failing. Spending recovery budget on it means
+ * three cap refusals exhaust a title's failover allowance without a single
+ * node having done anything wrong — so the next genuine failure, the one the
+ * budget exists for, has nothing left to spend. Every node would answer the
+ * cap identically, so there was never a recovery to attempt.
+ */
+export function spendsFailoverBudget(error: unknown): boolean {
+  return classifyCreateRefusal(error) !== 'account-session-limit';
+}
+
+/**
  * What to put in front of a viewer whose account is at its session cap.
  *
  * **Not the server's sentence.** Core wraps it as "Macha playback request

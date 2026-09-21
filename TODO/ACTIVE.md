@@ -279,7 +279,7 @@ turned out to cost:
 | Stream/session routes move; old route removed | **Free** — nothing here spells or composes a path. Grep below. |
 | A second POST no longer supersedes | **Free** — `load()` already awaits `releaseSession(previous)` before `createSession`. |
 | Several live sessions per account | **Free through the resolver** — one `sessionRef`, ids opaque, core tracks by explicit id. |
-| Per-account cap, a new outcome on create | **Built** — `classifyCreateRefusal` in `policy.ts`, wired into `createSession` and the failure surface. |
+| Per-account cap, a new outcome on create | **Built** — `classifyCreateRefusal` in `policy.ts`, wired into `createSession`, the failure surface, **and the failover path**. |
 | `GET /sessions` adoption listing | **Not built.** New capability, nobody needs it yet. |
 
 ```
@@ -345,6 +345,40 @@ shape is ever reworked.
   one `sessionRef`, no standby, no second managed presentation, and the
   warm-standby and priming attempts both reverted (COMPLETED). Said to core, so
   the cap is not sized on the assumption that 3 is everyone's ceiling.
+
+### The cap on the failover path, which is where it would have failed silently
+
+**Tom's call, 2026-09-21: cap and routes cut over together and get tested in
+one pass.** This session recommended splitting them, on the grounds that the
+routes fail loudly while the cap fails silently during failover and its client
+path had never run against a real server. **Overruled, and the right response
+to that is to close the silent half rather than restate the objection** — so
+the cap is now handled where it would have bitten.
+
+**`failoverSource` had two faults, and the first is ours mirroring core's.**
+`playbackApi.failover` *creates* a session, so it can be refused by the cap.
+
+- **It spent failover budget on a refusal that was never a recovery.** The
+  attempt is counted before the call, and `MAX_FAILOVER_ATTEMPTS` bounds a
+  title's recovery. Three cap refusals would exhaust that allowance without a
+  single node failing, leaving the next genuine failure with nothing to spend.
+  **This is the exact shape of the defect core found in itself** — charging
+  every healthy node walked for an account-scoped refusal, because the charge
+  was gated on a status that means "try the next node". Same fund, same wrong
+  debit, different repository. `spendsFailoverBudget(error)` now decides, and
+  the attempt is given back.
+- **It was silent.** The catch logged `failover-failed` and returned, leaving
+  a paused player and no reason on screen. It now sets the same
+  `accountSessionLimitMessage` the create path uses, and logs
+  `failover-declined { reason: 'account-session-limit' }`.
+
+**A `PATCH` cannot hit the cap**, so `repositionTo` and `applyUpdate` are
+untouched deliberately: the cap is admission control on *create*, and the two
+update paths mutate a session that has already been admitted.
+
+**Still true, and the reason this wants real-server testing:** every branch
+above is exercised against errors this session constructed. The first genuine
+`429 account_session_limit` will be the first time any of it runs for real.
 
 ### Two defects this work found, one of them ours and load-bearing
 
