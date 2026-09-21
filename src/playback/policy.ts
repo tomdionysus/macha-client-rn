@@ -1,5 +1,6 @@
 import {
   isAccountSessionLimit,
+  playbackFailureStatus,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
   type PlaybackMode,
@@ -79,33 +80,6 @@ export function statedUpdate(update: PlaybackUpdate, session: PlaybackSession): 
   );
 }
 
-/**
- * How far down a cause chain a refusal's HTTP status may sit.
- *
- * **A mirror, and a smaller one than it was.** Core wraps a node's refusal in
- * `MachaEndpointError` before it leaves the resolver, and that wrapper carries
- * no `status` of its own — it holds the original in `cause`. So reading
- * `error.status` off the outermost object finds nothing, which is the same
- * defect as the old `instanceof` test one layer further out.
- *
- * Core walks the chain itself for the *code* and exports that walk
- * (`playbackFailureCode`), but its equivalent for the status is private. Until
- * it is exported this has to live here. Outermost first and cycle-safe, both
- * to match core's rule: a viewer waiting on a hung failure report is strictly
- * worse than one told slightly less.
- */
-function refusalStatus(error: unknown): number | undefined {
-  const seen = new Set<unknown>();
-  let current: unknown = error;
-  while (current && typeof current === 'object' && !seen.has(current)) {
-    seen.add(current);
-    const { status } = current as { status?: unknown };
-    if (typeof status === 'number') return status;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return undefined;
-}
-
 /** What a refused `create` means, and therefore what may be done about it. */
 export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
 
@@ -137,11 +111,18 @@ export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
  *   walks and charges there, correctly, because that node really is full, and
  *   telling the viewer their own account is at its limit would be a lie with
  *   an action attached.
+ *
+ * **Both readings go through core's accessors, never off the object in hand.**
+ * `endpointFailure()` wraps a refusal in a `MachaEndpointError` carrying
+ * neither `status` nor `code`, so the fields are one link down in `cause`.
+ * `playbackFailureCode` and `playbackFailureStatus` walk that chain,
+ * outermost first and cycle-safe; this client wrote its own walk for an hour
+ * and core exported theirs, which also rejects a non-finite status.
  */
 export function classifyCreateRefusal(error: unknown): CreateRefusal {
   if (!error || typeof error !== 'object') return 'fatal';
   if (isAccountSessionLimit(error)) return 'account-session-limit';
-  return refusalStatus(error) === 400 ? 'degrade' : 'fatal';
+  return playbackFailureStatus(error) === 400 ? 'degrade' : 'fatal';
 }
 
 /**

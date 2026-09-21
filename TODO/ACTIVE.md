@@ -389,11 +389,11 @@ message that carried the export; the tests now build their fixtures with core's
 real `endpointFailure()` rather than a hand-rolled wrapper, which is what
 caught it.
 
-**One small mirror remains, deliberately.** `refusalStatus` in `policy.ts`
-walks the cause chain for an HTTP status, because core walks it for the *code*
-and exports that walk but keeps its status equivalent private. Cycle-safe and
-outermost-first to match core's rule. Core has been asked to export it; delete
-this when they do.
+**No mirror remains.** Core exported `playbackFailureStatus` too, so the local
+`refusalStatus` walk lasted about an hour and is deleted. Core's version also
+rejects a non-finite status, which the local one did not. **Both readings now
+go through core's accessors rather than off the object in hand**, which is the
+rule the three bugs below yield.
 
 ### What core settled after the first brief
 
@@ -424,16 +424,30 @@ Core ships a **410 tolerance release first**, nodes move second: core today
 falls to `unknown` on a 410, which it reads as endpoint evidence. Core notes
 this client is on the `file:` link and so gets it as soon as core builds.
 
-**`0.17.0` is the version to pin, and it is tagged but not published.** It
-folds in `isAccountSessionLimit` and `playbackFailureCode`, requested by this
-client and the television within the hour of `0.16.0` tagging, so that nobody
-adopts twice — and it carries everything in `0.16.0` (the `410` and
-`account_session_limit` tolerances) and in `0.15.0`, which is tagged and
-**will never be published, deliberately**. The linked `../macha-ts` reports
-`0.17.0` and its `dist` has the exports — grepped, not assumed.
-**The publish failed on core's npm auth and Tom has to log in.** Until
-`npm view` shows it, this client cannot cut a release: `main` pins published,
-and `develop` now uses two symbols that exist in no published version.
+**Hotlink, and do not wait for a publish — Tom, 2026-09-21, relayed by core:**
+*"We're nowhere near ready to publish npm... you're not done, no publishing to
+an immutable repo"* and *"they should hotlink for now so we can actually test
+this works."* This supersedes core's earlier "pin when `npm view` shows it".
+The link is not a temporary state waiting on a registry entry: **the publish
+happens when this is proven on hardware, not when it compiles**, because a
+registry entry is permanent and cannot be withdrawn.
+
+**So nobody tags anything while on the link.** `main` pins published versions
+and every client's `develop` now depends on symbols that exist in no published
+version. This client reached that conclusion before core did and core now
+records it in the same terms. `version:check` enforces the mechanical half.
+
+**`0.15.0` and `0.16.0` are superseded and will never be published**,
+deliberately, so that nobody adopts twice. `0.17.0` carries their `410` and
+`account_session_limit` tolerances plus the three accessors.
+
+**A version number is not an identifier right now, and this is the trap.**
+`0.17.0` was tagged before `playbackFailureStatus` existed and the linked tree
+carries it under the same number, so two trees answer `0.17.0` with different
+contents — the same failure this project has recorded three times in other
+forms. **Record the SHA and the `dist` hash beside anything measured.** As of
+this commit: core `9a37ce3`, clean tree, `dist` `*.js` hash `57eef0e50f42`
+(hashed from inside `dist`, because `shasum` includes the path it is given).
 **A release here is what puts it on a phone**, and `main` pins published.
 
 **That is true of `develop` and false of the device.** What ships to a phone is
