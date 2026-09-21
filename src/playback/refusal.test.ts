@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MachaPlaybackError } from '@machafoundation/core';
+import { endpointFailure, MachaPlaybackError } from '@machafoundation/core';
 import { MachaApiError } from '../api/errors';
-import { accountSessionLimitMessage, ACCOUNT_SESSION_LIMIT_CODE, classifyCreateRefusal } from './policy';
+import { accountSessionLimitMessage, classifyCreateRefusal } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not this client's
 // `MachaApiError`. That is the whole reason this classifier is duck-typed:
@@ -29,7 +29,10 @@ describe('classifyCreateRefusal', () => {
     const capped = new MachaPlaybackError(
       'account already holds 3 playback sessions (limit 3)',
       429,
-      ACCOUNT_SESSION_LIMIT_CODE,
+      // The wire code, spelled here deliberately: a test is the right place to
+      // hold the server's contract, and core's predicate is what production
+      // uses so no source file restates it.
+      'account_session_limit',
       5_000,
     );
     expect(classifyCreateRefusal(capped)).toBe('account-session-limit');
@@ -65,5 +68,36 @@ describe('accountSessionLimitMessage', () => {
 
   it('still says something useful when the node offered no detail', () => {
     expect(accountSessionLimitMessage(undefined)).toContain('Stop playback elsewhere');
+  });
+});
+
+// Core wraps a node's refusal in `MachaEndpointError` before it leaves the
+// resolver, and that wrapper carries no `status` and no `code` of its own —
+// both sit one link down in `cause`. A classifier that reads only the
+// outermost object sees neither and calls everything fatal, which is the same
+// defect as the `instanceof` test, one layer out.
+describe('a refusal wrapped by the cluster layer', () => {
+  const wrapped = (inner: unknown) => endpointFailure('endpoint-1', 'http://node.example', inner);
+
+  it('finds the account cap through the wrapper', () => {
+    const capped = new MachaPlaybackError('account already holds 3 sessions (limit 3)', 429, 'account_session_limit');
+    expect(classifyCreateRefusal(wrapped(capped))).toBe('account-session-limit');
+  });
+
+  it('finds a degradable instruction refusal through the wrapper', () => {
+    expect(classifyCreateRefusal(wrapped(new MachaPlaybackError('unsupported transform', 400)))).toBe('degrade');
+  });
+
+  it('still does not mistake a wrapped node-wide limit for the account cap', () => {
+    expect(classifyCreateRefusal(wrapped(new MachaPlaybackError('node is full', 429, 'resource_limit')))).toBe('fatal');
+  });
+
+  it('survives a cause cycle rather than hanging on one', () => {
+    // A viewer waiting on a hung failure report is strictly worse than one
+    // told slightly less — core's rule, and this walk has to hold it too.
+    const a: { status?: number; cause?: unknown } = {};
+    const b = { cause: a };
+    a.cause = b;
+    expect(classifyCreateRefusal(a)).toBe('fatal');
   });
 });

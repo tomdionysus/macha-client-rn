@@ -368,13 +368,32 @@ answer. Now classified account-scoped in `endpointFailure.ts`: neither walked
 nor charged. Core says it would not have found it if the server had not named
 the status it already uses.
 
-**One mirror was created deliberately and should be retired.**
-`ACCOUNT_SESSION_LIMIT_CODE` in `policy.ts` restates a string from core's
-`ACCOUNT_SCOPED_FAILURE_CODES`, which is **module-private** along with its
-predicate, so there is nothing to import. Core has been asked to export the
-predicate; when it does, delete the constant and call it. Until then it is a
-second declaration of one server fact — the shape of defect this file exists
-to catch.
+**The mirror lasted about an hour and is gone.** `ACCOUNT_SESSION_LIMIT_CODE`
+restated a string from core's private `ACCOUNT_SCOPED_FAILURE_CODES`; core
+exported **`isAccountSessionLimit(error)`** and **`playbackFailureCode(error)`**
+on request and the constant is deleted. The predicate keys on the code alone,
+so the set of account-scoped codes stays core's to track and no client spells
+one — when the server adds another, core absorbs it and nothing here changes.
+The wire string now appears only in a test, which is the right place to hold
+the server's contract.
+
+**A third layer, and it made the first version of this work wrong.** Core wraps
+a node's refusal in `MachaEndpointError` before it leaves the resolver
+(`endpointFailure()` puts the original in `cause`), and **that wrapper carries
+no `status` and no `code` of its own.** So the duck-typed classifier written
+this morning — reading `error.status` and `error.code` off the outermost
+object — found neither and called every wrapped refusal fatal. The same defect
+as the `instanceof` test, one layer further out, and written by someone who had
+just finished diagnosing the first one. Core warned about it in the same
+message that carried the export; the tests now build their fixtures with core's
+real `endpointFailure()` rather than a hand-rolled wrapper, which is what
+caught it.
+
+**One small mirror remains, deliberately.** `refusalStatus` in `policy.ts`
+walks the cause chain for an HTTP status, because core walks it for the *code*
+and exports that walk but keeps its status equivalent private. Cycle-safe and
+outermost-first to match core's rule. Core has been asked to export it; delete
+this when they do.
 
 ### What core settled after the first brief
 
@@ -405,11 +424,16 @@ Core ships a **410 tolerance release first**, nodes move second: core today
 falls to `unknown` on a 410, which it reads as endpoint evidence. Core notes
 this client is on the `file:` link and so gets it as soon as core builds.
 
-**`0.16.0` is being cut and published, Tom approved the publish 2026-09-21.**
-It carries everything in `0.15.0` — which is tagged and **will never be
-published, deliberately, so nobody adopts twice** — plus the `410` tolerance
-and the `account_session_limit` tolerance. The linked `../macha-ts` already
-reports `0.16.0`. Core will say when `npm view` shows it, not when it tags.
+**`0.17.0` is the version to pin, and it is tagged but not published.** It
+folds in `isAccountSessionLimit` and `playbackFailureCode`, requested by this
+client and the television within the hour of `0.16.0` tagging, so that nobody
+adopts twice — and it carries everything in `0.16.0` (the `410` and
+`account_session_limit` tolerances) and in `0.15.0`, which is tagged and
+**will never be published, deliberately**. The linked `../macha-ts` reports
+`0.17.0` and its `dist` has the exports — grepped, not assumed.
+**The publish failed on core's npm auth and Tom has to log in.** Until
+`npm view` shows it, this client cannot cut a release: `main` pins published,
+and `develop` now uses two symbols that exist in no published version.
 **A release here is what puts it on a phone**, and `main` pins published.
 
 **That is true of `develop` and false of the device.** What ships to a phone is

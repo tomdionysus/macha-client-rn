@@ -24,7 +24,6 @@ import {
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
 import {
   accountSessionLimitMessage,
-  ACCOUNT_SESSION_LIMIT_CODE,
   buildOrder,
   classifyCreateRefusal,
   errorBlamesEndpoint,
@@ -36,7 +35,7 @@ import {
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
 import type { MediaApi } from '../api/media';
-import { progressFor } from '@machafoundation/core';
+import { playbackFailureCode, progressFor } from '@machafoundation/core';
 import { PLAY_COUNT_THRESHOLD_MS } from '../state/musicLibrary';
 import type { MediaSummary } from '../types';
 import { useMacha } from './MachaProvider';
@@ -437,7 +436,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // fault and not this node's doing, and the server's own sentence —
         // "Macha playback request failed: ..." — would read as a breakage.
         const capped = classifyCreateRefusal(error) === 'account-session-limit';
-        if (capped) console.log('[macha] [playback] create-refused', { reason: ACCOUNT_SESSION_LIMIT_CODE });
+        if (capped) console.log('[macha] [playback] create-refused', { code: playbackFailureCode(error) });
         setState((current) => ({
           ...current,
           status: 'failed',

@@ -1,4 +1,5 @@
 import {
+  isAccountSessionLimit,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
   type PlaybackMode,
@@ -79,23 +80,31 @@ export function statedUpdate(update: PlaybackUpdate, session: PlaybackSession): 
 }
 
 /**
- * The server code for the per-account playback session cap.
+ * How far down a cause chain a refusal's HTTP status may sit.
  *
- * **A mirror of a private set in core, and recorded as one.** Server 0.48.0
- * adds this cap as the admission control that replaces one-session-per-bearer:
- * once one bearer can hold several sessions, nothing else bounds an account.
- * Core classifies it in `ACCOUNT_SCOPED_FAILURE_CODES` so the refusal is
- * neither walked nor charged — every node answers it identically, so a walk is
- * guaranteed-futile work that would also record a failure against every
- * healthy node on the way.
+ * **A mirror, and a smaller one than it was.** Core wraps a node's refusal in
+ * `MachaEndpointError` before it leaves the resolver, and that wrapper carries
+ * no `status` of its own — it holds the original in `cause`. So reading
+ * `error.status` off the outermost object finds nothing, which is the same
+ * defect as the old `instanceof` test one layer further out.
  *
- * That set and its predicate are **module-private in core**, so there is
- * nothing to import and this string is the only way to recognise the outcome
- * here. Core has been asked to export the predicate; when it does, delete this
- * and call it. Until then this is a second declaration of one server fact,
- * which is the shape of defect this project keeps writing down.
+ * Core walks the chain itself for the *code* and exports that walk
+ * (`playbackFailureCode`), but its equivalent for the status is private. Until
+ * it is exported this has to live here. Outermost first and cycle-safe, both
+ * to match core's rule: a viewer waiting on a hung failure report is strictly
+ * worse than one told slightly less.
  */
-export const ACCOUNT_SESSION_LIMIT_CODE = 'account_session_limit';
+function refusalStatus(error: unknown): number | undefined {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const { status } = current as { status?: unknown };
+    if (typeof status === 'number') return status;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
 
 /** What a refused `create` means, and therefore what may be done about it. */
 export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
@@ -103,36 +112,36 @@ export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
 /**
  * Why a node refused to create a playback session.
  *
- * **Duck-typed, deliberately, and this is the bug it fixes.** Two error classes
- * reach this path carrying the same four fields: core's `MachaPlaybackError`,
- * which its resolver raises, and this client's `MachaApiError` from its own
- * fetch layer. `createSession` tested `error instanceof MachaApiError` before
- * deciding whether to degrade an instruction — and core throws the *other*
- * class, so that branch could never be taken and every refusal was fatal.
- * Core reads `code` and `reason` off the object rather than testing identity
- * for the same reason; this follows it.
+ * **Never an `instanceof` test, and this is the bug it fixes.** Two error
+ * classes reach this path carrying the same fields — core's
+ * `MachaPlaybackError`, which its resolver raises, and this client's
+ * `MachaApiError` — and core wraps either in a third, `MachaEndpointError`,
+ * on the way out. `createSession` tested `error instanceof MachaApiError`
+ * before deciding whether to degrade an instruction, so that branch could
+ * never be taken and **every refusal was fatal**. Identity is the one thing
+ * that does not survive the boundary between core and a client; core's own
+ * rule since 0.17.0 is to duck-type on `status`/`code` for exactly this.
  *
  * The three outcomes want three different things:
  *
  * - **`degrade`** — a `400` is the node rejecting *this transform*. Asking for
- *   less is exactly the remedy, and `degradeInstruction` provides it.
- * - **`account-session-limit`** — a `429` naming the account cap is a fact
- *   about the account, not the instruction and not the node. Degrading cannot
- *   help, another node would answer identically, and the viewer needs to be
- *   told something true: they are already playing somewhere else. New with the
- *   REST-resource change; see `TODO/ACTIVE.md`.
+ *   less is the remedy, and `degradeInstruction` provides it.
+ * - **`account-session-limit`** — the account is already holding as many
+ *   sessions as it may. Not the instruction and not the node: degrading cannot
+ *   help and every node answers identically. Recognised with core's
+ *   `isAccountSessionLimit`, which keys on the code alone and walks the cause
+ *   chain, so the set of account-scoped codes stays core's to track and this
+ *   client does not spell one.
  * - **`fatal`** — everything else, including a `429` that is *not* the account
  *   cap. A node-wide limit is a different scope with a different remedy: core
  *   walks and charges there, correctly, because that node really is full, and
- *   reporting it to the viewer as their own account being at its limit would
- *   be a lie with an action attached.
+ *   telling the viewer their own account is at its limit would be a lie with
+ *   an action attached.
  */
 export function classifyCreateRefusal(error: unknown): CreateRefusal {
   if (!error || typeof error !== 'object') return 'fatal';
-  const { status, code } = error as { status?: unknown; code?: unknown };
-  if (status === 429 && code === ACCOUNT_SESSION_LIMIT_CODE) return 'account-session-limit';
-  if (status === 400) return 'degrade';
-  return 'fatal';
+  if (isAccountSessionLimit(error)) return 'account-session-limit';
+  return refusalStatus(error) === 400 ? 'degrade' : 'fatal';
 }
 
 /**
