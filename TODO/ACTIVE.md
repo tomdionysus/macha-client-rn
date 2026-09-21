@@ -471,6 +471,96 @@ move until the second date, not the first.**
 
 ---
 
+## P1 — No sound on Direct Play, and the client claims a codec this device does not have
+
+**Measured on the A85 2026-09-21, app 0.6.0, "2010" Direct Play. Raised by Tom
+mid-session: "there's no sound".** The picture decodes and advances; there is
+no audio at all.
+
+**It is not muted and not a volume problem** — checked before anything else,
+because that is the cheap explanation:
+
+- Media volume **14 of 15**; `dumpsys audio` says `Muted: false`, master mute
+  off, master volume 1.0.
+- The app **holds audio focus**: `expo.modules.video.managers.AudioFocusManager`,
+  `gain: GAIN`, `loss: none`, `USAGE_MEDIA`/`CONTENT_TYPE_MOVIE`.
+- **No PCM is being produced.** `dumpsys media.audio_flinger` on the primary
+  output: `2 Tracks of which 0 are active`, thread `Standby: yes`, and
+  `Last write occurred (msecs): 649445` — no audio written for eleven minutes
+  while video played.
+
+**The device has no AC-3 or E-AC-3 decoder.** `dumpsys media.player` lists
+none: a grep count of `audio/ac3|audio/eac3` returns **0**. It has
+`audio/3gpp`, `audio/amr-wb`, `audio/flac`, `audio/vorbis` and the usual set.
+
+**And this client claims both, unconditionally.** `src/playback/capabilities.ts`
+declares `audioCodecs: ['aac', 'ac3', 'eac3', 'opus', 'vorbis', 'mp3', 'flac']`
+for android without asking the platform anything.
+
+**The mechanism that fits, and it is not confirmed:** the client claims AC-3,
+so the node sees a file it may Direct Play and copies it through; media3's
+`DefaultTrackSelector` will not select a track no renderer supports, so it
+selects **no audio track at all** — which produces silence rather than an
+error, and explains why nothing is logged and why playback is otherwise
+healthy. **What is missing is the file's actual audio codec.** Get it from the
+playback options sheet or the node's facts before acting; everything above is
+device state, and only this last step is inference.
+
+**This is the sharp form of the "nothing knows about speaker layout" P2
+below.** That item asks whether a 5.1 track is downmixed for two speakers.
+This is worse and simpler: **the codec claim itself is false on this device**,
+so the question of channels never arises. Fixing the channel half would not
+have found this.
+
+**Reach is unknown and matters.** Every Direct Play of an AC-3 title on this
+device is silent, which is most film remuxes. It cannot be seen in a test that
+only checks the picture — and this project's smoke tests have all checked the
+picture.
+
+---
+
+## P2 — The seek control: it works, and two things around it make it feel broken
+
+**Driven on the A85 2026-09-21, app 0.6.0, against the live cluster.** Raised
+by Tom as "the Seek control is still broken".
+
+**The scrubber does seek, and that was verified twice.** Dragging to the
+midpoint while paused moved the bar to 57:53 and playback resumed at the HAL
+9000 scene, about 58 minutes in; dragging while playing landed in a different
+scene again. `canSeek: true` in the session, and `seekTo` is reached.
+
+**Fault one: a seek while paused does not repaint the frame.** The bar updates
+to the new time and stays there, and the picture holds the *old* frame until
+playback resumes. Measured: paused at 11:14, dragged to 57:53, the video
+region was unchanged across captures at +1 s, +4 s and +8 s; on resume the
+film continued from 57:53. So the seek is applied and only the presentation is
+stale. Whether that is expo-video's behaviour on `player.currentTime` while
+paused or something this client does is **not yet established** — that is the
+next step, and it wants checking against expo-video's source rather than
+guessed.
+
+**Fault two, and it is the one that makes the control feel dead:** chrome
+hides `CONTROLS_HIDE_DELAY_MS = 3_500` after the last touch, and the first
+touch afterwards is consumed re-showing it. So any gesture aimed at the bar
+more than 3.5 s after the last one does nothing at all. A viewer who looks at
+the screen, decides where to drag, and then drags, loses the first attempt
+every time.
+
+**A measurement hazard worth recording, because it cost most of this session's
+device time.** Observe-then-act does not work on this screen: reading a
+screenshot takes longer than 3.5 s, so the chrome has always hidden by the
+time the next command lands, and a tap that should have hit the pause button
+only revealed the chrome. Three "faults" were recorded and then withdrawn that
+way. **Drive this screen with the whole sequence in one `adb shell`
+invocation**, capturing to `/sdcard` between steps and pulling afterwards.
+Also lock rotation first: the app forces landscape in fullscreen and portrait
+coordinates then land somewhere else entirely.
+
+**None of this is verified against the current tree.** The A85 runs 0.6.0,
+which predates the seek-window work in 0.7.0 and everything since.
+
+---
+
 ## P1 — A reaped session is charged to the node that answered honestly
 
 **From core 0.13.0. The resolver half reaches this client and is unused; the
