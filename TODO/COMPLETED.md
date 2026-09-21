@@ -8,6 +8,82 @@ Newest first.
 
 ---
 
+## 2026-09-21 — 0.8.0 on `main`, pinned to published core 0.18.0 and pushed
+
+**The release the previous handover called impossible.** That handover recorded
+core `0.18.0` as tagged but with its npm publish halted, so there was nothing to
+pin and no release could be cut. The publish landed at 19:31 the same day and
+this is the cutover.
+
+### Identity
+
+| | |
+|---|---|
+| App | `0.8.0`, `versionCode 800` |
+| `main` | `7932542`, pushed as a fast-forward `685fc66..7932542` |
+| Core | `@machafoundation/core@^0.18.0`, **from the registry** |
+| Core tarball | `registry.npmjs.org/.../core-0.18.0.tgz` |
+| Integrity | `sha512-oMOvevoZ46L8jbVKrUnAdrIO9nfmmeNLNW/OaHPT33Zoi6IxVK24RTWpqMRC286UGCQo72xdwiURjuWlj2VCwA==` |
+| Published | 2026-09-21T19:31:23Z, confirmed by `npm view` before pinning |
+| Tagged | **No.** See below — this is a pushed tree, not yet a release |
+
+### What was actually verified, and against which tree
+
+Every check below ran against the **registry copy**, not the link, because that
+is what a user's install resolves:
+
+- `test -L node_modules/@machafoundation/core` **fails** — a real directory.
+- Lockfile `resolved` is the tarball URL above, with the integrity hash. These
+  two are the checks that cannot be fooled; the version string agrees with
+  itself while a stale link is in place and proves nothing.
+- `npm run version:check` — `0.8.0 (versionCode 800) — consistent`, comparing
+  `package.json`, `app.json`, `package-lock.json` and the generated
+  `android/app/build.gradle`.
+- `tsc --noEmit` clean.
+- **204 tests across 19 files** pass.
+- **A real `expo export --platform android` produced a 4.9 MB Hermes bundle.**
+  This is the only check here that exercises Metro: vitest stubs `react-native`
+  and never runs the bundler, so a green suite says nothing about resolution.
+
+`npx expo prebuild --platform android` was re-run after the version bump, which
+is what put `versionCode 800` / `versionName "0.8.0"` into `build.gradle`.
+Skipping it is how every build on 2026-09-13 came out labelled 0.4.1.
+
+Afterwards on `develop`, against core `a3b40ca` through the restored link:
+`version:check` consistent, `tsc` clean, the same 204 tests.
+
+### Two things this release did NOT do
+
+1. **It is not tagged.** A release in these repos *is* an annotated bare-semver
+   tag on `main`, and `git tag -a 0.8.0` has not been run. `version:check` is
+   silent about it by design — an untagged commit is work in progress, not a
+   disagreement — so nothing will complain. The tag is the remaining step.
+2. **It has not run on hardware at this version.** The A85 carries an
+   unreleased dev build of the same tree, which is a different thing and must
+   not be reported as 0.8.0.
+
+### The bump went on `main`, and `develop` was fast-forwarded to match
+
+0.7.0's release commit was made on `develop` and `main` fast-forwarded onto it.
+This one was made on `main` directly, which would have left a commit on `main`
+that `develop` did not have and turned the next release's fast-forward into a
+conflicting merge on `package.json`. `develop` was fast-forwarded onto the
+release commit before the link was restored, so `git log develop..main` is
+empty again. **Check that it still is before the next release.**
+
+### The npm asymmetry, measured a second time
+
+Outbound needed the explicit ranged install — `npm install
+@machafoundation/core@^0.18.0` — which replaced the symlink and rewrote the
+lockfile in one step. Inbound needed nothing special: `package.json` back to
+`file:../macha-ts` and a plain `npm install` restored both the symlink and the
+`{"resolved": "../macha-ts", "link": true}` entry. Same machine, npm 11.9.0,
+node 24.14.0. This reproduces the 0.7.0 measurement and does **not** settle the
+television session's competing account, which concerned the
+delete-then-plain-install case; that case was not re-run.
+
+---
+
 ## 2026-09-21 — 0.7.0 built against linked core 0.17.0 and on the A85, ready for the route cutover
 
 **The device is current for the first time since 0.6.0.** Installed and smoke

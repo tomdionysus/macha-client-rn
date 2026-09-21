@@ -28,29 +28,47 @@ anything.**
 
 ### Where the code is
 
-**`main` is at `685fc66`, the `0.7.0` tag.** `develop` is **12 commits past
-it**: eleven pushed, and **`caff94b` committed but not pushed** — the busy-flag
-fix, made after the push. Push is Tom's, always, and only when he says so in
-that message.
+**`main` is at `7932542`, released as `0.8.0` and pushed 2026-09-21.** It is
+the first `main` since 0.6.0 to pin a published core. `develop` is **one commit
+past it** — the link restoration — and is **not pushed**; every earlier commit
+reached `origin` through the `main` push, because `main` is a fast-forward of
+`develop` as it has been for every release here.
 
-Today's twelve, newest first: the busy-flag fix; the day's record; the
+**`main` is an ancestor of `develop`, and that invariant is worth keeping.**
+The 0.8.0 bump was made on `main` rather than on `develop` as 0.7.0's was, and
+`develop` was fast-forwarded onto it afterwards to restore it. Check that
+`git log develop..main` is empty before the next release; if it is not, the
+merge will conflict on `package.json` instead of fast-forwarding.
+
+**Nothing is tagged `0.8.0` yet.** The release commit is on `main` and pushed,
+but a release here *is* the tag, so until `git tag -a 0.8.0` lands this is a
+pushed tree rather than a release. `version:check` passes without it, because
+an untagged commit is ordinary work in progress rather than a disagreement.
+
+Sixteen commits separate 0.7.0 from 0.8.0, newest first: the link restoration;
+the release; the handover rewrite; the busy-flag fix; the day's record; the
 role-less session advice; four playback defects; the codec probe. Each commit
 body carries its own reasoning — read those rather than re-deriving.
 
-**Suite: 204 tests across 19 files, typecheck clean**, verified against core
-`aab8028` after it moved. Working tree clean but for `.claude/settings.json`,
-`CLAUDE.local.md` and `basemind.toml`, none of which are this work.
+**Suite: 204 tests across 19 files, typecheck clean**, run both ways on
+2026-09-21 — against the registry copy on `main`, and against core `a3b40ca`
+through the link on `develop`. A real `expo export` produced a 4.9 MB Hermes
+bundle from the registry copy. Working tree clean but for
+`.claude/settings.json`, `CLAUDE.local.md` and `basemind.toml`, none of which
+are this work.
 
-### Core, and the publish that is halted
+### Core arrives from the registry again
 
-`package.json` pins `file:../macha-ts` — correct on `develop`, and **it must
-never reach `main`**. Core is tagged `0.18.0` but **Tom halted the npm
-publish**, so there is nothing to pin to and **no release is possible yet**.
+`package.json` pins `file:../macha-ts` on `develop` — correct there, and **it
+must never reach `main`**. **Core `0.18.0` was published at 19:31 on
+2026-09-21**, which unblocked the release the previous handover recorded as
+impossible. `npm view @machafoundation/core version time --json` confirmed it
+before anything was pinned, as step 1 of the procedure below requires.
 
 **Use `npm run dist:hash` in core and nothing else** for the dist figure; every
 hash in this file from before 2026-09-21 19:00 is the narrower `*.js`-only one
-and is not comparable. Core was at `aab8028` when this was written.
-
+and is not comparable. Core was at `a3b40ca`, its `0.18.0` tag, for this
+release.
 ### What is on the phone
 
 **The A85 runs an unreleased dev build newer than `0.7.0`** — it carries every
@@ -193,6 +211,19 @@ for the symbol you are about to use rather than reading core's `src`.
    alone, something differs between the two setups (npm version,
    `lockfileVersion`, workspaces, an `overrides` block) and both of us want to
    know which. Awaiting their answer.
+
+   **Confirmed again on 2026-09-21 releasing 0.8.0, same machine, npm 11.9.0 /
+   node 24.14.0.** Going to the registry, `npm install
+   @machafoundation/core@^0.18.0` replaced the symlink with a real directory
+   and rewrote the lockfile entry to a tarball URL with an integrity hash in
+   one step. Coming back, editing `package.json` to `file:../macha-ts` and
+   running a plain `npm install` restored the link and the
+   `{"resolved": "../macha-ts", "link": true}` entry. **The asymmetry is
+   real and reproducible: the ranged install is needed outbound, nothing
+   special is needed inbound.** This still does not settle the television's
+   account, which was about the delete-then-plain-install case specifically —
+   that case was not re-run here, so their claim remains untested rather than
+   refuted.
 1. Confirm the core version you are about to pin is **actually on npm**:
    `npm view @machafoundation/core version time --json`. Three core versions
    (0.9.0, 0.10.0, 0.11.0) were tagged and never published, and one publish
