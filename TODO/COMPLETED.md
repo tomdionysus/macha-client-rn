@@ -8,6 +8,75 @@ Newest first.
 
 ---
 
+## 2026-09-21 — 0.7.0 built against linked core 0.17.0 and on the A85, ready for the route cutover
+
+**The device is current for the first time since 0.6.0.** Installed and smoke
+tested on the A85 against the live cluster. This build exists to be ready for
+the server's route cutover, not to be released: it carries a `file:` link and
+can never be tagged.
+
+### Identity, which is the only honest way to describe this build
+
+| | |
+|---|---|
+| App | `0.7.0`, `versionCode 700` |
+| Client commit | `e3c5ad2`, clean |
+| Core commit **at build time** | `28d6b70`, clean |
+| Core `dist` hash | `b6b19b7675c5` |
+| JS bundle sha256 (first 16) | `e44394668997211c` |
+
+**Core's HEAD moved to `9c78a4a` while the smoke test ran and the `dist` hash
+did not change**, so the compiled code in the APK is unaffected. That is the
+third time today the hash answered a question the version string and the
+commit could not, and it is why both are recorded.
+
+### Two builds, and the first one was thrown away on purpose
+
+The first `assembleRelease` took **20m 11s**, 737 tasks — in line with the
+23m recorded on 2026-09-20 and nothing like the 1h15m this project used to
+claim. It was discarded: it started at 11:31, before the failover cap fix was
+committed, so its JS was a tree that could not be described.
+
+**The rebuild took 1m 31s** — 60 tasks executed, 677 up to date. **That figure
+is worth keeping: a JS-only change is ninety seconds, not twenty minutes**, so
+iterating on device is far cheaper than the cold-build number suggests.
+
+**The generated bundle was deleted by hand before the rebuild rather than
+trusting Gradle's up-to-date check.** Core is consumed through a symlink, and
+there is no reason to believe Gradle tracks the contents of a tree outside the
+project as a task input — an "up to date" bundle would have quietly shipped
+stale core. Proof rather than faith: the bundle sha moved from
+`a94c2e0e65fa9851` to `e44394668997211c`.
+
+### The smoke test
+
+`adb install -r` over wireless ADB, **1m 20s**, no uninstall, and the signed-in
+session survived it.
+
+| Step | Result |
+|---|---|
+| Version on device | `0.7.0`, `versionCode 700` |
+| Cold launch | Library renders: Continue Watching, Films rail, artwork, account marker, no problems banner |
+| Playback | Session created in **21 ms** on the LAN node `10.35.1.50`, `mode: direct`, video decodes and advances |
+| Routing | `advisory: true`/`false` both present — core `0.17.0`'s routing, which no published version emits |
+
+**The stream URL is still the old shape**
+(`/api/v1/playback/stream/{id}/<capability>/direct`) because **the server has
+not cut over yet**. That is the expected reading, and it is also the thing to
+re-check first after the nodes move.
+
+### What this run could not test, stated plainly
+
+- **The new routes.** They do not exist server-side yet.
+- **The cap.** Nothing can refuse with `429 account_session_limit` until the
+  server ships it, so every branch of the cap handling is still exercised only
+  against errors constructed in tests.
+- **Audio.** Still silent on Direct Play, unchanged and unrelated — see the
+  no-AC-3 item in ACTIVE. Recorded here so that a post-cutover "plays, no
+  sound" is not charged to the routes.
+
+---
+
 ## 2026-09-21 — 0.7.0 released, and the `file:` link took three attempts to remove
 
 **Tagged `0.7.0` (`versionCode 700`) on `main`**, pinning published core
