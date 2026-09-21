@@ -20,7 +20,8 @@ export type ProblemKind =
   | 'network-down'
   | 'cluster-unreachable'
   | 'account-required'
-  | 'account-cannot-view';
+  | 'account-cannot-view'
+  | 'account-no-roles';
 
 export interface Problem {
   kind: ProblemKind;
@@ -61,6 +62,15 @@ const PROBLEMS: Record<ProblemKind, Omit<Problem, 'kind'>> = {
     title: 'This account cannot view media',
     detail: 'Ask for the media viewer role, or log in as someone who has it. Your downloads still play.',
   },
+  // Granted nothing at all, which is a different remedy from the line above:
+  // either this cluster serves registered users only, or a signed-in session
+  // was replaced by an anonymous one. Both are answered by signing in, and
+  // telling this viewer to ask an administrator for a role sends someone whose
+  // session merely lapsed looking for the wrong person.
+  'account-no-roles': {
+    title: 'This session cannot do anything',
+    detail: 'Log in again to see the library — this session was granted no permissions. Your downloads still play.',
+  },
 };
 
 const problem = (kind: ProblemKind): Problem => ({ kind, ...PROBLEMS[kind] });
@@ -84,7 +94,13 @@ export function describeProblems(facts: ProblemFacts): Problem[] {
   else if (facts.clusterUnreachable) problems.push(problem('cluster-unreachable'));
 
   if (facts.access.kind === 'denied') {
-    problems.push(problem(facts.access.reason === 'no-session' ? 'account-required' : 'account-cannot-view'));
+    const kind =
+      facts.access.reason === 'no-session'
+        ? 'account-required'
+        : facts.access.reason === 'no-roles'
+          ? 'account-no-roles'
+          : 'account-cannot-view';
+    problems.push(problem(kind));
   }
   return problems;
 }

@@ -32,10 +32,26 @@ describe('describeMediaAccess', () => {
     });
   });
 
-  it('denies a session that carries no roles at all', () => {
+  it('denies a session that carries no roles at all, and says so distinctly', () => {
+    // Changed from `no-role` on 2026-09-21, on Tom's instruction to all three
+    // clients. An empty array is not "the wrong role": it is a session granted
+    // nothing, which core says means either a registered-users-only cluster
+    // (removing `media_viewer` from the anonymous account is how that is
+    // configured, server 0.38.4) or a signed-in viewer degraded to anonymous
+    // by a credential-less re-mint. Both are answered by signing in, and
+    // neither by asking an administrator for a role — so the two denials must
+    // not share a message.
+    //
+    // The television observation that prompted the instruction was retracted
+    // the same evening: it had not verified which control it pressed, and an
+    // anonymous role-less session is also what exists *before* signing in, so
+    // its 403 was equally consistent with the sign-in never happening. **The
+    // rule survives the evidence for it** — the remedy distinction is right
+    // whether or not any device has demonstrated the degradation — but it is
+    // not cited here as a measurement, because it is not one.
     expect(describeMediaAccess(facts({ session: session({ roles: [] }) }))).toEqual({
       kind: 'denied',
-      reason: 'no-role',
+      reason: 'no-roles',
     });
   });
 
@@ -92,6 +108,8 @@ describe('mayRequestMedia', () => {
     expect(mayRequestMedia({ kind: 'granted' })).toBe(true);
     expect(mayRequestMedia({ kind: 'unknown' })).toBe(true);
     expect(mayRequestMedia({ kind: 'denied', reason: 'no-role' })).toBe(false);
+    expect(mayRequestMedia({ kind: 'denied', reason: 'no-roles' })).toBe(false);
     expect(mayRequestMedia({ kind: 'denied', reason: 'no-session' })).toBe(false);
   });
 });
+

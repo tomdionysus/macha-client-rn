@@ -109,3 +109,33 @@ describe('describeEmptyLibrary', () => {
     expect(describeEmptyLibrary('albums', problems).title).toBe('This account cannot view albums');
   });
 });
+
+describe('a session granted no roles at all', () => {
+  // Tom's instruction, 2026-09-21: say plainly when a session holds nothing.
+  // The distinction is the advice, not the mechanism — "ask for the role" is
+  // the wrong thing to tell someone whose signed-in session was replaced by an
+  // anonymous one, which is how this arises.
+  const facts = {
+    endpointsConfigured: true,
+    networkDown: false,
+    clusterUnreachable: false,
+    access: { kind: 'denied', reason: 'no-roles' },
+  } as const;
+
+  it('tells the viewer to log in again rather than to find an administrator', () => {
+    const [only] = describeProblems(facts);
+    expect(only.kind).toBe('account-no-roles');
+    expect(only.detail).toContain('Log in again');
+    expect(only.detail).not.toContain('media viewer role');
+  });
+
+  it('still says the downloads play, because they do', () => {
+    expect(describeProblems(facts)[0].detail).toContain('downloads still play');
+  });
+
+  it('leaves the wrong-role message alone', () => {
+    const [only] = describeProblems({ ...facts, access: { kind: 'denied', reason: 'no-role' } });
+    expect(only.kind).toBe('account-cannot-view');
+    expect(only.detail).toContain('media viewer role');
+  });
+});
