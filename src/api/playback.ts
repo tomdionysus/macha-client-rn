@@ -11,7 +11,7 @@ import {
   type PlaybackUpdate,
 } from '@machafoundation/core';
 import { deviceCapabilities } from '../playback/capabilities';
-import { transformFor } from '../playback/policy';
+import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/policy';
 
 // The session model and its wire decoding are core's. This module was a second
 // implementation of both — the keystone of the duplication, and the reason the
@@ -100,7 +100,12 @@ export class ClusterPlaybackApi {
       media,
       deviceCapabilities(),
       seekMs,
-      { mode: session.preferences.mode, ...transformFor(session.preferences.mode) },
+      // Same judgement as a mode switch: a replacement must not be asked to
+      // copy audio this device cannot decode. See `transformFor`.
+      transformFor(
+        session.preferences.mode,
+        audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
+      ),
     );
   }
 

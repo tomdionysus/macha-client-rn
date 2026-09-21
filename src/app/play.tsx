@@ -352,6 +352,25 @@ export default function PlayerScreen() {
         </>
       ) : null}
 
+      {/*
+        A refusal that did not stop playback still has to reach the viewer.
+        `status` stays as it was when a mode or quality change is refused — the
+        existing source carries on — so the failure panel above never renders,
+        and before this the viewer tapped Remux, watched a spinner for fifteen
+        seconds and got nothing at all. Measured on the A85 2026-09-21.
+
+        **Rendered after the chrome, not before it.** The film is still playing
+        and must not be covered by a panel, so this sits above the transport —
+        but placed before the chrome it was painted over by the bottom bar and
+        the last line of a four-line message was cut in half. Seen on the
+        device; the fix is paint order, not height.
+      */}
+      {chromeVisible && error && status !== 'failed' ? (
+        <View style={styles.notice} pointerEvents="none">
+          <Text style={styles.noticeText}>{error}</Text>
+        </View>
+      ) : null}
+
       <PlaybackOptionsSheet visible={optionsOpen} onClose={() => setOptionsOpen(false)} />
     </View>
   );
@@ -397,6 +416,21 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notice: {
+    position: 'absolute',
+    left: space.lg,
+    right: space.lg,
+    bottom: '26%',
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: 10,
+    backgroundColor: 'rgba(6,6,7,0.86)',
+  },
+  noticeText: {
+    ...typography.body,
+    color: colors.text,
+    textAlign: 'center',
   },
   failure: {
     ...StyleSheet.absoluteFill,

@@ -24,14 +24,19 @@ import {
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
 import {
   accountSessionLimitMessage,
+  audioCopyable,
   buildOrder,
   classifyCreateRefusal,
   errorBlamesEndpoint,
+  generationLocalMs,
   restoredVolume,
   seekRequiresReposition,
   seekStillPending,
+  type PendingSupersede,
   spendsFailoverBudget,
   statedUpdate,
+  titlePositionMs,
+  updateRefusalMessage,
   transformFor,
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
@@ -651,6 +656,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const myGeneration = ++generationRef.current;
       setBusy(true);
       setState((current) => ({ ...current, buffering: true, error: undefined }));
+      // From here the node may supersede the generation the player is still
+      // reading, and a fragment of it answers 410. That is our doing, not the
+      // node's, and must not fail over.
+      pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
         const next = await playbackApi.update(session, { seekMs: targetMs });
         if (generationRef.current !== myGeneration) return;
@@ -676,11 +685,24 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         if (generationRef.current !== myGeneration) return;
         setState((current) => ({ ...current, buffering: false, error: describeError(error) }));
       } finally {
+        // Settled, success or failure: the tail is then bounded by the node's
+        // own deadline rather than left open.
+        const started = pendingSupersedeRef.current?.startedAtMs;
+        if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) setBusy(false);
       }
     },
     [mediaApi, player, playbackApi],
   );
+
+  /**
+   * A generation change this client asked for; see `selfSupersededGeneration`.
+   *
+   * A ref rather than state for the same reason `pendingSeekRef` is one: the
+   * failover callback is created once and would capture the first render's
+   * value for ever.
+   */
+  const pendingSupersedeRef = useRef<PendingSupersede | undefined>(undefined);
 
   const seekTo = useCallback(
     (positionMs: number) => {
@@ -697,7 +719,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         void repositionTo(bounded);
         return;
       } else {
-        player.currentTime = bounded / 1000;
+        // Back onto the player's timeline: a title-absolute value written to a
+        // generation that began an hour in asks for a point far past anything
+        // the node has produced.
+        player.currentTime = generationLocalMs(sessionRef.current, bounded) / 1000;
       }
       setState((current) => ({ ...current, positionMs: bounded }));
     },
@@ -749,8 +774,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     // No budget spent and no failure recorded: there is nothing here to learn
     // about the endpoint. `repositionTo` is what actually resolves this case;
     // this only stops the wrong remedy running first.
-    if (!errorBlamesEndpoint(session, pendingSeekRef.current, Date.now())) {
-      console.log('[macha] [playback] failover-declined', { reason: 'seek-outstanding' });
+    if (!errorBlamesEndpoint(session, pendingSeekRef.current, Date.now(), pendingSupersedeRef.current)) {
+      console.log('[macha] [playback] failover-declined', {
+        reason: pendingSupersedeRef.current ? 'generation-superseded-by-us' : 'seek-outstanding',
+      });
       return true;
     }
     // Playback that has been fine for a while earns a fresh budget: the limit
@@ -843,6 +870,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const resumeMs = positionRef.current;
       setBusy(true);
       setState((current) => ({ ...current, buffering: true, error: undefined }));
+      // From here the node may supersede the generation the player is still
+      // reading, and a fragment of it answers 410. That is our doing, not the
+      // node's, and must not fail over.
+      pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
         const next = await playbackApi.update(session, statedUpdate(update, session));
         if (generationRef.current !== myGeneration) return;
@@ -865,8 +896,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        setState((current) => ({ ...current, buffering: false, error: describeError(error) }));
+        // The existing source is still playing; say that rather than core's
+        // "request failed", which reads as a dead player to someone watching.
+        setState((current) => ({ ...current, buffering: false, error: updateRefusalMessage(error) }));
       } finally {
+        // Settled, success or failure: the tail is then bounded by the node's
+        // own deadline rather than left open.
+        const started = pendingSupersedeRef.current?.startedAtMs;
+        if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) setBusy(false);
       }
     },
@@ -886,14 +923,20 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('timeUpdate', ({ currentTime, bufferedPosition }) => {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
-        const positionMs = Math.max(0, Math.round(currentTime * 1000));
+        // The player counts from the start of the *generation*; everything
+        // above this line means the title's timeline. Convert once, here, at
+        // the point the figure arrives — see `generationOriginMs`. Without it
+        // a rebuilding seek left the bar reading 0:13 of a three-hour film,
+        // measured on the A85 2026-09-21, and it also mismatched the seek
+        // target below and checkpointed the wrong resume position.
+        const positionMs = titlePositionMs(sessionRef.current, Math.round(currentTime * 1000));
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
           if (seekStillPending(sessionRef.current, pendingSeek, positionMs, Date.now())) return;
           pendingSeekRef.current = undefined;
         }
         positionRef.current = positionMs;
-        const bufferedMs = Math.max(0, Math.round((bufferedPosition ?? 0) * 1000));
+        const bufferedMs = titlePositionMs(sessionRef.current, Math.round((bufferedPosition ?? 0) * 1000));
         bufferedRef.current = bufferedMs;
         const reported = Math.max(0, Math.round((player.duration || 0) * 1000));
         const durationMs = knownDurationRef.current || reported || durationRef.current;
@@ -1304,8 +1347,16 @@ async function chooseInstruction(
     const stated = await playbackFacts(playbackApi, media, mediaId);
     return {
       instruction: {
-        mode: requested,
-        ...transformFor(requested),
+        // The viewer named the mode, not the audio codec: a remux of a title
+        // this device cannot decode the audio of must still transcode it, and
+        // the mode has to be renamed with it. See `transformFor`.
+        ...transformFor(
+          requested,
+          audioCopyable(
+            stated?.profile.streams.find((stream) => stream.type === 'audio')?.codec,
+            deviceCapabilities().audioCodecs ?? [],
+          ),
+        ),
         reasons: [],
         // The viewer said so. Nothing was inferred, so nothing was assumed.
         assumed: [],

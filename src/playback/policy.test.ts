@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { buildOrder, statedUpdate, transformFor } from './policy';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { audioCopyable, buildOrder, sessionAudioCodec, statedUpdate, transformFor } from './policy';
 import type { PlaybackSession } from '@machafoundation/core';
+import { Platform } from 'react-native';
 
 /** Only the fields the policy reads. The rest of a session is irrelevant here. */
 const sessionWith = (maxHeight: number | null, maxBitrate: number | null = null) =>
@@ -8,9 +9,9 @@ const sessionWith = (maxHeight: number | null, maxBitrate: number | null = null)
 
 describe('transformFor', () => {
   it('copies both streams for direct and remux, and re-encodes both for transcode', () => {
-    expect(transformFor('direct')).toEqual({ video: 'copy', audio: 'copy' });
-    expect(transformFor('remux')).toEqual({ video: 'copy', audio: 'copy' });
-    expect(transformFor('transcode')).toEqual({ video: 'transcode', audio: 'transcode' });
+    expect(transformFor('direct')).toEqual({ mode: 'direct', video: 'copy', audio: 'copy' });
+    expect(transformFor('remux')).toEqual({ mode: 'remux', video: 'copy', audio: 'copy' });
+    expect(transformFor('transcode')).toEqual({ mode: 'transcode', video: 'transcode', audio: 'transcode' });
   });
 });
 
@@ -71,5 +72,136 @@ describe('buildOrder', () => {
   it('includes every index exactly once, so a shuffled run cannot repeat or skip', () => {
     const order = buildOrder(8, true, 0);
     expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+});
+
+/**
+ * The remux request that asked for audio this device cannot decode.
+ *
+ * Measured 2026-09-21: switching an AC-3 title to Remux sent
+ * `{mode: remux, video: copy, audio: copy}`, and the A85 has no AC-3 decoder.
+ * Served perfectly that is a silent film — the same defect as the `ac3`/`eac3`
+ * capability claim, one layer up. Served by this cluster it hung, because
+ * copying (E-)AC-3 into fMP4 never produces a first fragment. **The second is
+ * the server's; the first was ours and is what these cover.**
+ *
+ * Before the fix `transformFor` took no second argument and always answered
+ * `copy`, so every assertion below that expects `transcode` fails.
+ */
+describe('transformFor when the device cannot decode the source audio', () => {
+  it('renames the mode, because the server refuses a remux that re-encodes', () => {
+    // playback.cpp:524 rejects mode=remux with any re-encoded stream, and :529
+    // rejects mode=transcode that re-encodes nothing. Correcting the transform
+    // without the name buys a 400 instead of the stall — the web client
+    // shipped exactly that halfway fix and had it refused.
+    expect(transformFor('remux', false)).toEqual({
+      mode: 'transcode',
+      video: 'copy',
+      audio: 'transcode',
+    });
+  });
+
+  it('still copies the video, which this says nothing about', () => {
+    // A missing audio decoder is no reason to re-encode the picture, and doing
+    // so would turn a cheap rewrap into the most expensive operation there is.
+    expect(transformFor('remux', false).video).toBe('copy');
+  });
+
+  it('leaves direct play as the viewer asked for it', () => {
+    // Direct means "serve the original file": there is no transform to adjust,
+    // and silence is then the honest consequence of an explicit choice. The
+    // automatic path no longer picks it for these titles anyway.
+    expect(transformFor('direct', false)).toEqual({ mode: 'direct', video: 'copy', audio: 'copy' });
+  });
+
+  it('changes nothing for transcode, which re-encodes anyway', () => {
+    expect(transformFor('transcode', false)).toEqual({
+      mode: 'transcode',
+      video: 'transcode',
+      audio: 'transcode',
+    });
+  });
+
+  it('copies when the device can decode it', () => {
+    expect(transformFor('remux', true)).toEqual({ mode: 'remux', video: 'copy', audio: 'copy' });
+  });
+});
+
+describe('audioCopyable', () => {
+  const decodable = ['aac', 'opus', 'vorbis', 'mp3', 'flac'];
+
+  it('refuses the two codecs the A85 was measured unable to decode', () => {
+    expect(audioCopyable('ac3', decodable)).toBe(false);
+    expect(audioCopyable('eac3', decodable)).toBe(false);
+  });
+
+  it('accepts the codec that was measured working', () => {
+    expect(audioCopyable('aac', decodable)).toBe(true);
+  });
+
+  it('is case-insensitive, because the wire is not this client’s to spell', () => {
+    expect(audioCopyable('AC3', decodable)).toBe(false);
+    expect(audioCopyable('AAC', decodable)).toBe(true);
+  });
+
+  it('says yes when nothing is known, leaving the node in charge', () => {
+    // Absence of a fact is not a fact. The node picks correctly on create;
+    // this exists to stop the client overriding that with a worse answer.
+    expect(audioCopyable(undefined, decodable)).toBe(true);
+  });
+});
+
+describe('sessionAudioCodec', () => {
+  const withStreams = (streams: unknown[], audioStream: number | null = null) =>
+    ({ options: { audioStreams: streams }, preferences: { audioStream } }) as unknown as PlaybackSession;
+
+  it('reads the stream the viewer selected', () => {
+    const session = withStreams(
+      [
+        { index: 1, codec: 'ac3', default: true },
+        { index: 2, codec: 'aac', default: false },
+      ],
+      2,
+    );
+    expect(sessionAudioCodec(session)).toBe('aac');
+  });
+
+  it('falls back to the default stream when none is selected', () => {
+    const session = withStreams([
+      { index: 1, codec: 'aac', default: false },
+      { index: 2, codec: 'eac3', default: true },
+    ]);
+    expect(sessionAudioCodec(session)).toBe('eac3');
+  });
+
+  it('is undefined when the node lists no audio streams', () => {
+    expect(sessionAudioCodec(withStreams([]))).toBeUndefined();
+    expect(sessionAudioCodec(undefined)).toBeUndefined();
+  });
+});
+
+describe('statedUpdate does not let the pressed mode override the corrected one', () => {
+  // The stub's Platform.OS defaults to ios, where ac3 is claimed deliberately
+  // and correctly — so this has to say android, which is where the decoder is
+  // missing. Getting that wrong made this test fail against working code.
+  const previous = Platform.OS;
+  beforeEach(() => {
+    Platform.OS = 'android';
+  });
+  afterEach(() => {
+    Platform.OS = previous;
+  });
+
+  const ac3Session = () =>
+    ({
+      preferences: { maxHeight: null, maxBitrate: null, audioStream: null },
+      options: { audioStreams: [{ index: 1, codec: 'ac3', default: true }] },
+    }) as unknown as PlaybackSession;
+
+  it('sends mode=transcode when Remux is pressed on audio this device cannot decode', () => {
+    // The spread-order trap: `{...stated, ...update.preferences}` would put the
+    // viewer's `remux` back over the corrected `transcode` and buy a 400.
+    const result = statedUpdate({ preferences: { mode: 'remux' } }, ac3Session());
+    expect(result.preferences).toMatchObject({ mode: 'transcode', video: 'copy', audio: 'transcode' });
   });
 });
