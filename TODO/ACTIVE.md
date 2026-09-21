@@ -267,7 +267,20 @@ not the link.
 
 **Announced by core 2026-09-21, which Tom has put in charge of the transition.
 Planned in the server repo at
-`TODO/2026-09-21-playback-sessions-as-a-resource-plan.md`; not implemented.**
+`TODO/2026-09-21-playback-sessions-as-a-resource-plan.md`; not implemented
+server-side.**
+
+**Client side this is DONE as of 2026-09-21** except the adoption listing,
+which is a new capability rather than a break. What was needed, and what each
+turned out to cost:
+
+| Break | This client |
+|---|---|
+| Stream/session routes move; old route removed | **Free** — nothing here spells or composes a path. Grep below. |
+| A second POST no longer supersedes | **Free** — `load()` already awaits `releaseSession(previous)` before `createSession`. |
+| Several live sessions per account | **Free through the resolver** — one `sessionRef`, ids opaque, core tracks by explicit id. |
+| Per-account cap, a new outcome on create | **Built** — `classifyCreateRefusal` in `policy.ts`, wired into `createSession` and the failure surface. |
+| `GET /sessions` adoption listing | **Not built.** New capability, nobody needs it yet. |
 
 ```
 POST   /api/v1/playback/sessions                 201 + Location
@@ -316,14 +329,75 @@ shape is ever reworked.
 - **Several live sessions per account, so "the session" stops being inferable
   from the token.** Mostly free through the resolver, which has always tracked
   by explicit id. **But it tightens the probe design below** - see that item.
-- **A per-account cap becomes a new outcome on create.** Core has told the
-  server it must be a 4xx with a distinct code, because as a 5xx core would
-  walk the cluster collecting identical refusals and charge every healthy node.
+- **A per-account cap becomes a new outcome on create — built 2026-09-21.**
+  Settled since: it answers **`429` with code `account_session_limit`**,
+  carrying the limit and the current count, and the limit will be published
+  somewhere readable *before* a client plans rather than only on the refusal.
+  `classifyCreateRefusal(error)` returns `degrade` / `account-session-limit` /
+  `fatal`, and the viewer gets "already playing on as many devices as it is
+  allowed" rather than core's "Macha playback request failed: ...", which
+  reads as a breakage when the node is working exactly as designed.
+  Core has told the server it must be a 4xx with a distinct code, because as a
+  5xx core would walk the cluster collecting identical refusals and charge
+  every healthy node.
   **Core told the server it holds 2 sessions and transiently 3. That is the
   coordinator's number, not this client's:** here it is **1, transiently 2** -
   one `sessionRef`, no standby, no second managed presentation, and the
   warm-standby and priming attempts both reverted (COMPLETED). Said to core, so
   the cap is not sized on the assumption that 3 is everyone's ceiling.
+
+### Two defects this work found, one of them ours and load-bearing
+
+**`createSession`'s degrade branch was dead, and had been.** It tested
+`error instanceof MachaApiError` — this client's class, raised by this
+client's fetch layer — before deciding whether to ask the node for less. But
+the create goes through core's `ClusterPlaybackResolver`, which raises core's
+own `MachaPlaybackError`. The identity test could never match, so **every
+refusal was fatal and no instruction was ever degraded.** Grep-verified in
+core's `dist`, pinned by a test that asserts the two classes are unrelated.
+`classifyCreateRefusal` is duck-typed on `status`/`code` for exactly this
+reason, which is also why core reads `code` and `reason` off the object
+rather than testing identity.
+
+**Core found the mirror of it in itself an hour after telling the server the
+opposite.** It had assumed a 4xx stops core's cluster walk. It does — except
+`429`, which is the one 4xx core treats as "try the next node". A cap refusal
+would therefore have walked the whole cluster collecting identical refusals
+**and charged every healthy node**, because the charge is gated on the same
+answer. Now classified account-scoped in `endpointFailure.ts`: neither walked
+nor charged. Core says it would not have found it if the server had not named
+the status it already uses.
+
+**One mirror was created deliberately and should be retired.**
+`ACCOUNT_SESSION_LIMIT_CODE` in `policy.ts` restates a string from core's
+`ACCOUNT_SCOPED_FAILURE_CODES`, which is **module-private** along with its
+predicate, so there is nothing to import. Core has been asked to export the
+predicate; when it does, delete the constant and call it. Until then it is a
+second declaration of one server fact — the shape of defect this file exists
+to catch.
+
+### What core settled after the first brief
+
+- **The collection listing is node-local.** `GET /api/v1/playback/sessions`
+  answers for the node that served the request; a client fans out across the
+  nodes it knows. The operator refused cluster-visible ids deliberately: an id
+  visible cluster-wide promises any node can act on it and none can, because a
+  session owns a generation directory, a transcode slot and a live pipeline, so
+  PATCH and DELETE must execute where the pipeline is. **Provenance is
+  therefore free** — you know which node you asked, which is the same
+  requirement the probe below has.
+- **`source.url` stays absolute and server-supplied.** Core's stated
+  commitment now, not this client's assumption, and the route change does not
+  touch `streamUrl()`.
+- **The cap design changed on this client's evidence.** The server's reply to
+  the "2 live, 3 transient" figure was *"I would have set the cap at core's
+  floor"*; their plan now records 3 as one client's floor and not anyone's
+  ceiling, that the phone holds 1 and transiently 2, and that adoption costs
+  budget by design. They also read es-1's live config and found
+  **`max_sessions: 8` node-wide across every account**, with a 30-minute idle
+  expiry, so the existing node-wide limit is being revisited too. **That
+  interacts with the leaked-session P2 below**: a session leaked by process
+  death holds one of those eight for half an hour.
 
 ### Sequencing, and the trap in it for this client
 
@@ -331,11 +405,19 @@ Core ships a **410 tolerance release first**, nodes move second: core today
 falls to `unknown` on a 410, which it reads as endpoint evidence. Core notes
 this client is on the `file:` link and so gets it as soon as core builds.
 
+**`0.16.0` is being cut and published, Tom approved the publish 2026-09-21.**
+It carries everything in `0.15.0` — which is tagged and **will never be
+published, deliberately, so nobody adopts twice** — plus the `410` tolerance
+and the `account_session_limit` tolerance. The linked `../macha-ts` already
+reports `0.16.0`. Core will say when `npm view` shows it, not when it tags.
+**A release here is what puts it on a phone**, and `main` pins published.
+
 **That is true of `develop` and false of the device.** What ships to a phone is
 `main`, which pins a published version, and the A85 is on 0.6.0. "This client
 has the tolerance" and "the tolerance is on hardware" are two different dates
-here, separated by a publish, a release and a 23-minute build. Core has been
-told not to let a node move on the strength of the first.
+here, separated by a publish, a release and a 23-minute build. **Core accepted
+this and the server has agreed to it as the order of record: the nodes do not
+move until the second date, not the first.**
 
 ---
 

@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import type { ClusterPlaybackApi, PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate } from '../api/playback';
 import type { PlaybackMode } from '../types';
-import { describeError, MachaApiError } from '../api/errors';
+import { describeError } from '../api/errors';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
   choosePlaybackInstruction,
@@ -23,7 +23,10 @@ import {
 } from '../playback/AudioEngine';
 import { Event as TrackEvent, State as TrackState } from 'react-native-track-player';
 import {
+  accountSessionLimitMessage,
+  ACCOUNT_SESSION_LIMIT_CODE,
   buildOrder,
+  classifyCreateRefusal,
   errorBlamesEndpoint,
   restoredVolume,
   seekRequiresReposition,
@@ -430,7 +433,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        setState((current) => ({ ...current, status: 'failed', buffering: false, error: describeError(error) }));
+        // The account is already playing as much as it may. That is not a
+        // fault and not this node's doing, and the server's own sentence —
+        // "Macha playback request failed: ..." — would read as a breakage.
+        const capped = classifyCreateRefusal(error) === 'account-session-limit';
+        if (capped) console.log('[macha] [playback] create-refused', { reason: ACCOUNT_SESSION_LIMIT_CODE });
+        setState((current) => ({
+          ...current,
+          status: 'failed',
+          buffering: false,
+          error: capped ? accountSessionLimitMessage(error) : describeError(error),
+        }));
       } finally {
         if (generationRef.current === myGeneration) setBusy(false);
       }
@@ -1350,7 +1363,14 @@ async function createSession(
     } catch (error) {
       // Only a refusal degrades. An unreachable node or a server fault says
       // nothing about the instruction, and asking for less would not help.
-      if (!(error instanceof MachaApiError) || error.status !== 400) throw error;
+      //
+      // Classified rather than `instanceof`-tested: core's resolver raises its
+      // own `MachaPlaybackError`, so the identity test this used to do could
+      // never match and every refusal was fatal, degrade path included.
+      const kind = classifyCreateRefusal(error);
+      // The account cap is not about the instruction. Every node answers it
+      // identically, so degrading burns the viewer's time proving that.
+      if (kind !== 'degrade') throw error;
       refusal = error;
       attempt = degradeInstruction(attempt);
     }

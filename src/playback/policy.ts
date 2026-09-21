@@ -78,6 +78,83 @@ export function statedUpdate(update: PlaybackUpdate, session: PlaybackSession): 
   );
 }
 
+/**
+ * The server code for the per-account playback session cap.
+ *
+ * **A mirror of a private set in core, and recorded as one.** Server 0.48.0
+ * adds this cap as the admission control that replaces one-session-per-bearer:
+ * once one bearer can hold several sessions, nothing else bounds an account.
+ * Core classifies it in `ACCOUNT_SCOPED_FAILURE_CODES` so the refusal is
+ * neither walked nor charged — every node answers it identically, so a walk is
+ * guaranteed-futile work that would also record a failure against every
+ * healthy node on the way.
+ *
+ * That set and its predicate are **module-private in core**, so there is
+ * nothing to import and this string is the only way to recognise the outcome
+ * here. Core has been asked to export the predicate; when it does, delete this
+ * and call it. Until then this is a second declaration of one server fact,
+ * which is the shape of defect this project keeps writing down.
+ */
+export const ACCOUNT_SESSION_LIMIT_CODE = 'account_session_limit';
+
+/** What a refused `create` means, and therefore what may be done about it. */
+export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
+
+/**
+ * Why a node refused to create a playback session.
+ *
+ * **Duck-typed, deliberately, and this is the bug it fixes.** Two error classes
+ * reach this path carrying the same four fields: core's `MachaPlaybackError`,
+ * which its resolver raises, and this client's `MachaApiError` from its own
+ * fetch layer. `createSession` tested `error instanceof MachaApiError` before
+ * deciding whether to degrade an instruction — and core throws the *other*
+ * class, so that branch could never be taken and every refusal was fatal.
+ * Core reads `code` and `reason` off the object rather than testing identity
+ * for the same reason; this follows it.
+ *
+ * The three outcomes want three different things:
+ *
+ * - **`degrade`** — a `400` is the node rejecting *this transform*. Asking for
+ *   less is exactly the remedy, and `degradeInstruction` provides it.
+ * - **`account-session-limit`** — a `429` naming the account cap is a fact
+ *   about the account, not the instruction and not the node. Degrading cannot
+ *   help, another node would answer identically, and the viewer needs to be
+ *   told something true: they are already playing somewhere else. New with the
+ *   REST-resource change; see `TODO/ACTIVE.md`.
+ * - **`fatal`** — everything else, including a `429` that is *not* the account
+ *   cap. A node-wide limit is a different scope with a different remedy: core
+ *   walks and charges there, correctly, because that node really is full, and
+ *   reporting it to the viewer as their own account being at its limit would
+ *   be a lie with an action attached.
+ */
+export function classifyCreateRefusal(error: unknown): CreateRefusal {
+  if (!error || typeof error !== 'object') return 'fatal';
+  const { status, code } = error as { status?: unknown; code?: unknown };
+  if (status === 429 && code === ACCOUNT_SESSION_LIMIT_CODE) return 'account-session-limit';
+  if (status === 400) return 'degrade';
+  return 'fatal';
+}
+
+/**
+ * What to put in front of a viewer whose account is at its session cap.
+ *
+ * **Not the server's sentence.** Core wraps it as "Macha playback request
+ * failed: ...", which reads as a breakage, and the node is working exactly as
+ * designed — the account is simply already playing as much as it may. This is
+ * the same argument `isAuthRefusal` makes about 401 and 403: true, accurate
+ * and useless to whoever is holding the phone.
+ *
+ * The server states the limit and the current count in the body, and the
+ * envelope's message is the only place this client can see them, so it is kept
+ * as a detail rather than discarded. Nothing here parses figures out of it —
+ * that would be a second reading of a format the server owns.
+ */
+export function accountSessionLimitMessage(error: unknown): string {
+  const detail = error instanceof Error ? error.message.replace(/^Macha playback request failed:\s*/, '') : '';
+  const lead = 'This account is already playing on as many devices as it is allowed. Stop playback elsewhere and try again.';
+  return detail ? `${lead} (${detail})` : lead;
+}
+
 /** A seek the player has been asked for but has not yet reached. */
 export interface PendingSeek {
   targetMs: number;
