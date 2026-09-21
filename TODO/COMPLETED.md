@@ -25,7 +25,7 @@ this is the cutover.
 | Core tarball | `registry.npmjs.org/.../core-0.18.0.tgz` |
 | Integrity | `sha512-oMOvevoZ46L8jbVKrUnAdrIO9nfmmeNLNW/OaHPT33Zoi6IxVK24RTWpqMRC286UGCQo72xdwiURjuWlj2VCwA==` |
 | Published | 2026-09-21T19:31:23Z, confirmed by `npm view` before pinning |
-| Tagged | **No.** See below — this is a pushed tree, not yet a release |
+| Tagged | `0.8.0`, annotated, on `7932542` — pushed |
 
 ### What was actually verified, and against which tree
 
@@ -52,15 +52,20 @@ Skipping it is how every build on 2026-09-13 came out labelled 0.4.1.
 Afterwards on `develop`, against core `a3b40ca` through the restored link:
 `version:check` consistent, `tsc` clean, the same 204 tests.
 
-### Two things this release did NOT do
+### The tag, and the one thing this release did NOT do
 
-1. **It is not tagged.** A release in these repos *is* an annotated bare-semver
-   tag on `main`, and `git tag -a 0.8.0` has not been run. `version:check` is
-   silent about it by design — an untagged commit is work in progress, not a
-   disagreement — so nothing will complain. The tag is the remaining step.
-2. **It has not run on hardware at this version.** The A85 carries an
-   unreleased dev build of the same tree, which is a different thing and must
-   not be reported as 0.8.0.
+**Tagged `0.8.0`** — annotated, bare semver, on `7932542`, pushed with the
+branch. `version:check` was re-run against the tagged commit and reported
+`0.8.0 (versionCode 800), tagged 0.8.0 — consistent`. That run matters more
+than the untagged ones before it: the tag-against-`package.json` comparison and
+the refusal of a `file:` or `link:` dependency **only fire in a release
+context**, so until the tag existed neither had ever been exercised on this
+tree.
+
+**It has not run on hardware at this version.** The A85 carries an unreleased
+dev build of the same tree, which is a different thing and must not be reported
+as 0.8.0. Installing the tagged build on the A85 is the obvious next step and
+has not been done.
 
 ### The bump went on `main`, and `develop` was fast-forwarded to match
 

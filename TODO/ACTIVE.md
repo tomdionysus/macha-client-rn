@@ -28,11 +28,10 @@ anything.**
 
 ### Where the code is
 
-**`main` is at `7932542`, released as `0.8.0` and pushed 2026-09-21.** It is
-the first `main` since 0.6.0 to pin a published core. `develop` is **one commit
-past it** — the link restoration — and is **not pushed**; every earlier commit
-reached `origin` through the `main` push, because `main` is a fast-forward of
-`develop` as it has been for every release here.
+**`main` is at `7932542`, tagged `0.8.0`, and both are pushed — 2026-09-21.**
+It is the first `main` since 0.6.0 to pin a published core. `develop` is **one
+commit past it** — the link restoration — and is pushed too. Everything is on
+`origin`; there is nothing outstanding to send.
 
 **`main` is an ancestor of `develop`, and that invariant is worth keeping.**
 The 0.8.0 bump was made on `main` rather than on `develop` as 0.7.0's was, and
@@ -40,10 +39,12 @@ The 0.8.0 bump was made on `main` rather than on `develop` as 0.7.0's was, and
 `git log develop..main` is empty before the next release; if it is not, the
 merge will conflict on `package.json` instead of fast-forwarding.
 
-**Nothing is tagged `0.8.0` yet.** The release commit is on `main` and pushed,
-but a release here *is* the tag, so until `git tag -a 0.8.0` lands this is a
-pushed tree rather than a release. `version:check` passes without it, because
-an untagged commit is ordinary work in progress rather than a disagreement.
+**`0.8.0` is a real release**: an annotated, bare-semver tag on `main`
+pointing at `7932542`, pushed. `version:check` was re-run with the tag in place
+and reported `0.8.0 (versionCode 800), tagged 0.8.0 — consistent`, which is the
+only run that exercises the checks firing solely in a release context — the
+tag-against-`package.json` comparison, and the refusal of any `file:` or
+`link:` dependency. **It has still never run on hardware at this version.**
 
 Sixteen commits separate 0.7.0 from 0.8.0, newest first: the link restoration;
 the release; the handover rewrite; the busy-flag fix; the day's record; the
