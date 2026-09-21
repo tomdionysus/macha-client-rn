@@ -328,74 +328,81 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       lastCheckpointRef.current = 0;
       knownDurationRef.current = 0;
 
+      // **`busy` is owned from here to the `finally` below, with nothing
+      // outside it.** It used to be set here while the `try` began forty
+      // lines further down, so anything thrown in between — `stopAudio`, a
+      // download failing to load — stranded the flag and left the Play button
+      // disabled until the app was restarted. The generation guard already
+      // stopped a superseded load from clearing it; what was missing was any
+      // guarantee that this load reached a `finally` at all.
       setBusy(true);
-      setState((current) => ({
-        ...current,
-        status: 'loading',
-        media,
-        session: undefined,
-        positionMs: 0,
-        durationMs: media.durationMs ?? 0,
-        bufferedMs: 0,
-        buffering: true,
-        error: undefined,
-        queue: [...items],
-        queueIndex: index,
-      }));
-
-      // The old lease is released before a replacement is requested, so a node
-      // never holds two transcode entitlements for one viewer.
-      const audio = media.kind === 'track';
-      engineRef.current = audio ? 'audio' : 'video';
-      player.pause();
-      player.replace(null, true);
-      // The audio engine owns music entirely, notification included, so
-      // expo-video must not also claim a media session or a background slot.
-      player.staysActiveInBackground = false;
-      player.showNowPlayingNotification = false;
-      if (!audio) await stopAudio();
-      await releaseSession(previous);
-      if (generationRef.current !== myGeneration) return;
-
-      const remembered = continueWatching.positionFor(media.id);
-      const seekMs = options.seekMs ?? (remembered > RESUME_FLOOR_MS ? remembered : 0);
-
-      // A downloaded original is played straight off the disk: no session, no
-      // capability URL, no node. This is the whole point of downloads — in
-      // airplane mode there is nothing to negotiate with.
-      const stored = downloads.localFor(media);
-      if (stored?.localUri) {
-        if (audio) {
-          await loadAudioTrack(audioTrackFor(media, stored.localUri, stored.artworkUri, false), seekMs);
-        } else {
-          player.replace(
-            {
-              uri: stored.localUri,
-              contentType: 'auto',
-              metadata: { title: media.title, artist: nowPlayingArtist(media), artwork: stored.artworkUri },
-            },
-            true,
-          );
-          if (seekMs > 0) player.currentTime = seekMs / 1000;
-          player.play();
-        }
-        // Off the disk there is no node to ask, so the player's own reading is
-        // the only one available and is left free to supply it.
-        knownDurationRef.current = 0;
-        durationRef.current = media.durationMs ?? 0;
+      try {
         setState((current) => ({
           ...current,
-          status: 'ready',
+          status: 'loading',
+          media,
           session: undefined,
-          durationMs: media.durationMs ?? current.durationMs,
-          positionMs: seekMs,
-          buffering: false,
+          positionMs: 0,
+          durationMs: media.durationMs ?? 0,
+          bufferedMs: 0,
+          buffering: true,
+          error: undefined,
+          queue: [...items],
+          queueIndex: index,
         }));
-        setBusy(false);
-        return;
-      }
 
-      try {
+        // The old lease is released before a replacement is requested, so a node
+        // never holds two transcode entitlements for one viewer.
+        const audio = media.kind === 'track';
+        engineRef.current = audio ? 'audio' : 'video';
+        player.pause();
+        player.replace(null, true);
+        // The audio engine owns music entirely, notification included, so
+        // expo-video must not also claim a media session or a background slot.
+        player.staysActiveInBackground = false;
+        player.showNowPlayingNotification = false;
+        if (!audio) await stopAudio();
+        await releaseSession(previous);
+        if (generationRef.current !== myGeneration) return;
+
+        const remembered = continueWatching.positionFor(media.id);
+        const seekMs = options.seekMs ?? (remembered > RESUME_FLOOR_MS ? remembered : 0);
+
+        // A downloaded original is played straight off the disk: no session, no
+        // capability URL, no node. This is the whole point of downloads — in
+        // airplane mode there is nothing to negotiate with.
+        const stored = downloads.localFor(media);
+        if (stored?.localUri) {
+          if (audio) {
+            await loadAudioTrack(audioTrackFor(media, stored.localUri, stored.artworkUri, false), seekMs);
+          } else {
+            player.replace(
+              {
+                uri: stored.localUri,
+                contentType: 'auto',
+                metadata: { title: media.title, artist: nowPlayingArtist(media), artwork: stored.artworkUri },
+              },
+              true,
+            );
+            if (seekMs > 0) player.currentTime = seekMs / 1000;
+            player.play();
+          }
+          // Off the disk there is no node to ask, so the player's own reading is
+          // the only one available and is left free to supply it.
+          knownDurationRef.current = 0;
+          durationRef.current = media.durationMs ?? 0;
+          setState((current) => ({
+            ...current,
+            status: 'ready',
+            session: undefined,
+            durationMs: media.durationMs ?? current.durationMs,
+            positionMs: seekMs,
+            buffering: false,
+          }));
+          // `busy` is cleared by the `finally`; this path only returns.
+          return;
+        }
+
         const { instruction, durationMs: knownDurationMs } = await chooseInstruction(
           mediaApi,
           playbackApi,
@@ -798,6 +805,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     // the replacement being built.
     player.pause();
 
+    // **Bumping the generation means taking ownership of `busy`.** Every other
+    // path that bumps it — `load`, `repositionTo`, `applyUpdate` — sets `busy`
+    // and clears it in a `finally` under the same generation guard. This one
+    // bumped and did not, which is how the flag came to be stranded: a `load`
+    // awaiting `releaseSession` returns early when the generation moves,
+    // deliberately leaving `busy` to whoever superseded it, and a failover
+    // then never cleared it. The Play button stayed disabled until the app was
+    // restarted. Measured on the A85 2026-09-21, four titles in a row.
+    setBusy(true);
     const myGeneration = ++generationRef.current;
     const resumeMs = positionRef.current;
     // Logged because a short outage is recovered by the platform player's own
@@ -851,6 +867,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       return generationRef.current !== myGeneration;
     } finally {
       failoverInFlightRef.current = false;
+      // Same guard as every other owner: a recovery that has itself been
+      // superseded must not clear the flag out from under whatever replaced
+      // it. See the note beside the `setBusy(true)` above.
+      if (generationRef.current === myGeneration) setBusy(false);
     }
   }, [mediaApi, player, playbackApi]);
 
