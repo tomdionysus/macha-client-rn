@@ -441,13 +441,25 @@ records it in the same terms. `version:check` enforces the mechanical half.
 deliberately, so that nobody adopts twice. `0.17.0` carries their `410` and
 `account_session_limit` tolerances plus the three accessors.
 
-**A version number is not an identifier right now, and this is the trap.**
-`0.17.0` was tagged before `playbackFailureStatus` existed and the linked tree
-carries it under the same number, so two trees answer `0.17.0` with different
-contents — the same failure this project has recorded three times in other
-forms. **Record the SHA and the `dist` hash beside anything measured.** As of
-this commit: core `9a37ce3`, clean tree, `dist` `*.js` hash `57eef0e50f42`
-(hashed from inside `dist`, because `shasum` includes the path it is given).
+**The linked tree now says `0.18.0-dev`, and that is the fix for a hazard that
+was live.** `0.17.0` was tagged at `c3d840b` before `playbackFailureStatus`
+existed; `develop` was at `9a37ce3` with **250 lines of source between them**,
+both answering `"version": "0.17.0"`, with four clients hotlinked to it. Core
+confirmed and chose a prerelease over the `0.17.1` tag this client suggested,
+for a better reason than the suggestion: a tag names one commit and `develop`
+moves again within the hour, so it buys a correct number briefly and then the
+hazard returns quietly. `-dev` cannot collide with a tag by construction and
+tells a reader what the tree is. The release commit still bumps to bare semver
+with the tag on that.
+
+**Record the SHA and the `dist` hash beside anything measured — not the
+version.** Hash from *inside* `dist`, because `shasum` includes the path it is
+given and two runs from different directories disagree about identical bytes.
+
+As of this commit: core `938501d`, clean tree, `dist` `*.js` hash
+`57eef0e50f42`. **The hash is unchanged from `9a37ce3` while the SHA moved**,
+because that commit touched only `package.json` — which is the method working:
+the SHA says which commit, the hash says whether anything that runs changed.
 **A release here is what puts it on a phone**, and `main` pins published.
 
 **That is true of `develop` and false of the device.** What ships to a phone is
