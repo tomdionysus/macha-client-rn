@@ -1,3 +1,4 @@
+import { compareIndexedTitles } from '@machafoundation/core';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import { offlineMedia } from '../state/downloads';
 import type { AlbumDetails, ArtistDetails, LibraryHome, MediaDetails, MediaSummary, SeasonDetails, ShowDetails } from '../types';
@@ -24,7 +25,7 @@ export class OfflineLibrary {
   private byKind(kind: MediaSummary['kind']): MediaSummary[] {
     return this.items()
       .filter((item) => item.kind === kind)
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .sort((a, b) => compareIndexedTitles(a.title, b.title));
   }
 
   get isEmpty(): boolean {
@@ -73,7 +74,7 @@ export class OfflineLibrary {
         musicContext: context,
       });
     }
-    return [...albums.values()].sort((a, b) => a.title.localeCompare(b.title));
+    return [...albums.values()].sort((a, b) => compareIndexedTitles(a.title, b.title));
   }
 
   artists(): MediaSummary[] {
@@ -89,7 +90,7 @@ export class OfflineLibrary {
         mediaIds: [],
       });
     }
-    return [...artists.values()].sort((a, b) => a.title.localeCompare(b.title));
+    return [...artists.values()].sort((a, b) => compareIndexedTitles(a.title, b.title));
   }
 
   /** Series reconstructed from downloaded episodes, same principle as albums. */
@@ -106,7 +107,7 @@ export class OfflineLibrary {
         mediaIds: [],
       });
     }
-    return [...shows.values()].sort((a, b) => a.title.localeCompare(b.title));
+    return [...shows.values()].sort((a, b) => compareIndexedTitles(a.title, b.title));
   }
 
   home(): LibraryHome {

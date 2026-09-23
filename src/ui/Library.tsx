@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { compareIndexedTitles } from '@machafoundation/core';
 import type { MediaSummary } from '../types';
 import { MediaGrid } from './MediaGrid';
 import { SearchIcon } from './Icons';
@@ -30,7 +31,10 @@ export function Library({ items, onOpen, noun, shape }: Props) {
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    const sorted = [...items].sort((a, b) => a.title.localeCompare(b.title));
+    // Core's title order, which every other client uses: a leading article
+    // is ignored, accents fold and numbers order as numbers, so "The Matrix"
+    // files under M here as it does on the web and the television.
+    const sorted = [...items].sort((a, b) => compareIndexedTitles(a.title, b.title));
     if (!needle) return sorted;
     return sorted.filter((item) => item.title.toLowerCase().includes(needle));
   }, [items, filter]);
