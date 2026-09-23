@@ -184,9 +184,23 @@ downloaded artwork. And the registry health probes that feed the round trip
 already run here. Expect one re-download of posters on the first run where it
 switches. Not yet seen on the phone.
 
-**Relayed and not yet confirmed by Tom** — reached this client through the
-web client and core on 2026-09-24, same two hops as the sort and episode
-rulings, which Tom did confirm. Hold until he does:
+**Tom's decisions, 2026-09-24 — build these next, in this order:**
+
+1. **Grey out Direct play like Remux** when this device cannot decode the
+   video (Tom: yes). Reuse `remuxUnavailableReason`'s shape in
+   `src/playback/policy.ts`, but judge Direct against `videoCodecs` (the
+   direct-play decoder list) rather than `hlsVideoCodecs`, and consider the
+   container too (`containerIsPlayable` in core). Wire it in
+   `src/ui/PlaybackOptionsSheet.tsx` beside `remuxBlocked`. Update
+   `transformFor`'s docblock, which argues the opposite. Test first; verify
+   on the A85 with *Dark* (ten-bit HEVC).
+2. **The three relayed search rulings below** (Tom: yes, all three).
+3. **The reaped-session probe's attribution** — put to Tom as A (wait out
+   the node's window, act only if the player is still in error;
+   recommended) or B (ignore errors for a fixed period after every source
+   change). **No answer yet.** Nothing on the probe until he picks.
+
+**Relayed search rulings — confirmed by Tom 2026-09-24:**
 - **Search terms:** core's `searchTerms` drops "the", "a", "an", and
   `isSearchable` needs 2 characters left. `MachaMediaApi.search` applies both
   itself, so this client may already inherit it through the catalogue —
