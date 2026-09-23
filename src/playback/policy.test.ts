@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { audioCopyable, buildOrder, sessionAudioCodec, statedUpdate, transformFor } from './policy';
+import { audioCopyable, buildOrder, positionedUpdate, sessionAudioCodec, statedUpdate, transformFor } from './policy';
 import type { PlaybackSession } from '@machafoundation/core';
 import { Platform } from 'react-native';
 
@@ -55,6 +55,56 @@ describe('statedUpdate', () => {
   it('ignores the "choose" sentinel, which this client never sends', () => {
     const update = { preferences: { mode: 'choose' as const } };
     expect(statedUpdate(update, sessionWith(720))).toBe(update);
+  });
+});
+
+/**
+ * A change that makes a new generation has to say where it starts.
+ *
+ * **Seen on the A85 2026-09-23 23:42:** *2001* at 1:08:10, Direct, the viewer
+ * picks Remux; the PATCH carried `{ mode, video, audio }` and no position, the
+ * node began the remux at `seekMs: 0`, and the film restarted from the
+ * overture. The same `seekMs: 0` came back from the 18:31 Remux on *Dark*.
+ * `applyUpdate` restored the position only when the target was Direct.
+ *
+ * Core's coordinator has the rule this client, standing in for it, never
+ * carried: every representation update is sent with `seekMs` at the current
+ * position, except a subtitle-only one or a session that cannot seek.
+ */
+describe('positionedUpdate', () => {
+  const seekable = (canSeek = true) => ({ options: { canSeek } }) as unknown as PlaybackSession;
+
+  it('tells the node where the viewer is when the mode changes', () => {
+    const update = { preferences: { mode: 'remux' as const } };
+    expect(positionedUpdate(update, seekable(), 4_090_000).seekMs).toBe(4_090_000);
+  });
+
+  it('carries the position on a quality change too, which also regenerates', () => {
+    expect(positionedUpdate({ preferences: { maxHeight: 720 } }, seekable(), 60_000).seekMs).toBe(60_000);
+  });
+
+  it('leaves a subtitle-only change alone, which does not regenerate', () => {
+    const update = { preferences: { subtitleStream: 2 } };
+    expect(positionedUpdate(update, seekable(), 60_000)).toBe(update);
+  });
+
+  it('does not ask a session that cannot seek to seek', () => {
+    const update = { preferences: { mode: 'transcode' as const } };
+    expect(positionedUpdate(update, seekable(false), 60_000)).toBe(update);
+  });
+
+  it('survives statedUpdate, which rebuilds the request through core', () => {
+    // The order `applyUpdate` uses. If the restatement dropped `seekMs` the
+    // fix above would change nothing on the wire.
+    const session = { options: { canSeek: true }, preferences: { maxHeight: null, maxBitrate: null } } as unknown as PlaybackSession;
+    const sent = statedUpdate(positionedUpdate({ preferences: { mode: 'remux' } }, session, 4_090_000), session);
+    expect(sent.seekMs).toBe(4_090_000);
+    expect(sent.preferences).toMatchObject({ mode: 'remux', video: 'copy', audio: 'copy' });
+  });
+
+  it('keeps a position the caller already stated', () => {
+    const update = { seekMs: 5_000, preferences: { maxHeight: 480 } };
+    expect(positionedUpdate(update, seekable(), 60_000).seekMs).toBe(5_000);
   });
 });
 

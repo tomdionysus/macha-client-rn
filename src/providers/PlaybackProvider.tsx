@@ -29,6 +29,7 @@ import {
   createFailureMessage,
   errorBlamesEndpoint,
   generationLocalMs,
+  positionedUpdate,
   restoredVolume,
   seekRefusalMessage,
   seekRequiresReposition,
@@ -984,7 +985,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // node's, and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
-        const next = await playbackApi.update(session, statedUpdate(update, session));
+        const next = await playbackApi.update(session, statedUpdate(positionedUpdate(update, session, resumeMs), session));
         if (generationRef.current !== myGeneration) return;
         sessionRef.current = next;
         const sourceUnchanged = next.source.url === session.source.url;

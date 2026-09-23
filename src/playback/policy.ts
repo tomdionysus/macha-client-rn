@@ -1,6 +1,7 @@
 import { deviceCapabilities } from './capabilities';
 import {
   isAccountSessionLimit,
+  isSubtitleOnlyPlaybackUpdate,
   playbackFailureCode,
   playbackFailureDetail,
   playbackFailureStatus,
@@ -173,6 +174,28 @@ function objectionSentence(
     default:
       return 'this device cannot play this video without converting it.';
   }
+}
+
+/**
+ * Says where a new generation should start: where the viewer is.
+ *
+ * **This client stands in for `PlaybackCoordinator` here too, and had not
+ * carried this rule.** The coordinator sends every representation update with
+ * `seekMs` at the current position, except a subtitle-only one or a session
+ * that cannot seek — core's `isSubtitleOnlyPlaybackUpdate` draws that line and
+ * is used as-is. Without it the node starts the new generation where it
+ * likes: on the A85 2026-09-23 23:42, *2001* at 1:08:10 switched Direct to
+ * Remux and began again at `seekMs: 0`, and the 18:31 Remux on *Dark* came
+ * back at `0` the same way. `applyUpdate` had covered only a Direct target,
+ * by setting the player's position after the fact.
+ *
+ * A position the caller already stated wins; the position is bound when the
+ * request is made, which is also the coordinator's rule.
+ */
+export function positionedUpdate(update: PlaybackUpdate, session: PlaybackSession, positionMs: number): PlaybackUpdate {
+  if (update.seekMs !== undefined) return update;
+  if (isSubtitleOnlyPlaybackUpdate(update) || !session.options?.canSeek) return update;
+  return { ...update, seekMs: Math.max(0, Math.round(positionMs)) };
 }
 
 /**
