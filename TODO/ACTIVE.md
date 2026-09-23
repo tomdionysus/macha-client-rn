@@ -69,12 +69,13 @@ and is not comparable.
 ### What is on the phone
 
 **The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-23 23:24:21 from `develop` at `b80ab7a`'s tree, core through the link
-at `../macha-ts` `23583aa`, **core `dist:hash` `66d79d1f8e4b`**. It still says
+2026-09-23 23:55:01 from `develop` at `0ba69ef`'s tree, core through the link
+at `../macha-ts` `4a85387`, **core `dist:hash` `c8244de61791`**. It still says
 `versionCode 800` because the version was not bumped — **so the package
 manager cannot tell it from 0.8.0**, and neither can anyone reading
-`dumpsys`. Identify it by `lastUpdateTime`. Left on the home screen, nothing
-playing.
+`dumpsys`. Identify it by `lastUpdateTime`. Left playing *2001* in Remux,
+in landscape, around 15:00 — a session open on the LAN node, which the next
+launch of this build will close. `c345507` (title order) is not in it.
 
 To put the release back: build `assembleRelease` from `main` at `7932542`
 with the registry core (the procedure under *Releasing*), and `install -r`.
@@ -143,17 +144,20 @@ screen. The evidence for each is in COMPLETED under that date.
 ### Open, in the order worth taking them
 
 1. **The rest of the smoke test.** Done on hardware 2026-09-23: transcode
-   play, Remux blocked with its reason, the guard reporting on Direct. Still
-   unrun: remux on an eight-bit title, a quality change, the create-failure
-   copy (nothing failed to start), the player-failure copy. **The account cap
-   still cannot be tested** — the node limit refuses first.
+   play, Remux blocked on ten-bit and offered and working on eight-bit, the
+   guard reporting on Direct, Try again, the orphan reclaim, a mode switch
+   keeping its place. Still unrun: **a quality change** (the phone was turned
+   to landscape mid-run and the portrait tap map stopped applying), the
+   create-failure copy (nothing failed to start where a viewer saw it), the
+   player-failure copy. **The account cap still cannot be tested** — the
+   node limit refuses first.
 2. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
    core first** — it exists (checked 2026-09-23), it is the contract for hosts
    driving the resolver without a coordinator, written partly from this
    client's case, and it is unread here.
-3. **The failure screen and the seek path.** P2 below — chrome over the
-   panel, one `describeError` left, and whether Direct should be marked
-   unavailable like Remux (Tom's call, not yet asked).
+3. **Left over from the failure screen.** P2 below — `durationRef` across a
+   load, and whether Direct should be marked unavailable like Remux (Tom's
+   call, not yet asked).
 4. **Zulu.** P2 below.
 5. **544 MPEG-4 Part 2 files.** P2 below.
 6. **AV1 ten-bit SDR.** P2 below.
@@ -162,7 +166,15 @@ Done 2026-09-23 and in COMPLETED: 0.8.0 seen running; refusal copy through
 `playbackFailureDetail`; the supersede guard reports; Remux unavailable with
 a reason; a failed start in words a viewer can use; Try again no longer
 skips episodes; the README states the version; sessions a killed process
-left are closed at the next launch.
+left are closed at the next launch; the failure panel is clear of the
+transport; a refused jump says so; a mode switch keeps its place; library
+titles sort as on every other client.
+
+**Waiting on a core release:** core `2816e5e` (unpublished) adds
+`SEARCH_SORTS`, `LIBRARY_SORTS`, `orderMedia` and `newestYearFirst`, asked for
+on Tom's instruction that ordering be common to every client. This client
+has no sort control to put them in, and `main` may pin only published core;
+the title order they share is already in via `compareIndexedTitles`.
 
 **The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
 favour of the session leak, with its design question put and not answered:**
@@ -615,32 +627,23 @@ that would be a gap in theirs rather than a preference.
 
 ---
 
-## P2 — Two things seen on the failure screen and the seek path
+## P2 — Left over from the failure screen
 
-- **The transport chrome is drawn over the failure panel.** On the A85
-  2026-09-23 19:04 the ±10 s and play buttons sat on top of the failure
-  message, in `src/app/play.tsx`: the failure `View` renders before the
-  chrome, and `chromeVisible` stays true in `failed`. Hide the transport
-  while `status === 'failed'`, or render the panel above it. Not verified
-  whether a tap on an overlapping area reaches the button underneath.
+The transport over the failure panel and the refused-seek copy were done
+2026-09-23 (COMPLETED). Two things remain.
+
 - **`durationRef` is not reset by `load`.** The 22:37 `play-to-end` for
   S01E04 carried S01E03's duration (`2732334`). `knownDurationRef` is reset,
   `durationRef` is not, so until the new source reports one, anything
   reading it — the Continue Watching retire, the seek bound — uses the last
   item's. Harmless in the case seen, because that end is now ignored; not
   checked anywhere else.
-- **A refused rebuilding seek still shows core's log line.** `repositionTo`'s
-  `catch` uses `describeError`, the last playback site that does. Same shape
-  as `updateRefusalMessage`, but the honest lead differs — whether the old
-  generation is still playing after a refused seek has not been checked.
-
-**Direct play has the same video hole Remux had, and was left alone on
-purpose** — `transformFor`'s docblock argues a viewer who names Direct gets
-what they asked for. Tom's 2026-09-23 decision was about Remux. With the
-guard now reporting, Direct on an undecodable title ends in an honest
-failure rather than a black screen; whether it should instead be marked
-unavailable like Remux is Tom's call and has not been asked.
-
+- **Direct play has the same video hole Remux had, and was left alone on
+  purpose** — `transformFor`'s docblock argues a viewer who names Direct gets
+  what they asked for. Tom's 2026-09-23 decision was about Remux. With the
+  guard now reporting, Direct on an undecodable title ends in an honest
+  failure rather than a black screen; whether it should instead be marked
+  unavailable like Remux is Tom's call and has not been asked.
 ---
 
 ## P2 — What the route cutover left open

@@ -8,6 +8,73 @@ Newest first.
 
 ---
 
+## 2026-09-23 late — The failure screen, a refused jump, a mode switch's place, title order
+
+Four commits after the orphan reclaim; the first three seen on the A85
+between 23:39 and 00:03, on builds from `a082ec6` and `0ba69ef` with core
+`4a85387`, dist `c8244de61791`.
+
+### The transport is off the failure panel — `a082ec6`
+
+The ±10 s and play buttons painted over the failure message (19:04 and
+22:37 screenshots) and can do nothing for a failed player; they are hidden
+while `status === 'failed'`. The top bar stays, because it holds the Playback
+menu the failure message tells the viewer to use. **Built and installed;
+the failure screen itself was not re-shot on this build** — the run moved on
+to the position bug below before *Dark* was failed again. Low risk, one
+conditional, but unobserved.
+
+### A refused jump says so — `a082ec6`
+
+`repositionTo`'s `catch` was the last playback site on `describeError`.
+`seekRefusalMessage`: *"Could not jump to that point just now, so playback
+stayed where it was."*, node's sentence in brackets. It does not claim
+playback carried on, because the viewer may be paused. Three tests, red
+first on the missing function. **Not provoked on hardware.**
+
+### A mode switch keeps its place — `0ba69ef`
+
+**Found on the A85 at 23:42, and it explains a number left unexplained at
+18:31.** *2001* at 1:08:10 in Direct, the viewer picks Remux (offered: the
+sheet logged `h264 High 8-bit, blocked: false`). PATCH `{ mode: 'remux',
+video: 'copy', audio: 'copy' }`, **no position**; the node began the remux
+at `seekMs: 0` and the film restarted from the overture. The 18:31 Remux on
+*Dark* had come back at `seekMs: 0` too. `applyUpdate` restored position only
+for a Direct target. **It also cost the saved place:** Continue Watching
+then held the replay's position, not 1:08:10.
+
+Core's coordinator sends every representation update with `seekMs` at the
+current position unless it is subtitle-only or the session cannot seek;
+this client stands in for it and had not carried the rule.
+`positionedUpdate` applies it with core's `isSubtitleOnlyPlaybackUpdate`.
+Six tests — five red first on the missing function, one proving the
+position survives `statedUpdate`'s restatement through core.
+
+**On the A85, 00:02:** *2001* resumed Direct at `743734`; Remux sent
+`seekMs: 814556`, the node answered `812938` (nearest random-access point),
+and the picture was at **14:08** and moving, bar and header right.
+
+Also seen on that run: **Remux on an eight-bit title works** — first time on
+hardware — and **the orphan reclaim fired again in its real case**: the
+`install -r` that delivered `0ba69ef` killed the process holding *2001*'s
+Remux session on the LAN node, and the relaunch closed it
+(`10.35.1.50::0159bf3d…`, `untracked-session-closed` 4.9 s later).
+
+**Not done:** the quality change. The phone was turned to landscape mid-run
+(1612×720); the portrait tap map no longer applied and the run stopped
+rather than guess.
+
+### Library titles sort as every other client does — `c345507`
+
+From core's session: `src/ui/Library.tsx:33` and four sites in
+`src/api/offlineLibrary.ts` sorted on raw `title.localeCompare`, so "The
+Matrix" filed under T here and under M on the web and television. Checked by
+opening them; all five now use core's `compareIndexedTitles`, published in
+`0.18.0`. The album-track tiebreak at line 44 is left. **No test here** — it
+would assert core's comparator — and not looked at on the phone.
+
+---
+
 ## 2026-09-23 — Sessions a killed process left open are closed at the next launch
 
 `b80ab7a`. Taken ahead of the reaped-session probe on Tom's call.
