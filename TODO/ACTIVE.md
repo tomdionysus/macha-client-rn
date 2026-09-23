@@ -644,6 +644,7 @@ The transport over the failure panel and the refused-seek copy were done
   guard now reporting, Direct on an undecodable title ends in an honest
   failure rather than a black screen; whether it should instead be marked
   unavailable like Remux is Tom's call and has not been asked.
+
 ---
 
 ## P2 — What the route cutover left open
