@@ -8,6 +8,70 @@ Newest first.
 
 ---
 
+## 2026-09-23 — Sessions a killed process left open are closed at the next launch
+
+`b80ab7a`. Taken ahead of the reaped-session probe on Tom's call.
+
+### The inherited claim, corrected
+
+ACTIVE said *"No client fix closes this, and no core fix either: a process
+that is gone cannot send a `DELETE`."* True of the dead process, not of the
+next launch. Core's `docs/resolver-direct.md` — read here for the first time
+today — says a resolver-direct host owns every session it creates, including
+those left by a process that died, and that `stop()` acts on an id it has no
+record of: core mints `${endpoint.id}::${nodeSessionId}`, recovers the node
+from it (`provenanceFromId`, in `0.18.0`), and an untracked close never
+throws and never charges the node. Nothing here used it.
+
+**The cost of not doing it was on the phone the same evening:** the LAN node
+refused a create `429 resource_limit`, "video transcode limit reached",
+`node_healthy: true` — most likely holding this client's own orphans, one per
+`install -r`.
+
+### What was built
+
+- `src/playback/sessionLedger.ts`: a persisted list of session ids
+  (`macha.playbackSessions.v1` in `clientStore`), `takeOrphans()` once per
+  process, `reclaimOrphans()` closing each and forgetting it whether or not
+  the close worked.
+- `ClusterPlaybackApi` records on `create` and `failover`, forgets the
+  replaced id after a failover (core releases it), and forgets on a stop
+  **only when it succeeds** — a failed close is what the next launch retries.
+- `MachaProvider` snapshots the orphans at hydration, before any endpoint
+  exists to create on, and reclaims once the registry is seeded, because the
+  node is found through it.
+
+**The trap avoided:** the playback services are rebuilt on every connection
+generation, so a reclaim tied to their construction would have closed the
+session playing at the time. The ledger is module-scoped and the snapshot is
+taken once.
+
+Downloads go through the same API and are covered; `resumeInterrupted`
+re-queues with a fresh session, so closing the old one costs nothing.
+
+### On the A85, 23:24–23:27
+
+Build from `b80ab7a`'s tree, core `23583aa`, dist `66d79d1f8e4b`.
+
+1. First launch: no reclaim (the previous build had no ledger).
+2. Played *Dark* S01E06 — session `391cecc9…` on `ramaroja` (the LAN node
+   had answered `503 playback_pipeline_start_failed` after 15.9 s, and core
+   walked).
+3. `am force-stop`, the same death a swipe-away is.
+4. Relaunch: **`orphan-sessions-reclaim { count: 1 }` 236 ms after start**,
+   `session-provenance-recovered` for `ramaroja::391cecc9…`, `DELETE` **204**
+   in 2.3 s, `untracked-session-closed`.
+5. Force-stop and relaunch again without playing: **no reclaim** — the id
+   was forgotten.
+
+Six tests, failed first on the missing module. The wiring is proven by the
+run above, not by them.
+
+**What it does not cover:** a phone not opened again within thirty minutes.
+That residue is what the server-side entitlement change would close.
+
+---
+
 ## 2026-09-23 — Try again skipped two episodes; a clear was being read as an end
 
 **Suspected at 19:05, proven at 22:37, fixed and seen fixed at 22:47**, all

@@ -69,12 +69,12 @@ and is not comparable.
 ### What is on the phone
 
 **The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-23 22:45:28 from `develop` at `81d1860`'s tree, core through the link
-at `../macha-ts` `0ac8f21`, **core `dist:hash` `b67ed78c48f0`**. It still says
+2026-09-23 23:24:21 from `develop` at `b80ab7a`'s tree, core through the link
+at `../macha-ts` `23583aa`, **core `dist:hash` `66d79d1f8e4b`**. It still says
 `versionCode 800` because the version was not bumped — **so the package
 manager cannot tell it from 0.8.0**, and neither can anyone reading
-`dumpsys`. Identify it by `lastUpdateTime`. It was left playing *Dark*
-S01E06 from `macnessa`.
+`dumpsys`. Identify it by `lastUpdateTime`. Left on the home screen, nothing
+playing.
 
 To put the release back: build `assembleRelease` from `main` at `7932542`
 with the registry core (the procedure under *Releasing*), and `install -r`.
@@ -161,7 +161,21 @@ screen. The evidence for each is in COMPLETED under that date.
 Done 2026-09-23 and in COMPLETED: 0.8.0 seen running; refusal copy through
 `playbackFailureDetail`; the supersede guard reports; Remux unavailable with
 a reason; a failed start in words a viewer can use; Try again no longer
-skips episodes; the README states the version.
+skips episodes; the README states the version; sessions a killed process
+left are closed at the next launch.
+
+**The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
+favour of the session leak, with its design question put and not answered:**
+attribute a player error to its generation by *persistence* (wait out the
+node's window, act only if the player is still in error — the rule the
+supersede fix already uses) or by a fixed quiet period after `replace`.
+Persistence was recommended. **Two facts found while asking, both against
+the entry below:** `sessionAlive` has recovered the node from the id since
+`0.18.0`, so probing a released session no longer throws — it answers
+`false`, which the planned sequence reads as *regenerate*, and that makes
+attribution matter more, not less; and `regenerate`'s "no endpoint" throw is
+still a bare `Error` with no code, so telling its two throws apart needs one
+from core before it can be done without matching core's wording.
 
 ### The habit that paid, and the one that did not
 
@@ -886,22 +900,6 @@ not be scheduled as though a stopped node would produce it.
 
 ---
 
-## P2 — A session is leaked on process death, and only the server can close it
-
-The session, and with it the video transcode entitlement, lives until
-`session_idle` at **30 minutes** (`SERVER_SESSION_IDLE_MS`), not the 60 s
-`pipeline_idle` that reclaims the engine. So process death costs a one-slot
-node its only transcode slot for half an hour.
-
-`releaseSession` runs on stop, on replacement and on reconfiguration, but not
-when the app is swiped away or killed. Backgrounding deliberately does *not*
-release — music is meant to keep playing — so the gap is process death
-specifically.
-
-**No client fix closes this, and no core fix either:** a process that is gone
-cannot send a `DELETE`. Kept as the standing argument for the server-side
-change under consideration (below) rather than as work to do.
-
 ## P2 — Nothing anywhere knows about speaker layout
 
 **Status:** putative for this client, live elsewhere.
@@ -1077,8 +1075,10 @@ Do not chase a self-changing node count as a bug.
 
 **Tying the video transcode entitlement to the engine rather than the session**
 is under consideration, so pipeline reclaim at 60 s frees the slot and a
-resuming session re-acquires it. It closes the hole no client can — crashes,
-power loss, force-quit — but it is **client-visible**: a session could be
+resuming session re-acquires it. **Since 2026-09-23 this client closes what a
+killed process left at its next launch** (COMPLETED), so the hole left for
+the server is the phone that is not opened again inside thirty minutes —
+smaller than "no client can", not gone. It is **client-visible**: a session could be
 *refused on resume* where today admission is guaranteed for its lifetime. That
 is a new state this client would have to handle rather than treat as an error.
 With the reaped-session P1 wired, `regenerate` failing on the owning node is
