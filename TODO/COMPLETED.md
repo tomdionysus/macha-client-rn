@@ -8,6 +8,51 @@ Newest first.
 
 ---
 
+## 2026-09-24 — Core's sort choices on every list, and episodes named by season
+
+`159dce7`. Tom's rulings, relayed from the web client through core's session,
+**confirmed by Tom directly** before building — two hops is exactly the
+distance at which this project stops trusting a claim.
+
+**Built on unpublished core** — `mediaSort` and `episodeLabel`, linked `dist`
+`a1500863411f` at core `e7adfdd`. It builds on `develop` through the link and
+**cannot reach `main` until core publishes**; that is Tom's call on the
+publish, not this client's.
+
+### What was built
+
+- `SortControl`: the current choice as a pill reading core's `choiceLabel`
+  ("Sort By Title"), the choices in a sheet, **no "Sort by" heading** —
+  `Sheet` now takes an optional title for exactly that.
+- `Library` orders through `orderMedia(items, key, LIBRARY_SORTS)` from
+  `DEFAULT_LIBRARY_SORT`; that covers films, TV, and music's albums and
+  artists, which all render through it. Search orders its results through
+  `SEARCH_SORTS` from `DEFAULT_SEARCH_SORT` ("relevance" is the node's own
+  order). **Music's Tracks view keeps its own chips** (Favourites, Recently
+  played, Most played, Recently added are orders already) and gets no second
+  control.
+- `MediaCard` names an episode as its series, linking to the series, then
+  core's `episodeLabel` — "Season 1 Episode 6" — linking to the season. It is
+  what Continue Watching and search draw; season pages draw their own
+  `EpisodeRow` and keep `S01E01`. A snapshot without `episodeNumber` falls
+  back to the node's subtitle rather than losing which episode it is.
+  `hrefFor(kind, id)` split out of `hrefForMedia` for links to ancestors.
+
+### On the A85, 00:45–00:47
+
+- Continue Watching: *Dark* S01E06 read **"Dark" / "Season 1 Episode 6"**.
+  Tapping the season line opened *Dark* Season 1 and **created no session**;
+  that page kept its `S01E01` rows.
+- Films: **"Sort By Title"** pill, no heading; numbers order as numbers (*28
+  Days Later*, *28 Weeks Later*, *28 Years Later*, then *2001*). The sheet
+  offered Title, Year, Recently added; **Year** put 2025 first.
+- **Not looked at:** the search screen's control, the series link, and music
+  albums and artists.
+- The launch reclaimed one orphan — the *2001* Remux session the install
+  killed — the third time on hardware.
+
+---
+
 ## 2026-09-23 late — The failure screen, a refused jump, a mode switch's place, title order
 
 Four commits after the orphan reclaim; the first three seen on the A85

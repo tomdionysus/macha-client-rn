@@ -69,13 +69,12 @@ and is not comparable.
 ### What is on the phone
 
 **The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-23 23:55:01 from `develop` at `0ba69ef`'s tree, core through the link
-at `../macha-ts` `4a85387`, **core `dist:hash` `c8244de61791`**. It still says
-`versionCode 800` because the version was not bumped — **so the package
-manager cannot tell it from 0.8.0**, and neither can anyone reading
-`dumpsys`. Identify it by `lastUpdateTime`. Left playing *2001* in Remux,
-in landscape, around 15:00 — a session open on the LAN node, which the next
-launch of this build will close. `c345507` (title order) is not in it.
+2026-09-24 00:45:02 from `develop` at `159dce7`, core through the link at
+`../macha-ts` `e7adfdd` (**unpublished work in it**), **core `dist:hash`
+`a1500863411f`**. It still says `versionCode 800` because the version was not
+bumped — **so the package manager cannot tell it from 0.8.0**, and neither
+can anyone reading `dumpsys`. Identify it by `lastUpdateTime`. Left on the
+Films list sorted by year, nothing playing.
 
 To put the release back: build `assembleRelease` from `main` at `7932542`
 with the registry core (the procedure under *Releasing*), and `install -r`.
@@ -168,13 +167,29 @@ a reason; a failed start in words a viewer can use; Try again no longer
 skips episodes; the README states the version; sessions a killed process
 left are closed at the next launch; the failure panel is clear of the
 transport; a refused jump says so; a mode switch keeps its place; library
-titles sort as on every other client.
+titles sort as on every other client; core's sort choices on every list and
+episodes named by season (both on unpublished core).
 
-**Waiting on a core release:** core `2816e5e` (unpublished) adds
-`SEARCH_SORTS`, `LIBRARY_SORTS`, `orderMedia` and `newestYearFirst`, asked for
-on Tom's instruction that ordering be common to every client. This client
-has no sort control to put them in, and `main` may pin only published core;
-the title order they share is already in via `compareIndexedTitles`.
+**`develop` now needs unpublished core.** Since `159dce7` (sort controls,
+episode naming — COMPLETED 2026-09-24) this tree imports `mediaSort` and
+`episodeLabel`, which are on core `develop` only. **The next release cannot
+be cut until core publishes a version carrying them** — `version:check` and
+the registry install will both say so. That is Tom's call on the publish.
+
+**Relayed and not yet confirmed by Tom** — reached this client through the
+web client and core on 2026-09-24, same two hops as the sort and episode
+rulings, which Tom did confirm. Hold until he does:
+- **Search terms:** core's `searchTerms` drops "the", "a", "an", and
+  `isSearchable` needs 2 characters left. `MachaMediaApi.search` applies both
+  itself, so this client may already inherit it through the catalogue —
+  **check, don't assume**; `search.tsx` still has its own raw-length gate.
+- **Search categories:** `SEARCH_CATEGORIES` (Movies, TV Shows, Music) as
+  toggles, passed as `search(query, signal, { categories })`.
+- **The track line:** "Artist - Album (year)", artist and album each linking
+  (`trackSubtitle`, `albumLabel`), and a "Track 9" line.
+- **The web Search page's design language** (from the web client's session,
+  explicitly reference, not spec): one control row, "Nothing found. Try
+  different search terms or filters.", an A–Z index only under Title.
 
 **The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
 favour of the session leak, with its design question put and not answered:**
