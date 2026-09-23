@@ -8,6 +8,87 @@ Newest first.
 
 ---
 
+## 2026-09-23 — The guard reports, Remux says why not, and a failed start is in words
+
+Tom's three calls, the same afternoon, after the Remux black screen on the
+tagged 0.8.0: **keep Remux and say why it is unavailable**; **the guard's
+proposed shape is right**; **failure copy depends on the error, must be
+something a person understands, and must be honest.** Three commits on
+`develop`, then one build and the A85.
+
+### Identity of what was measured
+
+Dev build from `develop` at `15a1e0b`, installed 2026-09-23 18:59:32, still
+`versionCode 800` (no bump — indistinguishable from 0.8.0 by version). Core
+through the link at `../macha-ts` `51e1ad8`, **`dist:hash` `a02a2d979817`**,
+`dist` built 17:55. Suite **229 across 20 files**, typecheck clean, against
+that core. Every core export used — `playbackFailureDetail`,
+`technicalProfileFromSession`, `videoStreamObjection`,
+`unreachableEndpointFailure` and the three accessors — checked present in
+the `0.18.0` tag. The APK was checked for the new strings before install.
+
+### The supersede guard reports what it excused — `764b786`
+
+`supersededErrorCheck` in `policy.ts` waits out exactly the guard's own
+window (`seekDeadlineMs`, no new constant) and then says *report*; the
+provider re-examines at that moment and, if `player.status` is still `error`
+under the same generation, sets `failed` with a sentence. The decline reason
+is now asked of `selfSupersededGeneration` rather than of a ref that is never
+cleared, which had labelled every later seek decline as a supersede.
+
+**On the A85, 19:04:** Direct play on *Dark* S01E01 (ten-bit HEVC). PATCH
+settled `19:04:12.387`; `c2.unisoc.hevc.decoder` refused `hvc1.2.4`
+`NO_EXCEEDS_CAPABILITIES` at `.07`; `failover-declined` at `.080`;
+**`superseded-error-reported` at `19:04:20.392`** — settle plus the 8 s
+window, to the millisecond predicted. Screen: *Playback failed*, the new
+sentence, Try again and Stop, bar holding `2:21`. Before: a black screen at
+`0:00` with no message, twice.
+
+**The tests prove the policy, not the wiring.** All five failed first, but
+only because the function did not exist; the defect was in provider code no
+test here reaches. The device is the proof.
+
+### Remux is kept and explained — `ee9380b`
+
+`remuxUnavailableReason` asks core's `videoStreamObjection` of the video
+stream the session presents (`technicalProfileFromSession`), against the HLS
+decoder list — core's own `deliveryVideoCodecs` rule. The sheet disables
+Remux with the sentence and logs `remux-availability` beside the reported
+facts. Seven tests, failed first on the missing function.
+
+**The question that decided whether this did anything:** core treats an
+unreported bit depth as no objection, and says Matroska HEVC often lacks it.
+*Dark* is Matroska HEVC. The facts endpoint needs a token that exists only on
+the phone, and it was not pulled off the device. The log answered it:
+`{ codec: 'hevc', profile: 'Main 10', bitDepth: 10, blocked: 'Unavailable:
+this video is 10-bit and this device can only decode 8-bit. Transcode will
+play it.' }`. Seen greyed in the sheet; **tapping it sent no PATCH.**
+
+### A failed start in words a viewer can use — `15a1e0b`
+
+`createFailureMessage`: one lead per kind — 401 log in, 403 wrong account,
+404 gone, 429 node busy (never the account cap, which keeps its own), 400
+could not prepare, 5xx could not start, nothing answered at all — each with
+the server's own sentence in brackets where it stated one, except 401/403.
+"Could not reach the server" is claimed only when no layer stated a status
+**or** a code, because core's `unreachableEndpointFailure` is true of any
+wrapped error without a status, including refusals this client raised. When
+the player fails and recovery is impossible the viewer reads that, and the
+codec trace goes to the log. Ten tests, failed first on the missing function.
+
+**Not seen on hardware:** nothing failed to start, and the player-failure
+path was not reached. The code paths are unexercised on a device.
+
+### Found on the way, and left open in ACTIVE
+
+- **Try again started the next episode from zero** — suspected spurious
+  `playToEnd`; logging committed, not built. Now the top P1.
+- **The transport chrome covers the failure panel.**
+- **The core link had moved** six commits past `0.18.0` without a note here.
+- **`:app:packageRelease` failed once for nothing** and deleted the old APK.
+
+---
+
 ## 2026-09-23 — 0.8.0 seen running on the A85, and refusal copy reads core's `detail`
 
 ### 0.8.0 on hardware

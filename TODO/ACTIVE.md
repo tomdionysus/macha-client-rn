@@ -54,11 +54,13 @@ are this work.
 `package.json` pins `file:../macha-ts` on `develop`; a release on `main` pins
 the published package; **a `file:` dependency must never reach `main`**, and
 `version:check` refuses one there mechanically. **Core `0.18.0` is on npm**
-(2026-09-21T19:31Z) and 0.8.0 pins `^0.18.0`. `../macha-ts` is at `a3b40ca`,
-which *is* the `0.18.0` tag, with `dist` rebuilt 22:27 that evening — so the
-link and the registry currently resolve the same code. That stops being true
-the moment core's `develop` moves; `git -C ../macha-ts describe --tags` and a
-core rebuild before trusting a typecheck.
+(2026-09-21T19:31Z) and 0.8.0 pins `^0.18.0`. `../macha-ts` was at `a3b40ca` (= `0.18.0`) on
+2026-09-21 and **had moved to `51e1ad8` plus uncommitted edits by 2026-09-23
+18:50** — six commits, all in `PlaybackCoordinator`/`PlaybackRuntime`, which
+this client does not call. Every core export used by the 2026-09-23 work was
+checked present in the `0.18.0` tag, so a release pinning `^0.18.0` still
+carries them. `git -C ../macha-ts describe --tags` and a core rebuild before
+trusting a typecheck.
 
 **Use `npm run dist:hash` in core and nothing else** for the dist figure; every
 hash in this file from before 2026-09-21 19:00 is the narrower `*.js`-only one
@@ -66,38 +68,31 @@ and is not comparable.
 
 ### What is on the phone
 
-**The A85 has the tagged 0.8.0 build — `versionCode 800`, installed
-2026-09-21 23:31 from the APK built off `main` at `7932542` with core from the
-registry.** It launched: the process is alive, `mFocusedApp` is
-`foundation.macha.client/.MainActivity`, and `logcat` carries no `FATAL`,
-`AndroidRuntime` or crash line. **Seen running 2026-09-23 17:53, after Tom unlocked it.** Identity gated
-first (`A85` / `A85EEA0000005410`, `versionCode 800`, `lastUpdateTime
-2026-09-21 23:31:24`). Cold start signed in, catalogue and Continue Watching
-from `macnessa`, `route-success` at 1.4 s, no `FATAL` or `AndroidRuntime`.
-One play, *Dark* S01E01 from Continue Watching: the codec probe ran (20
-decoders, `hevc [1, 4]`, `av1 [1, 4096, 8192]`, no Dolby, no HDR display) and
-the claim sent was `h264, hevc, vp9, av1` / `hdr: not-advertised`; transcode
-session `37a4fd7b…` created `201`; `c2.unisoc.avc.decoder` and
-`c2.android.aac.decoder` both allocated; picture on screen at `2:04 / 51:32`,
-resumed from the saved `1:54`, header reading *Transcode*; no error-level
-line from JS, ExoPlayer or the codecs. **Sound was not confirmed by ear** —
-the AAC decoder starting is the evidence, not a listener.
+**The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
+2026-09-23 18:59:32 from `develop` at `15a1e0b`, core through the link at
+`../macha-ts` `51e1ad8` (six commits past `0.18.0`, all in
+`PlaybackCoordinator`/`PlaybackRuntime`, which this client does not use),
+**core `dist:hash` `a02a2d979817`**, `dist` built 17:55 before that repo's
+uncommitted edits. It still says `versionCode 800` because the version was
+not bumped — **so the package manager cannot tell it from 0.8.0**, and
+neither can anyone reading `dumpsys`. Identify it by `lastUpdateTime`.
 
-**The session create took 14.7 s** (`elapsedMs: 14732`) with the spinner up
-the whole time. Not investigated; it is the server starting a transcode at
-an offset, most likely, and it is the thing a viewer would notice first.
+To put the release back: build `assembleRelease` from `main` at `7932542`
+with the registry core (the procedure under *Releasing*), and `install -r`.
+A copy of the 0.8.0 APK was kept only in a session scratchpad, which does
+not survive the session — do not count on it.
 
-The build it replaced was an unreleased dev tree labelled `0.7.0` /
-`versionCode 700` — the same source as 0.8.0 minus the version bump and with
-core through the link. That is why the `versionCode` moving to 800 mattered:
-Android compares that integer and ignores the name, so another 700 build would
-have been "the same build" to the package manager.
+**The tagged 0.8.0 was seen running before that**, 2026-09-23 17:53 —
+COMPLETED has the transcode play, and the Remux black screen it then showed.
 
 **Build times, measured:** 90 seconds to 3.5 minutes incremental; **37 minutes
 cold** (778 Gradle tasks, 2026-09-21), and that cold build shared the machine
 with a concurrent Gradle build from `macha-client-rn-tv`. `expo prebuild`
 clears `android/`, so the first build after a prebuild is always cold.
-`assembleRelease` autolinks `modules/macha-codecs` on its own.
+`assembleRelease` autolinks `modules/macha-codecs` on its own. **On
+2026-09-23 `:app:packageRelease` failed once in `IncrementalSplitterRunnable`
+with nothing wrong, deleted the old APK, and passed on a plain rerun** — check
+the APK's timestamp, not just the exit code of the first attempt.
 
 ### Driving the phone — read this before sending a single tap
 
@@ -136,7 +131,8 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
 - **A refused mode switch reaches the viewer**, in a sentence rather than
   core's nested envelopes.
 - **Remux asks for a transform the device can play**, and renames the mode
-  when it cannot copy the audio.
+  when it cannot copy the audio. **Audio only** — it copied ten-bit HEVC
+  the A85 cannot decode; fixed on `develop` 2026-09-23, not in 0.8.0.
 - **A session granted no roles is told to sign in**, not to find an
   administrator.
 - **`busy` is no longer stranded**, which had disabled Play until restart.
@@ -147,28 +143,29 @@ screen. The evidence for each is in COMPLETED under that date.
 
 ### Open, in the order worth taking them
 
-1. ~~**Unlock the A85 and see 0.8.0 run.**~~ Done 2026-09-23 — one transcode
-   play, above. The remux switch was tried the same afternoon and failed —
-   see 2 and the new remux entry.
-2. **The supersede guard swallows a fatal error.** P1 below — a black screen
-   with no message, seen on the A85. The most user-visible thing open.
-3. **Remux copies undecodable video.** New P1 below, found on the smoke
-   test; the remedy is Tom's call. **The account cap still cannot be tested**
-   — the node limit refuses first (*What the route cutover left open*).
-3a. **The rest of the smoke test on 0.8.0.** Remux and the mode-switch guard
-   have now run on hardware, once each, on one ten-bit title: the guard
-   declined correctly and silently. Still unrun: remux on an eight-bit title,
-   Direct by name, a quality change, a second title.
-4. ~~**Take core's `playbackFailureDetail`.**~~ Done 2026-09-23, in
-   COMPLETED. It turned up **a failed create showing core's log line** — P1
-   below, waiting on a sentence from Tom.
-5. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
+1. **"Try again" after a failure started the next episode from zero.** New
+   P1 below, mechanism suspected; the logging to prove it is committed and
+   not yet built. The failure message now tells viewers to try again, so
+   this comes first.
+2. **The rest of the smoke test.** Done on hardware 2026-09-23: transcode
+   play, Remux blocked with its reason, the guard reporting on Direct. Still
+   unrun: remux on an eight-bit title, a quality change, the create-failure
+   copy (nothing failed to start), the player-failure copy. **The account cap
+   still cannot be tested** — the node limit refuses first.
+3. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
    core first** — it exists (checked 2026-09-23), it is the contract for hosts
    driving the resolver without a coordinator, written partly from this
    client's case, and it is unread here.
-6. **Zulu.** P2 below.
-7. **544 MPEG-4 Part 2 files.** P2 below.
-8. **AV1 ten-bit SDR.** P2 below.
+4. **The failure screen and the seek path.** P2 below — chrome over the
+   panel, one `describeError` left, and whether Direct should be marked
+   unavailable like Remux (Tom's call, not yet asked).
+5. **Zulu.** P2 below.
+6. **544 MPEG-4 Part 2 files.** P2 below.
+7. **AV1 ten-bit SDR.** P2 below.
+
+Done 2026-09-23 and in COMPLETED: 0.8.0 seen running; refusal copy through
+`playbackFailureDetail`; the supersede guard reports; Remux unavailable with
+a reason; a failed start in words a viewer can use.
 
 ### The habit that paid, and the one that did not
 
@@ -251,10 +248,10 @@ Deploy with `adb -s <device> install -r android/app/build/outputs/apk/release/ap
 after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **Do not skip prebuild after a version bump.** Every command needs `-s`.
 
-- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has **0.8.0**
-  (`versionCode 800`) as of 2026-09-21 23:31 — installed and started, **not
-  seen past the lock screen**. Wireless debugging was at `10.35.1.164:35737`
-  that evening (`:41931` earlier the same day): the port rotates, so
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has a **dev build
+  of `15a1e0b`** labelled `versionCode 800` since 2026-09-23 18:59 (*What is
+  on the phone*). Wireless debugging was at `10.35.1.164:45101` on
+  2026-09-23, `:35737` and `:41931` on 2026-09-21: the port rotates, so
   rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
   succeeds. It drops when the phone sleeps — a screenshot of a sleeping phone
@@ -290,70 +287,38 @@ Core answers to **`Macha Client Core`** — the name `ListAgents` printed on
 
 ---
 
-## P1 — The supersede guard swallows a fatal error
+## P1 — "Try again" after a failure started the next episode from zero
 
-**Seen on the A85 2026-09-21 20:40 (COMPLETED, the capability audit).** A
-forced Direct play on ten-bit HEVC set `pendingSupersedeRef`; the renderer
-failed with `MediaCodecVideoRenderer error`; `errorBlamesEndpoint` correctly
-declined the failover — `failover-declined { reason:
-'generation-superseded-by-us' }` — and because `failoverSource` returns `true`
-for "handled", nothing set `status: 'failed'`, nothing rendered, and **the
-viewer was left on a black screen at `0:33` with a play button and no message
-of any kind.** A silent failure, introduced by the fix for another one.
+**Seen on the A85 2026-09-23 19:05, dev build `15a1e0b`. The mechanism is
+suspected, not seen.** *Dark* S01E01 failed on a forced Direct play (the
+guard now reports it — COMPLETED, same date); the viewer's position was
+`2:21`. Tapping **Try again** stopped the session and created one for
+`tmdb:episode:1375782` — a different episode — at `seekMs: 0`. `retry()`
+reloads `queueRef`'s current index at `positionRef`, so a real retry would
+have asked for `1279454` at about `141000`.
 
-**Reproduced 2026-09-23 18:31 on the tagged 0.8.0, by an ordinary tap.** No
-forced Direct this time: *Dark* S01E01 playing in transcode, the viewer picks
-**Remux** from the Playback sheet. PATCH `200` in 1.2 s, new generation `/2/`
-with `transform: { video: 'copy', audio: 'transcode' }`;
-`c2.unisoc.hevc.decoder` refuses `hvc1.2.4.L120.90` 10-bit as
-`NO_EXCEEDS_CAPABILITIES`; `failover-declined { reason:
-'generation-superseded-by-us' }`; screen at `0:00 / 51:32`, spinner on the
-play button, black picture, header still *Transcode*, **no message**. So this
-is reachable from the menu on any ten-bit title, which makes it more urgent
-than a forced-mode edge case — and the next entry is why the menu leads there.
+**What fits:** the result is exactly `advanceBy(1)` — next item, its own
+remembered position — which only `skipNext` and the `playToEnd` listener
+call. That listener's own comment says *"replacing a source with null can
+itself emit playToEnd"*, and `load` sets `mediaRef` **before** its
+`player.replace(null)`, so the `if (!media) return` guard would not stop it.
+The native media session went to state 7 (error) at `141240` and then to
+`0` just before the stop, which is consistent and proves nothing more.
 
-**The guard suppresses the wrong remedy and must not also suppress the
-report.** Declining to fail over cannot mean pretending nothing happened. The
-shape of the fix: let the decline stand, but still surface a failure when
-playback has not resumed inside `seekDeadlineMs` — the deadline the guard
-already uses, no new constant. It is a behaviour change on the failover path
-and wants Tom's call, as the guard itself did (`selfSupersededGeneration`,
-`PendingSupersede`, `src/playback/policy.ts`). Write the test first and check
-it fails.
+**It may explain a second thing.** The same listener retires the item from
+Continue Watching. After the 18:31 black screen on the tagged 0.8.0, *Dark*
+had vanished from Continue Watching by 18:59 and S01E01's row showed no
+progress bar. A spurious end would do exactly that. Also unproven.
 
----
-
-## P1 — Remux copies video the device has just said it cannot decode
-
-**Found 2026-09-23 on the A85, tagged 0.8.0; the cause read in source, not
-inferred.** The viewer picked Remux on *Dark* S01E01 (10-bit HEVC Main 10,
-`hvc1.2.4`, in Matroska). `statedUpdate` sent `{ mode: 'transcode', video:
-'copy', audio: 'transcode' }` — the audio half correctly corrected by
-`audioCopyable`, the video half copied — and the device's own probe that
-session reported `hevc: [1, 4]`, which has no Main 10 profile.
-`videoBitDepth` is derived as `8` for exactly that reason. The HEVC decoder
-refused the copy and the entry above took it from there.
-
-**The 0.8.0 line "Remux asks for a transform the device can play" is true of
-audio only.** `transformFor`'s docblock says so outright — *"Video is
-untouched: this says nothing about video decoders"* — so this is a known
-limit that the release summary overstated, not a regression.
-
-**Not fixed, because the remedy is Tom's call.** For a title whose video this
-device cannot decode, "copy the video" has no correct form: correcting it to
-`video: 'transcode'` makes it a full transcode, which is the mode the viewer
-just left. Options: offer Remux only when the session's video stream is
-copyable here (codec **and** bit depth, from the same probe `capabilities.ts`
-already uses), or keep the option and say why it is unavailable. Either wants
-the audio rule's shape — a `videoCopyable` beside `audioCopyable` — with a
-test built from this session's stream first. Direct play has the same hole and
-the docblock defends leaving it; whether that defence survives a menu that
-offers a mode this device cannot play is the same question.
-
-**Unverified, noted for whoever fixes it:** the updated session reported
-`seekMs: 0` and the bar read `0:00`. Playback had been running since 17:53, so
-the position may have been lost across the switch — or the bar may just be
-showing a generation that never started. Not distinguishable from this run.
+**Not fixed, deliberately.** A `play-to-end` log line (item, position,
+duration, `player.status`) is committed after `15a1e0b` and **not yet in any
+build**. Next build: fail a title (Direct on *Dark* does it), tap Try again,
+and read whether `play-to-end` fires with a position far from the duration
+and `status: 'error'`. If it does, the fix is the listener refusing an end
+that is not near the end, or one arriving while a load owns the player —
+with a test built from these numbers first. The message this client now
+shows on that screen **tells the viewer to try again**, so this is the next
+thing to take.
 
 ---
 
@@ -674,23 +639,25 @@ that would be a gap in theirs rather than a preference.
 
 ---
 
-## P1 — A failed session create shows the viewer core's log line
+## P2 — Two things seen on the failure screen and the seek path
 
-**Found 2026-09-23 while taking `playbackFailureDetail`; not fixed, because it
-needs a sentence nobody has written.** `PlaybackProvider.tsx` (the create
-`catch`, `error: capped ? accountSessionLimitMessage(error) :
-describeError(error)`) sends every non-cap create failure through
-`describeError`, which returns `.message` verbatim — *"Macha endpoint
-https://macnessa.macha.network failed: Macha playback request failed: ..."*,
-both envelopes and the node address, as the `status: 'failed'` copy. The same
-thing `updateRefusalMessage` was fixed for, on the path where playback really
-has failed.
+- **The transport chrome is drawn over the failure panel.** On the A85
+  2026-09-23 19:04 the ±10 s and play buttons sat on top of the failure
+  message, in `src/app/play.tsx`: the failure `View` renders before the
+  chrome, and `chromeVisible` stays true in `failed`. Hide the transport
+  while `status === 'failed'`, or render the panel above it. Not verified
+  whether a tap on an overlapping area reaches the button underneath.
+- **A refused rebuilding seek still shows core's log line.** `repositionTo`'s
+  `catch` uses `describeError`, the last playback site that does. Same shape
+  as `updateRefusalMessage`, but the honest lead differs — whether the old
+  generation is still playing after a refused seek has not been checked.
 
-The shape is the refusal functions': a lead of our own, plus
-`playbackFailureDetail` in brackets when it is defined. **The lead is Tom's
-call** — this is the screen a viewer reads when a title will not start, and
-unlike the refusal it cannot say *carried on unchanged*. Check the other
-`describeError` call sites that can receive a core error while there.
+**Direct play has the same video hole Remux had, and was left alone on
+purpose** — `transformFor`'s docblock argues a viewer who names Direct gets
+what they asked for. Tom's 2026-09-23 decision was about Remux. With the
+guard now reporting, Direct on an undecodable title ends in an honest
+failure rather than a black screen; whether it should instead be marked
+unavailable like Remux is Tom's call and has not been asked.
 
 ---
 

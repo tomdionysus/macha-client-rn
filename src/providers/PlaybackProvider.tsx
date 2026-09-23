@@ -1112,6 +1112,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // guard, closing the player advanced into the next queue item instead
         // of stopping.
         if (!media) return;
+        // Logged because a spurious end is otherwise invisible, and it is
+        // suspected rather than seen: on 2026-09-23 "Try again" after a failure
+        // started the *next* episode from zero, which is this listener's
+        // advance, and an episode left on a black screen vanished from Continue
+        // Watching, which is this listener's retire. Neither is proven.
+        console.log('[macha] [playback] play-to-end', {
+          mediaId: media.id,
+          positionMs: positionRef.current,
+          durationMs: durationRef.current,
+          status: player.status,
+        });
         if (durationRef.current > 0) {
           // Reaching the end retires the item from Continue Watching rather
           // than leaving it parked one second from the credits.
