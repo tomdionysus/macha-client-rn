@@ -1,6 +1,7 @@
 import { deviceCapabilities } from './capabilities';
 import {
   isAccountSessionLimit,
+  playbackFailureCode,
   playbackFailureDetail,
   playbackFailureStatus,
   restatePreferencesClearedByMode,
@@ -14,6 +15,7 @@ import {
   type PlaybackSession,
   type PlaybackUpdate,
   type StreamInstruction,
+  unreachableEndpointFailure,
 } from '@machafoundation/core';
 
 // Playback policy: the decisions this client makes about a session, separated
@@ -294,6 +296,45 @@ export function accountSessionLimitMessage(error: unknown): string {
   const detail = playbackFailureDetail(error);
   const lead = 'This account is already playing on as many devices as it is allowed. Stop playback elsewhere and try again.';
   return detail ? `${lead} (${detail})` : lead;
+}
+
+/**
+ * What to put in front of a viewer whose title would not start.
+ *
+ * **This was `describeError` until 2026-09-23, which is `.message`**, so every
+ * create refusal but the account cap reached the screen as core's log line —
+ * *"Macha endpoint https://macnessa.macha.network failed: Macha playback
+ * request failed: ..."*, both envelopes and the node's address.
+ *
+ * Tom's rule, the same day: it depends on the error, it must be something a
+ * person can understand, and it must be honest. So one lead per kind of
+ * failure, saying only what is known, read through core's accessors because
+ * the status and code sit one `cause` down; and the server's own sentence in
+ * brackets where it stated one, because it is the only place the actual
+ * reason appears. Not for 401 and 403, whose sentences describe tokens and
+ * roles to someone who can only act on "log in".
+ *
+ * "Could not reach" is claimed only when no layer stated a status **or** a
+ * code: core's `unreachableEndpointFailure` is true of any wrapped error
+ * without a status, and a refusal this client raised itself carries a code
+ * and no status — calling that a connection problem would be the dishonest
+ * version.
+ */
+export function createFailureMessage(error: unknown): string {
+  if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
+  const status = playbackFailureStatus(error);
+  const detail = playbackFailureDetail(error);
+  const quoted = (lead: string) => (detail ? `${lead} (${detail})` : lead);
+  if (status === 401) return 'You are not logged in. Log in and try again.';
+  if (status === 403) return 'This account is not allowed to play this. Log in with an account that is.';
+  if (status === 404) return quoted('This title is no longer on the server.');
+  if (status === 429) return quoted('The server is busy with other streams right now. Try again in a few minutes.');
+  if (status === 400) return quoted('The server could not prepare this title for this device.');
+  if (status !== undefined && status >= 500) return quoted('The server could not start this stream. Try again in a moment.');
+  if (status === undefined && playbackFailureCode(error) === undefined && unreachableEndpointFailure(error)) {
+    return 'Could not reach the server. Check your connection and try again.';
+  }
+  return quoted('This title could not be started. Try again.');
 }
 
 /**

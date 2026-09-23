@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { endpointFailure, MachaPlaybackError } from '@machafoundation/core';
 import { MachaApiError } from '../api/errors';
-import { accountSessionLimitMessage, classifyCreateRefusal, spendsFailoverBudget } from './policy';
+import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not this client's
 // `MachaApiError`. That is the whole reason this classifier is duck-typed:
@@ -146,5 +146,88 @@ describe('spendsFailoverBudget', () => {
     expect(spendsFailoverBudget(new MachaPlaybackError('broken', 500))).toBe(true);
     expect(spendsFailoverBudget(new Error('transport'))).toBe(true);
     expect(spendsFailoverBudget(undefined)).toBe(true);
+  });
+});
+
+/**
+ * What a viewer reads when a title will not start.
+ *
+ * **Before 2026-09-23 this was `describeError`, which is `.message`** — so
+ * every create refusal but the account cap reached the screen as core's log
+ * line: *"Macha endpoint https://macnessa.macha.network failed: Macha
+ * playback request failed: ..."*, both envelopes and the node's address.
+ *
+ * Tom's rule, 2026-09-23: it depends on the error, it must be something a
+ * person can understand, and it must be honest. So one sentence per kind of
+ * failure, saying what is known, and the server's own reason in brackets
+ * where it gave one.
+ */
+describe('createFailureMessage', () => {
+  const node = (inner: unknown) => endpointFailure('https://macnessa.macha.network', 'https://macnessa.macha.network', inner);
+  const server = (sentence: string, status: number, code?: string) =>
+    new MachaPlaybackError(`Macha playback request failed: ${sentence}`, status, code, undefined, undefined, sentence);
+
+  it('never shows core’s envelopes or the node address', () => {
+    const message = createFailureMessage(node(server('timed out waiting for first fragmented-MP4 segment', 503, 'playback_pipeline_start_failed')));
+    expect(message).not.toContain('Macha');
+    expect(message).not.toContain('macnessa');
+    expect(message).not.toContain('failed:');
+  });
+
+  it('says the server could not start the stream, and quotes why', () => {
+    expect(createFailureMessage(node(server('timed out waiting for first fragmented-MP4 segment', 503)))).toBe(
+      'The server could not start this stream. Try again in a moment. (timed out waiting for first fragmented-MP4 segment)',
+    );
+  });
+
+  it('says a full node is busy, not that the account is at its limit', () => {
+    // Node-wide `resource_limit` is a different scope from the account cap;
+    // telling the viewer their own account is full would be a lie.
+    expect(createFailureMessage(node(server('video transcode limit reached', 429, 'resource_limit')))).toBe(
+      'The server is busy with other streams right now. Try again in a few minutes. (video transcode limit reached)',
+    );
+  });
+
+  it('keeps the account-cap sentence for the account cap', () => {
+    const capped = server('account already holds 32 sessions (limit 32)', 429, 'account_session_limit');
+    expect(createFailureMessage(node(capped))).toContain('Stop playback elsewhere');
+  });
+
+  it('says the server could not be reached when nothing answered', () => {
+    expect(createFailureMessage(node(new TypeError('Network request failed')))).toBe(
+      'Could not reach the server. Check your connection and try again.',
+    );
+  });
+
+  it('tells a signed-out viewer to log in, without the token sentence', () => {
+    // "a valid session bearer token is required" is true and useless.
+    expect(createFailureMessage(node(server('a valid session bearer token is required', 401, 'unauthorized')))).toBe(
+      'You are not logged in. Log in and try again.',
+    );
+  });
+
+  it('tells a viewer without permission which account problem it is', () => {
+    expect(createFailureMessage(node(server('playback role required', 403, 'forbidden')))).toBe(
+      'This account is not allowed to play this. Log in with an account that is.',
+    );
+  });
+
+  it('says a missing title is missing', () => {
+    expect(createFailureMessage(node(server('item not found', 404, 'not_found')))).toBe(
+      'This title is no longer on the server. (item not found)',
+    );
+  });
+
+  it('says a refused request plainly when every fallback was refused too', () => {
+    expect(createFailureMessage(node(server('unsupported transform', 400)))).toBe(
+      'The server could not prepare this title for this device. (unsupported transform)',
+    );
+  });
+
+  it('still says something true when nothing is known', () => {
+    expect(createFailureMessage(undefined)).toBe('This title could not be started. Try again.');
+    expect(createFailureMessage(new Error('Macha endpoint x failed: something internal'))).toBe(
+      'This title could not be started. Try again.',
+    );
   });
 });

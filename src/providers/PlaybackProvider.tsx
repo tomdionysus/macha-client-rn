@@ -27,6 +27,7 @@ import {
   audioCopyable,
   buildOrder,
   classifyCreateRefusal,
+  createFailureMessage,
   errorBlamesEndpoint,
   generationLocalMs,
   restoredVolume,
@@ -127,6 +128,15 @@ const MAX_FAILOVER_ATTEMPTS = 2;
  * one.
  */
 const FAILOVER_BUDGET_RESET_MS = 60_000;
+
+/**
+ * What a viewer reads when the player failed and no recovery was possible.
+ *
+ * Claims only what is known: the stream stopped, recovery did not work. The
+ * player's own message is a codec or network trace and expo-video hides the
+ * HTTP status that would say more.
+ */
+const PLAYER_FAILURE_MESSAGE = 'This stream stopped playing and could not be recovered. Try again.';
 
 /**
  * What a viewer reads when a change they asked for left the player in error.
@@ -459,16 +469,19 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        // The account is already playing as much as it may. That is not a
-        // fault and not this node's doing, and the server's own sentence —
-        // "Macha playback request failed: ..." — would read as a breakage.
-        const capped = classifyCreateRefusal(error) === 'account-session-limit';
-        if (capped) console.log('[macha] [playback] create-refused', { code: playbackFailureCode(error) });
+        // What the viewer reads is a sentence about the kind of failure, never
+        // core's log line; see `createFailureMessage`. The log line is kept
+        // here, where it is evidence rather than copy.
+        console.log('[macha] [playback] create-refused', {
+          code: playbackFailureCode(error),
+          refusal: classifyCreateRefusal(error),
+          error: String(error),
+        });
         setState((current) => ({
           ...current,
           status: 'failed',
           buffering: false,
-          error: capped ? accountSessionLimitMessage(error) : describeError(error),
+          error: createFailureMessage(error),
         }));
       } finally {
         if (generationRef.current === myGeneration) setBusy(false);
@@ -1062,11 +1075,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           setState((current) => ({ ...current, buffering: true }));
           void failoverRef.current().then((swapped) => {
             if (swapped) return;
+            // The player's own message is a codec or network trace
+            // ("MediaCodecVideoRenderer error, index=0") and expo-video never
+            // says more, so the honest sentence is the one that claims only
+            // what is known. The trace goes to the log.
+            console.log('[macha] [playback] player-failed', { message: error?.message });
             setState((current) => ({
               ...current,
               status: 'failed',
               buffering: false,
-              error: error?.message ?? 'The player could not play this stream.',
+              error: PLAYER_FAILURE_MESSAGE,
             }));
           });
           return;
