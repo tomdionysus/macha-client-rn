@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { endpointFailure, MachaPlaybackError } from '@machafoundation/core';
 import { MachaApiError } from '../api/errors';
-import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, spendsFailoverBudget } from './policy';
+import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, seekRefusalMessage, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not this client's
 // `MachaApiError`. That is the whole reason this classifier is duck-typed:
@@ -228,6 +228,39 @@ describe('createFailureMessage', () => {
     expect(createFailureMessage(undefined)).toBe('This title could not be started. Try again.');
     expect(createFailureMessage(new Error('Macha endpoint x failed: something internal'))).toBe(
       'This title could not be started. Try again.',
+    );
+  });
+});
+
+/**
+ * What a viewer reads when a jump to another point was refused.
+ *
+ * The last playback site that showed `describeError`, and so core's log line
+ * with a node address in it. A refused rebuilding seek leaves the node's
+ * generation as it was and `seekTo` never touched the player's position, so
+ * the viewer is still where they were — which may be paused, so the sentence
+ * does not claim playback carried on.
+ */
+describe('seekRefusalMessage', () => {
+  const node = (inner: unknown) => endpointFailure('https://macnessa.macha.network', 'https://macnessa.macha.network', inner);
+  const server = (sentence: string, status: number, code?: string) =>
+    new MachaPlaybackError(`Macha playback request failed: ${sentence}`, status, code, undefined, undefined, sentence);
+
+  it('says the jump did not happen, and quotes the node', () => {
+    expect(seekRefusalMessage(node(server('timed out waiting for first fragmented-MP4 segment', 503)))).toBe(
+      'Could not jump to that point just now, so playback stayed where it was. (timed out waiting for first fragmented-MP4 segment)',
+    );
+  });
+
+  it('never shows core’s envelopes or the node address', () => {
+    const message = seekRefusalMessage(node(server('video transcode limit reached', 429, 'resource_limit')));
+    expect(message).not.toContain('Macha');
+    expect(message).not.toContain('macnessa');
+  });
+
+  it('stands alone when nothing was stated', () => {
+    expect(seekRefusalMessage(node(new TypeError('Network request failed')))).toBe(
+      'Could not jump to that point just now, so playback stayed where it was.',
     );
   });
 });

@@ -3,7 +3,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import type { ClusterPlaybackApi, PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate } from '../api/playback';
 import type { PlaybackMode } from '../types';
-import { describeError } from '../api/errors';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
   choosePlaybackInstruction,
@@ -31,6 +30,7 @@ import {
   errorBlamesEndpoint,
   generationLocalMs,
   restoredVolume,
+  seekRefusalMessage,
   seekRequiresReposition,
   seekStillPending,
   selfSupersededGeneration,
@@ -737,7 +737,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        setState((current) => ({ ...current, buffering: false, error: describeError(error) }));
+        setState((current) => ({ ...current, buffering: false, error: seekRefusalMessage(error) }));
       } finally {
         // Settled, success or failure: the tail is then bounded by the node's
         // own deadline rather than left open.

@@ -256,41 +256,47 @@ export default function PlayerScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.transport} pointerEvents="box-none">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back ten seconds"
-              onPress={() => {
-                tap();
-                seekBy(-SKIP_MS);
-                showChrome();
-              }}
-              style={styles.transportButton}>
-              <ReplayIcon size={34} color={colors.text} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={playing ? 'Pause' : 'Play'}
-              onPress={() => {
-                tap();
-                toggle();
-                showChrome();
-              }}
-              style={styles.playButton}>
-              {playing ? <PauseIcon size={30} color={colors.text} /> : <PlayIcon size={30} color={colors.text} />}
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Forward ten seconds"
-              onPress={() => {
-                tap();
-                seekBy(SKIP_MS);
-                showChrome();
-              }}
-              style={styles.transportButton}>
-              <ForwardIcon size={34} color={colors.text} />
-            </Pressable>
-          </View>
+          {/* Not over a failure. The panel paints first, so this row sat on
+              top of its message (A85, 2026-09-23), and none of the three can
+              do anything for a player that has failed. The top bar stays: it
+              holds the Playback menu the failure message points to. */}
+          {status !== 'failed' ? (
+            <View style={styles.transport} pointerEvents="box-none">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back ten seconds"
+                onPress={() => {
+                  tap();
+                  seekBy(-SKIP_MS);
+                  showChrome();
+                }}
+                style={styles.transportButton}>
+                <ReplayIcon size={34} color={colors.text} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={playing ? 'Pause' : 'Play'}
+                onPress={() => {
+                  tap();
+                  toggle();
+                  showChrome();
+                }}
+                style={styles.playButton}>
+                {playing ? <PauseIcon size={30} color={colors.text} /> : <PlayIcon size={30} color={colors.text} />}
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Forward ten seconds"
+                onPress={() => {
+                  tap();
+                  seekBy(SKIP_MS);
+                  showChrome();
+                }}
+                style={styles.transportButton}>
+                <ForwardIcon size={34} color={colors.text} />
+              </Pressable>
+            </View>
+          ) : null}
 
           <View
             style={[

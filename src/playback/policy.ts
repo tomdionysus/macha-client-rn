@@ -338,6 +338,22 @@ export function createFailureMessage(error: unknown): string {
 }
 
 /**
+ * What to put in front of a viewer whose jump to another point was refused.
+ *
+ * The last playback site that used `describeError` — core's log line, node
+ * address included. A refused rebuilding seek leaves the node's generation as
+ * it was, and `seekTo` returns before touching the player's position, so the
+ * viewer is still where they were. They may be paused, so this does not claim
+ * playback carried on. The node's sentence is quoted as the other refusals do.
+ */
+export function seekRefusalMessage(error: unknown): string {
+  if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
+  const lead = 'Could not jump to that point just now, so playback stayed where it was.';
+  const detail = playbackFailureDetail(error);
+  return detail ? `${lead} (${detail})` : lead;
+}
+
+/**
  * What to put in front of a viewer whose generation change was refused.
  *
  * **Playback did not break, and the message must not say it did.** A mode or
