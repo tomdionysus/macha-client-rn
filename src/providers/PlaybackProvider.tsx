@@ -237,6 +237,24 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
   /**
+   * Whether the source now in the player has reported any progress.
+   *
+   * **The only thing that tells a real end from the one `load` causes.**
+   * expo-video empties the player on `replace(null)` with `clearMediaItems()`
+   * and `prepare()`, which leaves ExoPlayer in `STATE_ENDED` with no error, and
+   * it sends `playToEnd` for exactly that state. `load` makes that call after
+   * pointing `mediaRef` at the item it is loading, so the listener took it as
+   * that item finishing: it retired it from Continue Watching and advanced —
+   * and the next `load` did it again. Measured on the A85 2026-09-23 22:37:
+   * Try again on S01E03 logged two ends 2 ms apart, both `positionMs: 0`,
+   * `status: 'idle'`, and created a session for S01E05.
+   *
+   * A flag rather than a threshold on position against duration: a server
+   * duration a few seconds longer than the stream would make a threshold
+   * refuse genuine ends, and auto-advance is the thing being protected.
+   */
+  const progressedRef = useRef(false);
+  /**
    * How far the player has buffered, as its own ref.
    *
    * Read by `seekTo` to decide whether a seek lands beyond what the node has
@@ -349,6 +367,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }
       countedPlayRef.current = undefined;
       positionRef.current = 0;
+      // Before the `replace(null)` below, whose `playToEnd` must not count.
+      progressedRef.current = false;
       lastCheckpointRef.current = 0;
       knownDurationRef.current = 0;
 
@@ -1018,6 +1038,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // a rebuilding seek left the bar reading 0:13 of a three-hour film,
         // measured on the A85 2026-09-21, and it also mismatched the seek
         // target below and checkpointed the wrong resume position.
+        if (currentTime > 0) progressedRef.current = true;
         const positionMs = titlePositionMs(sessionRef.current, Math.round(currentTime * 1000));
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
@@ -1112,16 +1133,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // guard, closing the player advanced into the next queue item instead
         // of stopping.
         if (!media) return;
-        // Logged because a spurious end is otherwise invisible, and it is
-        // suspected rather than seen: on 2026-09-23 "Try again" after a failure
-        // started the *next* episode from zero, which is this listener's
-        // advance, and an episode left on a black screen vanished from Continue
-        // Watching, which is this listener's retire. Neither is proven.
+        // An end the player never played to is the one `load`'s own
+        // `replace(null)` produces; see `progressedRef`. Acting on it retired
+        // the item and advanced twice in a row.
+        if (!progressedRef.current) {
+          console.log('[macha] [playback] play-to-end-ignored', { mediaId: media.id, reason: 'no-progress-since-load' });
+          return;
+        }
         console.log('[macha] [playback] play-to-end', {
           mediaId: media.id,
           positionMs: positionRef.current,
           durationMs: durationRef.current,
-          status: player.status,
         });
         if (durationRef.current > 0) {
           // Reaching the end retires the item from Continue Watching rather
