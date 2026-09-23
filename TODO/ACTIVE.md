@@ -69,13 +69,12 @@ and is not comparable.
 ### What is on the phone
 
 **The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-23 18:59:32 from `develop` at `15a1e0b`, core through the link at
-`../macha-ts` `51e1ad8` (six commits past `0.18.0`, all in
-`PlaybackCoordinator`/`PlaybackRuntime`, which this client does not use),
-**core `dist:hash` `a02a2d979817`**, `dist` built 17:55 before that repo's
-uncommitted edits. It still says `versionCode 800` because the version was
-not bumped — **so the package manager cannot tell it from 0.8.0**, and
-neither can anyone reading `dumpsys`. Identify it by `lastUpdateTime`.
+2026-09-23 22:45:28 from `develop` at `81d1860`'s tree, core through the link
+at `../macha-ts` `0ac8f21`, **core `dist:hash` `b67ed78c48f0`**. It still says
+`versionCode 800` because the version was not bumped — **so the package
+manager cannot tell it from 0.8.0**, and neither can anyone reading
+`dumpsys`. Identify it by `lastUpdateTime`. It was left playing *Dark*
+S01E06 from `macnessa`.
 
 To put the release back: build `assembleRelease` from `main` at `7932542`
 with the registry core (the procedure under *Releasing*), and `install -r`.
@@ -143,29 +142,26 @@ screen. The evidence for each is in COMPLETED under that date.
 
 ### Open, in the order worth taking them
 
-1. **"Try again" after a failure started the next episode from zero.** New
-   P1 below, mechanism suspected; the logging to prove it is committed and
-   not yet built. The failure message now tells viewers to try again, so
-   this comes first.
-2. **The rest of the smoke test.** Done on hardware 2026-09-23: transcode
+1. **The rest of the smoke test.** Done on hardware 2026-09-23: transcode
    play, Remux blocked with its reason, the guard reporting on Direct. Still
    unrun: remux on an eight-bit title, a quality change, the create-failure
    copy (nothing failed to start), the player-failure copy. **The account cap
    still cannot be tested** — the node limit refuses first.
-3. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
+2. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
    core first** — it exists (checked 2026-09-23), it is the contract for hosts
    driving the resolver without a coordinator, written partly from this
    client's case, and it is unread here.
-4. **The failure screen and the seek path.** P2 below — chrome over the
+3. **The failure screen and the seek path.** P2 below — chrome over the
    panel, one `describeError` left, and whether Direct should be marked
    unavailable like Remux (Tom's call, not yet asked).
-5. **Zulu.** P2 below.
-6. **544 MPEG-4 Part 2 files.** P2 below.
-7. **AV1 ten-bit SDR.** P2 below.
+4. **Zulu.** P2 below.
+5. **544 MPEG-4 Part 2 files.** P2 below.
+6. **AV1 ten-bit SDR.** P2 below.
 
 Done 2026-09-23 and in COMPLETED: 0.8.0 seen running; refusal copy through
 `playbackFailureDetail`; the supersede guard reports; Remux unavailable with
-a reason; a failed start in words a viewer can use.
+a reason; a failed start in words a viewer can use; Try again no longer
+skips episodes; the README states the version.
 
 ### The habit that paid, and the one that did not
 
@@ -285,41 +281,6 @@ Core answers to **`Macha Client Core`** — the name `ListAgents` printed on
 `notify_when_idle` and carry on; a reply arrives as a cross-session message.
 
 ---
-
----
-
-## P1 — "Try again" after a failure started the next episode from zero
-
-**Seen on the A85 2026-09-23 19:05, dev build `15a1e0b`. The mechanism is
-suspected, not seen.** *Dark* S01E01 failed on a forced Direct play (the
-guard now reports it — COMPLETED, same date); the viewer's position was
-`2:21`. Tapping **Try again** stopped the session and created one for
-`tmdb:episode:1375782` — a different episode — at `seekMs: 0`. `retry()`
-reloads `queueRef`'s current index at `positionRef`, so a real retry would
-have asked for `1279454` at about `141000`.
-
-**What fits:** the result is exactly `advanceBy(1)` — next item, its own
-remembered position — which only `skipNext` and the `playToEnd` listener
-call. That listener's own comment says *"replacing a source with null can
-itself emit playToEnd"*, and `load` sets `mediaRef` **before** its
-`player.replace(null)`, so the `if (!media) return` guard would not stop it.
-The native media session went to state 7 (error) at `141240` and then to
-`0` just before the stop, which is consistent and proves nothing more.
-
-**It may explain a second thing.** The same listener retires the item from
-Continue Watching. After the 18:31 black screen on the tagged 0.8.0, *Dark*
-had vanished from Continue Watching by 18:59 and S01E01's row showed no
-progress bar. A spurious end would do exactly that. Also unproven.
-
-**Not fixed, deliberately.** A `play-to-end` log line (item, position,
-duration, `player.status`) is committed after `15a1e0b` and **not yet in any
-build**. Next build: fail a title (Direct on *Dark* does it), tap Try again,
-and read whether `play-to-end` fires with a position far from the duration
-and `status: 'error'`. If it does, the fix is the listener refusing an end
-that is not near the end, or one arriving while a load owns the player —
-with a test built from these numbers first. The message this client now
-shows on that screen **tells the viewer to try again**, so this is the next
-thing to take.
 
 ---
 
@@ -648,6 +609,12 @@ that would be a gap in theirs rather than a preference.
   chrome, and `chromeVisible` stays true in `failed`. Hide the transport
   while `status === 'failed'`, or render the panel above it. Not verified
   whether a tap on an overlapping area reaches the button underneath.
+- **`durationRef` is not reset by `load`.** The 22:37 `play-to-end` for
+  S01E04 carried S01E03's duration (`2732334`). `knownDurationRef` is reset,
+  `durationRef` is not, so until the new source reports one, anything
+  reading it — the Continue Watching retire, the seek bound — uses the last
+  item's. Harmless in the case seen, because that end is now ignored; not
+  checked anywhere else.
 - **A refused rebuilding seek still shows core's log line.** `repositionTo`'s
   `catch` uses `describeError`, the last playback site that does. Same shape
   as `updateRefusalMessage`, but the honest lead differs — whether the old

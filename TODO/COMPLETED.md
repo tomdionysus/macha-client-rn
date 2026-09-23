@@ -8,6 +8,70 @@ Newest first.
 
 ---
 
+## 2026-09-23 — Try again skipped two episodes; a clear was being read as an end
+
+**Suspected at 19:05, proven at 22:37, fixed and seen fixed at 22:47**, all
+on the A85 with *Dark*. Fix in `81d1860`.
+
+### What happened
+
+After a failure, **Try again** on S01E01 at `2:21` created a session for
+S01E03 from zero; on S01E03 at `22:20` it created one for S01E05. `retry()`
+reloads the current index at the current position, so neither was a retry.
+
+### What was measured
+
+A `play-to-end` log line (build `9370403`, core `0ac8f21`, dist
+`b67ed78c48f0`) caught it: two events **2 ms apart**, S01E03 then S01E04,
+both `positionMs: 0`, `status: 'idle'`, then a create for S01E05. **The
+cause is in expo-video's Android source, read and then seen:** `replace(null)`
+runs `clearMediaItems()` and `prepare()`, ExoPlayer goes to `STATE_ENDED`
+with no error, and `setStatus` sends `PlayedToEnd` for exactly that. `load`
+sets `mediaRef` before its `replace(null)`, so the listener took the clear
+as the new item finishing — advanced, and the next `load` cleared again.
+The listener's comment already knew `replace(null)` could emit an end; its
+guard only covered teardown, where `mediaRef` is cleared first.
+
+Each spurious end also ran the listener's retire, marking the item finished
+in Continue Watching. That is the mechanism that fits *Dark* vanishing from
+Continue Watching after the 18:31 black screen — **fits, not proven for
+that instance**: the row may show only a series' latest episode.
+
+The first `load` after app start does **not** produce one (none at 22:35):
+it takes a player that already had a source.
+
+### The fix, and both directions checked
+
+`progressedRef`: reset by `load` before the clear, set by `timeUpdate` once
+the new source reports `currentTime > 0`; `playToEnd` is ignored and logged
+until then. A flag rather than a position-against-duration threshold, so a
+server duration longer than the stream cannot refuse a real end.
+
+- **Try again** on S01E05 at `6:15`: two `play-to-end-ignored`, then a
+  create for **S01E05 at `seekMs: 375877`**, playing at `6:25`.
+- **A real end** after seeking near the end: one `play-to-end` at
+  `positionMs: 2730039` of `2730334`, one advance, to **S01E06**. No
+  cascade.
+- **No false report from the guard fix** in between: the rebuilding seek's
+  PATCH took 9.4 s, the old generation failed `Source error` during it, the
+  guard declined, and `superseded-error-reported` fired **0** times because
+  the player had recovered.
+
+**No unit test**, deliberately: the fix is provider wiring this suite cannot
+reach, and a pure function around one boolean would restate the code. The
+device runs above are the proof.
+
+### Seen on the way
+
+- The LAN node answered a create `429 resource_limit` / *"video transcode
+  limit reached"* with `alternative_may_succeed: true`, and core walked to
+  `macnessa` correctly. The limit was most likely this session's own leaked
+  sessions — every `install -r` kills the app without releasing one (the P2
+  on sessions leaked at process death).
+- `durationRef` survives `load` — recorded in ACTIVE.
+
+---
+
 ## 2026-09-23 — The guard reports, Remux says why not, and a failed start is in words
 
 Tom's three calls, the same afternoon, after the Remux black screen on the
