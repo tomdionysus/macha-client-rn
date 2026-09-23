@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { endpointFailure, MachaPlaybackError, type PlaybackSession } from '@machafoundation/core';
-import { errorBlamesEndpoint, selfSupersededGeneration, updateRefusalMessage } from './policy';
+import { errorBlamesEndpoint, selfSupersededGeneration, supersededErrorCheck, updateRefusalMessage } from './policy';
 
 /**
  * The mode-switch hole, which server 0.48.0 turned from latent into routine.
@@ -83,6 +83,65 @@ describe('errorBlamesEndpoint with a generation this client superseded', () => {
     // with nothing outstanding is still the node's.
     expect(errorBlamesEndpoint(transformed(), undefined, NOW)).toBe(true);
     expect(errorBlamesEndpoint(transformed(), undefined, NOW, undefined)).toBe(true);
+  });
+});
+
+/**
+ * The guard declines the wrong remedy; it must not also swallow the report.
+ *
+ * **Seen on the A85 twice, the second time on the tagged 0.8.0 from a menu
+ * tap.** 2026-09-23 18:31: Remux on a ten-bit HEVC title, PATCH answered, and
+ * 1.8 s later the new generation's decoder refused the stream. The error fell
+ * inside the settled tail, `failover-declined { reason:
+ * 'generation-superseded-by-us' }`, and because a decline counts as handled
+ * nothing ever set `failed`: black picture at 0:00, a play button, no message.
+ *
+ * The guard is right that the node is not to blame. What it cannot know is
+ * whether the error was a stale fragment of the old generation (which the
+ * swap cures) or the new one failing (which nothing cures). So it waits out
+ * the same window it already uses, and whoever is still in error then is told.
+ */
+describe('supersededErrorCheck', () => {
+  it('waits while the PATCH is in flight, and looks again a whole deadline later', () => {
+    // The settle time is unknown until the node answers, and a mode switch
+    // has taken 16 s to. Re-evaluated when the timer fires.
+    expect(supersededErrorCheck({ startedAtMs: NOW - 2_000 }, transformed(), NOW)).toEqual({
+      kind: 'wait',
+      recheckAtMs: NOW + 8_000,
+    });
+  });
+
+  it('waits out the settled tail, and no longer than it', () => {
+    const settled = { startedAtMs: NOW - 3_000, settledAtMs: NOW - 1_800 };
+    expect(supersededErrorCheck(settled, transformed(), NOW)).toEqual({
+      kind: 'wait',
+      recheckAtMs: NOW - 1_800 + 8_000,
+    });
+  });
+
+  it('reports the A85 case once the tail has closed', () => {
+    // The 18:31 run exactly: settled, then an error 1.8 s later, re-examined
+    // at the end of the window. Still in error there means the new generation
+    // itself cannot play, and the viewer has to hear so.
+    const settledAtMs = NOW - 1_800;
+    const atDeadline = settledAtMs + 8_000;
+    expect(supersededErrorCheck({ startedAtMs: NOW - 3_000, settledAtMs }, transformed(), atDeadline)).toEqual({
+      kind: 'report',
+    });
+  });
+
+  it('reports when there is no change of ours to wait for', () => {
+    expect(supersededErrorCheck(undefined, transformed(), NOW)).toEqual({ kind: 'report' });
+  });
+
+  it('uses the same window the guard does, so it never reports inside it', () => {
+    // Two windows chosen independently is the collision this project keeps
+    // paying for. Wherever the guard would still decline, this must wait.
+    const settled = { startedAtMs: NOW - 20_000, settledAtMs: NOW - 10_000 };
+    for (let at = NOW - 10_000; at <= NOW; at += 250) {
+      const declining = !errorBlamesEndpoint(transformed(), undefined, at, settled);
+      expect(supersededErrorCheck(settled, transformed(), at).kind).toBe(declining ? 'wait' : 'report');
+    }
   });
 });
 

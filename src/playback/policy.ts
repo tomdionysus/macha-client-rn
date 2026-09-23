@@ -549,6 +549,39 @@ export function selfSupersededGeneration(
   return nowMs - pending.settledAtMs < seekDeadlineMs(session);
 }
 
+/** What to do about a player error the supersede guard declined to fail over on. */
+export type SupersededErrorCheck = { kind: 'wait'; recheckAtMs: number } | { kind: 'report' };
+
+/**
+ * When a declined error stops being excusable and has to reach the viewer.
+ *
+ * **The guard suppresses the wrong remedy and must not also suppress the
+ * report.** `selfSupersededGeneration` is right that a node is not to blame
+ * for a generation this client replaced, but it cannot tell a stale fragment
+ * of the old generation, which the swap cures, from the new generation
+ * failing, which nothing here cures. Declining counted as handled, so the
+ * second case left a black picture and no message: seen on the A85
+ * 2026-09-21 on a forced Direct play, and 2026-09-23 on the tagged 0.8.0 from
+ * a Remux tap, where the new generation's decoder refused ten-bit HEVC 1.8 s
+ * after the PATCH answered.
+ *
+ * So wait out exactly the window the guard uses and then report, if the player
+ * is still in error — that last check is the caller's, being a fact about the
+ * player rather than the policy. While the PATCH is in flight its settle time
+ * is unknown, so look again a whole deadline later and re-evaluate. Reusing
+ * `seekDeadlineMs` rather than choosing a second constant is the point: two
+ * windows chosen independently is the collision this project keeps paying for.
+ */
+export function supersededErrorCheck(
+  pending: PendingSupersede | undefined,
+  session: PlaybackSession | undefined,
+  nowMs: number,
+): SupersededErrorCheck {
+  if (!selfSupersededGeneration(pending, session, nowMs)) return { kind: 'report' };
+  const settledAtMs = pending?.settledAtMs;
+  return { kind: 'wait', recheckAtMs: (settledAtMs ?? nowMs) + seekDeadlineMs(session) };
+}
+
 /**
  * Whether a player error is evidence about the *endpoint*.
  *

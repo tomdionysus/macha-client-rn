@@ -32,6 +32,8 @@ import {
   restoredVolume,
   seekRequiresReposition,
   seekStillPending,
+  selfSupersededGeneration,
+  supersededErrorCheck,
   type PendingSupersede,
   spendsFailoverBudget,
   statedUpdate,
@@ -125,6 +127,18 @@ const MAX_FAILOVER_ATTEMPTS = 2;
  * one.
  */
 const FAILOVER_BUDGET_RESET_MS = 60_000;
+
+/**
+ * What a viewer reads when a change they asked for left the player in error.
+ *
+ * Honest about what is known and no more: the change was theirs, the stream
+ * after it did not play, and expo-video never says why — so "may", and a
+ * remedy they can reach from where they are. Not the player's own message,
+ * which on the A85 was "MediaCodecVideoRenderer error, index=0".
+ */
+const SUPERSEDED_FAILURE_MESSAGE =
+  'Playback stopped after the change and did not recover. This device may not be able to play the stream that way. '
+  + 'Try another mode from the playback menu, or try again.';
 
 /** Restarting an item that has barely begun is more useful than resuming it. */
 const RESUME_FLOOR_MS = 10_000;
@@ -711,6 +725,41 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    */
   const pendingSupersedeRef = useRef<PendingSupersede | undefined>(undefined);
 
+  /**
+   * Tell the viewer about an error the supersede guard excused, if it is still
+   * an error once the guard's window has closed.
+   *
+   * Scoped to the generation it was armed under: anything that bumps the
+   * generation — a load, a seek, another switch, a failover — owns the screen
+   * from then on, and a player that has left `error` has recovered on its own.
+   * One timer at a time; a repeat of the same error re-arms rather than stacks.
+   */
+  const supersedeCheckRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const reportIfStillFailed = useCallback(
+    (generation: number) => {
+      clearTimeout(supersedeCheckRef.current);
+      const check = (): void => {
+        if (generationRef.current !== generation) return;
+        const verdict = supersededErrorCheck(pendingSupersedeRef.current, sessionRef.current, Date.now());
+        if (verdict.kind === 'wait') {
+          supersedeCheckRef.current = setTimeout(check, Math.max(0, verdict.recheckAtMs - Date.now()));
+          return;
+        }
+        if (player.status !== 'error') return;
+        console.log('[macha] [playback] superseded-error-reported', { generation });
+        setState((current) => ({
+          ...current,
+          status: 'failed',
+          buffering: false,
+          error: SUPERSEDED_FAILURE_MESSAGE,
+        }));
+      };
+      check();
+    },
+    [player],
+  );
+  useEffect(() => () => clearTimeout(supersedeCheckRef.current), []);
+
   const seekTo = useCallback(
     (positionMs: number) => {
       const bounded = Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs));
@@ -782,9 +831,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     // about the endpoint. `repositionTo` is what actually resolves this case;
     // this only stops the wrong remedy running first.
     if (!errorBlamesEndpoint(session, pendingSeekRef.current, Date.now(), pendingSupersedeRef.current)) {
+      // Asked of the guard itself rather than of the ref: the ref is never
+      // cleared, so its mere presence labelled every later seek decline too.
+      const superseded = selfSupersededGeneration(pendingSupersedeRef.current, session, Date.now());
       console.log('[macha] [playback] failover-declined', {
-        reason: pendingSupersedeRef.current ? 'generation-superseded-by-us' : 'seek-outstanding',
+        reason: superseded ? 'generation-superseded-by-us' : 'seek-outstanding',
       });
+      // Declining the failover must not mean declining to tell anyone. If the
+      // player is still in error once the guard's own window has closed, the
+      // new generation is what failed; see `supersededErrorCheck`.
+      if (superseded) reportIfStillFailed(generationRef.current);
       return true;
     }
     // Playback that has been fine for a while earns a fresh budget: the limit
@@ -872,7 +928,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // it. See the note beside the `setBusy(true)` above.
       if (generationRef.current === myGeneration) setBusy(false);
     }
-  }, [mediaApi, player, playbackApi]);
+  }, [mediaApi, player, playbackApi, reportIfStillFailed]);
 
   // Held in a ref so the player's listeners never have to resubscribe when the
   // services object is rebuilt.
