@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_SEARCH_SORT, orderMedia, SEARCH_SORTS, type MediaSortKey } from '@machafoundation/core';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
 import { SearchIcon } from '../ui/Icons';
 import { MediaGrid } from '../ui/MediaGrid';
+import { SortControl } from '../ui/SortControl';
 import { Screen } from '../ui/Screen';
 import { EmptyState, ErrorState, Loading } from '../ui/Status';
 import { colors, radius, space, type as typography } from '../ui/theme';
@@ -19,6 +21,7 @@ export default function SearchScreen() {
   const openMedia = useOpenMedia();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [sort, setSort] = useState<MediaSortKey>(DEFAULT_SEARCH_SORT);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query.trim()), DEBOUNCE_MS);
@@ -31,6 +34,9 @@ export default function SearchScreen() {
   );
 
   const idle = debounced.length < MINIMUM_QUERY_LENGTH;
+  // Relevance is the node's own order; the others are core's, the same four
+  // choices every client offers.
+  const ordered = useMemo(() => (results.value ? orderMedia(results.value, sort, SEARCH_SORTS) : undefined), [results.value, sort]);
 
   return (
     <Screen title="Search">
@@ -49,6 +55,7 @@ export default function SearchScreen() {
           style={styles.input}
         />
       </View>
+      <SortControl sorts={SEARCH_SORTS} value={sort} onChange={setSort} />
 
       {idle ? (
         <EmptyState title="Search your catalogue" detail="Everything here comes from your own nodes." />
@@ -58,8 +65,8 @@ export default function SearchScreen() {
         <ErrorState error={results.error} onRetry={results.refresh} />
       ) : results.value && results.value.length === 0 ? (
         <EmptyState title={`Nothing matches “${debounced}”`} />
-      ) : results.value ? (
-        <MediaGrid items={results.value} onOpen={openMedia} shape="poster" />
+      ) : ordered ? (
+        <MediaGrid items={ordered} onOpen={openMedia} shape="poster" />
       ) : null}
     </Screen>
   );

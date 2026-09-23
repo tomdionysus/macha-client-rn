@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { compareIndexedTitles } from '@machafoundation/core';
+import { DEFAULT_LIBRARY_SORT, LIBRARY_SORTS, orderMedia, type MediaSortKey } from '@machafoundation/core';
 import type { MediaSummary } from '../types';
 import { MediaGrid } from './MediaGrid';
 import { SearchIcon } from './Icons';
 import { colors, radius, space, type as typography } from './theme';
 import { pluralize } from './format';
 import { EmptyState } from './Status';
+import { SortControl } from './SortControl';
 import { useProblems } from '../providers/MachaProvider';
 import { describeEmptyLibrary } from '../state/problems';
 import type { CardShape } from './MediaCard';
@@ -27,17 +28,18 @@ interface Props {
  */
 export function Library({ items, onOpen, noun, shape }: Props) {
   const [filter, setFilter] = useState('');
+  const [sort, setSort] = useState<MediaSortKey>(DEFAULT_LIBRARY_SORT);
   const problems = useProblems();
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    // Core's title order, which every other client uses: a leading article
-    // is ignored, accents fold and numbers order as numbers, so "The Matrix"
-    // files under M here as it does on the web and the television.
-    const sorted = [...items].sort((a, b) => compareIndexedTitles(a.title, b.title));
+    // Core's orders, which every other client offers too. Title is the
+    // indexed order — a leading article ignored, accents folded, numbers as
+    // numbers — so "The Matrix" files under M here as on the web and the TV.
+    const sorted = orderMedia(items, sort, LIBRARY_SORTS);
     if (!needle) return sorted;
     return sorted.filter((item) => item.title.toLowerCase().includes(needle));
-  }, [items, filter]);
+  }, [items, filter, sort]);
 
   return (
     <View>
@@ -55,6 +57,7 @@ export function Library({ items, onOpen, noun, shape }: Props) {
         />
         <Text style={styles.count}>{visible.length}</Text>
       </View>
+      <SortControl sorts={LIBRARY_SORTS} value={sort} onChange={setSort} />
       {visible.length === 0 ? (
         // A filter that matched nothing is the viewer's own doing and says so;
         // everything else depends on whether this client can see a catalogue at

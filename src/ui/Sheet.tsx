@@ -6,7 +6,8 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 
 interface SheetProps {
   visible: boolean;
-  title: string;
+  /** Optional: a sheet whose options name themselves ("Sort By Title") needs no heading. */
+  title?: string;
   onClose(): void;
   children: React.ReactNode;
 }
@@ -24,7 +25,7 @@ export function Sheet({ visible, title, onClose, children }: SheetProps) {
       <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
         <View style={styles.grabber} />
         <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.title}>{title ?? ''}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={8} onPress={onClose} style={styles.close}>
             <CloseIcon size={18} color={colors.textDim} />
           </Pressable>

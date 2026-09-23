@@ -1,8 +1,11 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useRouter } from 'expo-router';
+import { episodeLabel } from '@machafoundation/core';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { Artwork } from './Artwork';
 import { CloseIcon, PlayIcon } from './Icons';
+import { hrefFor } from './navigation';
 import { colors, radius, space, type as typography } from './theme';
 
 /**
@@ -36,7 +39,9 @@ interface Props {
 }
 
 export function MediaCard({ item, width, onPress, shape, progress, onRemove, style }: Props) {
+  const router = useRouter();
   const cardShape = shape ?? shapeFor(item.kind);
+  const episode = episodeLinks(item);
   const height = width / ASPECT[cardShape];
   const artwork =
     cardShape === 'still'
@@ -77,13 +82,58 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
       <Text numberOfLines={2} style={styles.title}>
         {item.title}
       </Text>
-      {cardSubtitle(item) ? (
+      {episode ? (
+        <>
+          <Text
+            numberOfLines={1}
+            accessibilityRole="link"
+            onPress={() => navigateTo(router, hrefFor('show', episode.series.id))}
+            style={styles.subtitle}>
+            {episode.series.title}
+          </Text>
+          {episode.label ? (
+            <Text
+              numberOfLines={1}
+              accessibilityRole="link"
+              onPress={() => navigateTo(router, hrefFor('season', episode.seasonId))}
+              style={styles.subtitle}>
+              {episode.label}
+            </Text>
+          ) : null}
+        </>
+      ) : cardSubtitle(item) ? (
         <Text numberOfLines={1} style={styles.subtitle}>
           {cardSubtitle(item)}
         </Text>
       ) : null}
     </Pressable>
   );
+}
+
+/**
+ * An episode named away from its season: the series, then "Season 1 Episode
+ * 4", each a link — the series to its page, the label to the season.
+ *
+ * Tom's ruling, relayed by core and confirmed here 2026-09-23: in search
+ * results and Continue Watching an episode reads this way, never `S01E04`.
+ * This card is what both draw; a season page draws its own compact rows and
+ * keeps them. The label is core's `episodeLabel` so every client words it the
+ * same, and the ids are the ones `playbackContext` carries. An episode without
+ * that context falls back to the old line rather than guessing at links.
+ */
+function episodeLinks(
+  item: MediaSummary,
+): { series: { id: string; title: string }; seasonId: string; label: string | undefined } | undefined {
+  if (item.kind !== 'episode' || !item.playbackContext) return undefined;
+  const { series, season } = item.playbackContext;
+  // A stored snapshot can lack `episodeNumber`, and then core has no label to
+  // give. The node's own subtitle still says which episode it is, and losing
+  // that would be worse than its wording.
+  return { series, seasonId: season.id, label: episodeLabel(item) ?? item.subtitle };
+}
+
+function navigateTo(router: ReturnType<typeof useRouter>, href: string | undefined): void {
+  if (href) router.navigate(href as never);
 }
 
 function cardSubtitle(item: MediaSummary): string | undefined {
