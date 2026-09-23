@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlaybackCapabilities, PlaybackSession, PlaybackStreamInfo } from '@machafoundation/core';
-import { remuxUnavailableReason } from './policy';
+import { directUnavailableReason, remuxUnavailableReason } from './policy';
 
 /**
  * Remux copies the video, so it is only real when this device can decode it.
@@ -42,14 +42,14 @@ const video = (over: Partial<PlaybackStreamInfo> = {}): PlaybackStreamInfo => ({
   ...over,
 });
 
-const session = (streams: PlaybackStreamInfo[], selectedVideo = 0) =>
+const session = (streams: PlaybackStreamInfo[], selectedVideo = 0, format = 'matroska,webm', container = 'matroska') =>
   ({
     mediaId: 'macha:dark-s01e01',
     mode: 'transcode',
     mimeType: 'application/vnd.apple.mpegurl',
     durationMs: 3_092_334,
     output: {},
-    sourceInfo: { format: 'matroska,webm', container: 'matroska', bitrate: 5_021_861, size: 0, streams },
+    sourceInfo: { format, container, bitrate: 5_021_861, size: 0, streams },
     selected: { videoStream: selectedVideo, audioStream: 1, subtitleStream: -1 },
   }) as unknown as PlaybackSession;
 
@@ -92,5 +92,47 @@ describe('remuxUnavailableReason', () => {
 
   it('says nothing when there is no video at all', () => {
     expect(remuxUnavailableReason(session([]), A85)).toBeUndefined();
+  });
+});
+
+/**
+ * Direct play, greyed out on the same terms — Tom, 2026-09-24.
+ *
+ * `transformFor`'s docblock had argued the opposite: a viewer who names Direct
+ * gets what they asked for. On the A85 what they got was a decoder refusal —
+ * a black screen before the guard fix, an honest failure after it — for a mode
+ * the menu offered without comment. Direct delivers the original file, so it
+ * is judged against the direct-play decoders (not the HLS list Remux uses) and
+ * against the container, which Remux replaces and Direct does not.
+ */
+describe('directUnavailableReason', () => {
+  it('refuses the A85 case, and points at the one mode that works', () => {
+    // Ten-bit video rules out Remux too, so Transcode is the only way.
+    expect(directUnavailableReason(session([video()]), A85)).toBe(
+      'Unavailable: this video is 10-bit and this device can only decode 8-bit. Transcode will play it.',
+    );
+  });
+
+  it('offers Direct when the device can decode the video and open the file', () => {
+    expect(directUnavailableReason(session([video({ profile: 'Main', bitDepth: 8 })]), A85)).toBeUndefined();
+  });
+
+  it('judges the video against the direct-play decoders, not the HLS list', () => {
+    // A codec the device decodes from a file but not over HLS is fine for
+    // Direct, which is the opposite of Remux.
+    const caps = { ...A85, hlsVideoCodecs: ['h264'] } as PlaybackCapabilities;
+    expect(directUnavailableReason(session([video({ bitDepth: 8 })]), caps)).toBeUndefined();
+  });
+
+  it('refuses a container this device cannot open, and says Remux will play it', () => {
+    // Remux rewraps the streams, so only the container stands in the way.
+    const avi = session([video({ codec: 'h264', profile: 'High', bitDepth: 8 })], 0, 'avi', 'avi');
+    expect(directUnavailableReason(avi, A85)).toBe(
+      'Unavailable: this device cannot open this file as it is. Remux will play it.',
+    );
+  });
+
+  it('says nothing when there is no video and the container is fine', () => {
+    expect(directUnavailableReason(session([]), A85)).toBeUndefined();
   });
 });

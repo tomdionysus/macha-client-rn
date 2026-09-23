@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Text } from 'react-native';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
-import { remuxUnavailableReason } from '../playback/policy';
+import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { PlaybackMode } from '../types';
 import { Sheet, SheetOption, SheetSection } from './Sheet';
@@ -24,15 +24,17 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
 /**
  * In-session playback controls.
  *
- * Availability is never derived locally: the node's `options` decide which
- * qualities, audio tracks, subtitle tracks and media representations exist.
- * Direct is the one exception — it is offered as an explicit override even
- * when capability negotiation left it out, because a viewer who knows their
- * device can play a file should be able to say so.
+ * The node's `options` decide which modes, qualities, audio tracks, subtitle
+ * tracks and media representations exist. What this device can actually play
+ * is decided here, from its own decoders: Remux and Direct stay listed but are
+ * disabled, with the reason, when they would hand the player something it
+ * cannot decode (Tom, 2026-09-23 and 2026-09-24). A mode is never hidden —
+ * the viewer sees what exists and why it is not available to them.
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, busy } = usePlayback();
   const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
+  const directBlocked = session ? directUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
 
   // What the server said about the video, beside the verdict. An unreported
   // bit depth is not an objection, so a ten-bit source the node could not
@@ -40,13 +42,15 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   const sourceVideo = session?.sourceInfo.streams.find((stream) => stream.index === session.selected.videoStream);
   useEffect(() => {
     if (!visible || !session) return;
-    console.log('[macha] [playback] remux-availability', {
+    console.log('[macha] [playback] mode-availability', {
       codec: sourceVideo?.codec,
       profile: sourceVideo?.profile,
       bitDepth: sourceVideo?.bitDepth,
-      blocked: remuxBlocked ?? false,
+      container: session.sourceInfo.container ?? session.sourceInfo.format,
+      remux: remuxBlocked ?? 'available',
+      direct: directBlocked ?? 'available',
     });
-  }, [visible, session, sourceVideo, remuxBlocked]);
+  }, [visible, session, sourceVideo, remuxBlocked, directBlocked]);
 
   if (!session) return null;
 
@@ -66,9 +70,11 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           * shared chooser and these are overrides on top of it.
           */}
         {(options.modes as PlaybackMode[]).map((mode) => {
-          // Kept in the list and explained, not hidden: Tom's call, 2026-09-23.
-          // A remux of video this device cannot decode is a black screen.
-          const unavailable = mode === 'remux' && mode !== preferences.mode ? remuxBlocked : undefined;
+          // Kept in the list and explained, not hidden: Tom's calls, Remux
+          // 2026-09-23 and Direct 2026-09-24. Either, on video or a file this
+          // device cannot handle, is a decoder refusal the menu had offered.
+          const blocked = mode === 'remux' ? remuxBlocked : mode === 'direct' ? directBlocked : undefined;
+          const unavailable = mode !== preferences.mode ? blocked : undefined;
           return (
             <SheetOption
               key={mode}

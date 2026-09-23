@@ -7,6 +7,7 @@ import {
   playbackFailureStatus,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
+  containerIsPlayable,
   technicalProfileFromSession,
   videoStreamObjection,
   type PlaybackCapabilities,
@@ -107,11 +108,13 @@ export function sessionAudioCodec(session: PlaybackSession | undefined): string 
  * a stall. The web client shipped that exact halfway fix an hour before this
  * and had it refused.
  *
- * **Direct play is deliberately left alone.** It means "serve me the original
- * file", there is no transform to adjust, and a viewer who picks it by name on
- * a title this device cannot decode the audio of gets silence — which is what
- * they asked for. The automatic path no longer chooses it for those titles,
- * because `capabilities.ts` stopped claiming the codecs.
+ * **Direct play has no transform to adjust**, so nothing here changes for it.
+ * It used to be left alone on the argument that a viewer who names it gets
+ * what they asked for; Tom reversed that on 2026-09-24, and Direct is now
+ * offered only when this device can decode the video and open the file —
+ * `directUnavailableReason` greys it out otherwise. Audio this device cannot
+ * decode still gets through Direct as silence; that case was not part of the
+ * decision.
  */
 export function transformFor(
   mode: PlaybackMode,
@@ -146,11 +149,52 @@ export function remuxUnavailableReason(
   capabilities: PlaybackCapabilities,
   overrides: PlaybackPolicyOverrides = {},
 ): string | undefined {
+  const delivered = { ...capabilities, videoCodecs: capabilities.hlsVideoCodecs ?? capabilities.videoCodecs };
+  return videoUnavailableReason(session, delivered, capabilities, overrides);
+}
+
+/**
+ * Why Direct play cannot play here, in a sentence for the viewer — or
+ * undefined when it can.
+ *
+ * **Tom's call, 2026-09-24, reversing the one `transformFor` recorded.** Direct
+ * had been left alone on the argument that a viewer who names it gets what they
+ * asked for; on the A85 what they got for *Dark* was a decoder refusal, from a
+ * mode the menu offered without comment. It is now kept and explained exactly
+ * as Remux is.
+ *
+ * Direct delivers the original file, so two things can rule it out that differ
+ * from Remux: the video is judged against the **direct-play** decoders, not the
+ * HLS list, and the **container** has to be one this device opens — core's
+ * `containerIsPlayable`, the same test its chooser uses. The remedy named
+ * differs with the cause: video this device cannot decode rules out Remux too,
+ * so only Transcode helps; a container alone is exactly what Remux replaces.
+ */
+export function directUnavailableReason(
+  session: PlaybackSession,
+  capabilities: PlaybackCapabilities,
+  overrides: PlaybackPolicyOverrides = {},
+): string | undefined {
+  const video = videoUnavailableReason(session, capabilities, capabilities, overrides);
+  if (video) return video;
+  const format = session.sourceInfo.container ?? session.sourceInfo.format;
+  if (format && !containerIsPlayable(format, capabilities.containers ?? [])) {
+    return 'Unavailable: this device cannot open this file as it is. Remux will play it.';
+  }
+  return undefined;
+}
+
+/** The shared half: the presented video stream against a decoder list. */
+function videoUnavailableReason(
+  session: PlaybackSession,
+  judgedAgainst: PlaybackCapabilities,
+  capabilities: PlaybackCapabilities,
+  overrides: PlaybackPolicyOverrides,
+): string | undefined {
   const streams = technicalProfileFromSession(session).streams.filter((stream) => stream.type === 'video');
   const stream = streams.find((candidate) => candidate.index === session.selected.videoStream) ?? streams[0];
   if (!stream) return undefined;
-  const delivered = { ...capabilities, videoCodecs: capabilities.hlsVideoCodecs ?? capabilities.videoCodecs };
-  const objection = videoStreamObjection(stream, delivered, overrides);
+  const objection = videoStreamObjection(stream, judgedAgainst, overrides);
   if (!objection) return undefined;
   return `Unavailable: ${objectionSentence(objection, stream.bitDepth, capabilities.videoBitDepth)} Transcode will play it.`;
 }
