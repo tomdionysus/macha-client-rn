@@ -5,7 +5,12 @@ import {
   playbackFailureStatus,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
+  technicalProfileFromSession,
+  videoStreamObjection,
+  type PlaybackCapabilities,
+  type PlaybackDecisionReason,
   type PlaybackMode,
+  type PlaybackPolicyOverrides,
   type PlaybackSession,
   type PlaybackUpdate,
   type StreamInstruction,
@@ -113,6 +118,61 @@ export function transformFor(
   if (mode === 'remux' && !canCopyAudio) return { mode: 'transcode', video: 'copy', audio: 'transcode' };
   return { mode, video: 'copy', audio: 'copy' };
 }
+/**
+ * Why Remux cannot play here, in a sentence for the viewer — or undefined when
+ * it can.
+ *
+ * **The video half `transformFor` leaves alone.** Remux copies the video, so
+ * it is only real when this device can decode that video. Seen failing on the
+ * A85 2026-09-23 on the tagged 0.8.0: *Dark* S01E01 is ten-bit HEVC, the probe
+ * reported no Main 10, Remux asked the node to copy it, the decoder refused
+ * it and the viewer got a black screen. Tom's call the same day: keep Remux in
+ * the menu and say why it is unavailable, rather than hide it or quietly turn
+ * it into the transcode the viewer just left.
+ *
+ * **The judgement is core's, not a second one here.** `videoStreamObjection`
+ * is what chose transcode for the title on create; this asks it of the video
+ * stream the session is presenting, as the server describes it, against the
+ * HLS decoder list because that is how a remux arrives — core's own
+ * `deliveryVideoCodecs` rule. Its silence is inherited too: an unreported bit
+ * depth is not an objection, so a source the server could not probe is still
+ * offered.
+ */
+export function remuxUnavailableReason(
+  session: PlaybackSession,
+  capabilities: PlaybackCapabilities,
+  overrides: PlaybackPolicyOverrides = {},
+): string | undefined {
+  const streams = technicalProfileFromSession(session).streams.filter((stream) => stream.type === 'video');
+  const stream = streams.find((candidate) => candidate.index === session.selected.videoStream) ?? streams[0];
+  if (!stream) return undefined;
+  const delivered = { ...capabilities, videoCodecs: capabilities.hlsVideoCodecs ?? capabilities.videoCodecs };
+  const objection = videoStreamObjection(stream, delivered, overrides);
+  if (!objection) return undefined;
+  return `Unavailable: ${objectionSentence(objection, stream.bitDepth, capabilities.videoBitDepth)} Transcode will play it.`;
+}
+
+/** The viewer's version of a video objection: what is true, not the code for it. */
+function objectionSentence(
+  objection: PlaybackDecisionReason,
+  sourceBitDepth: number | undefined,
+  deviceBitDepth: number | undefined,
+): string {
+  switch (objection) {
+    case 'video-bit-depth-exceeds-client':
+      return `this video is ${sourceBitDepth}-bit and this device can only decode ${deviceBitDepth}-bit.`;
+    case 'video-transfer-not-presentable':
+      return 'this video is HDR and this device cannot display it.';
+    case 'video-dolby-vision-not-supported':
+      return 'this video needs Dolby Vision, which this device does not support.';
+    case 'video-codec-not-playable':
+    case 'video-codec-not-deliverable-over-hls':
+      return 'this device cannot decode this video’s format.';
+    default:
+      return 'this device cannot play this video without converting it.';
+  }
+}
+
 /**
  * States the whole transform whenever an update names a mode.
  *

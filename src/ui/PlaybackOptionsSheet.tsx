@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Text } from 'react-native';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
+import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
+import { remuxUnavailableReason } from '../playback/policy';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { PlaybackMode } from '../types';
 import { Sheet, SheetOption, SheetSection } from './Sheet';
@@ -30,6 +32,21 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, busy } = usePlayback();
+  const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
+
+  // What the server said about the video, beside the verdict. An unreported
+  // bit depth is not an objection, so a ten-bit source the node could not
+  // probe is still offered — and only this line tells the two cases apart.
+  const sourceVideo = session?.sourceInfo.streams.find((stream) => stream.index === session.selected.videoStream);
+  useEffect(() => {
+    if (!visible || !session) return;
+    console.log('[macha] [playback] remux-availability', {
+      codec: sourceVideo?.codec,
+      profile: sourceVideo?.profile,
+      bitDepth: sourceVideo?.bitDepth,
+      blocked: remuxBlocked ?? false,
+    });
+  }, [visible, session, sourceVideo, remuxBlocked]);
 
   if (!session) return null;
 
@@ -48,16 +65,25 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           * performs exactly what it is told, so the default comes from the
           * shared chooser and these are overrides on top of it.
           */}
-        {(options.modes as PlaybackMode[]).map((mode) => (
-          <SheetOption
-            key={mode}
-            label={MODE_LABELS[mode]}
-            detail={mode === preferences.mode ? [`Now: ${session.mode}`, describeTransform(session)].filter(Boolean).join(' · ') : MODE_DETAIL[mode]}
-            selected={preferences.mode === mode}
-            disabled={busy}
-            onPress={() => change({ preferences: { mode } })}
-          />
-        ))}
+        {(options.modes as PlaybackMode[]).map((mode) => {
+          // Kept in the list and explained, not hidden: Tom's call, 2026-09-23.
+          // A remux of video this device cannot decode is a black screen.
+          const unavailable = mode === 'remux' && mode !== preferences.mode ? remuxBlocked : undefined;
+          return (
+            <SheetOption
+              key={mode}
+              label={MODE_LABELS[mode]}
+              detail={
+                mode === preferences.mode
+                  ? [`Now: ${session.mode}`, describeTransform(session)].filter(Boolean).join(' · ')
+                  : (unavailable ?? MODE_DETAIL[mode])
+              }
+              selected={preferences.mode === mode}
+              disabled={busy || unavailable !== undefined}
+              onPress={() => change({ preferences: { mode } })}
+            />
+          );
+        })}
       </SheetSection>
 
       {options.canChangeQuality && options.qualityHeights.length > 0 ? (
