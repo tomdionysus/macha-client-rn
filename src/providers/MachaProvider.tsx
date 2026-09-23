@@ -39,6 +39,7 @@ import { MusicLibraryStore } from '../state/musicLibrary';
 import { PlaylistStore } from '@machafoundation/core';
 
 import { clientStore } from '../state/storage';
+import { reclaimOrphans, SessionLedger } from '../playback/sessionLedger';
 
 // Core reaches for storage, a clock and an id generator through its host seam
 // rather than a browser global. `ClientStore` already presents the synchronous
@@ -58,6 +59,11 @@ configureMachaHost({
   now: Date.now,
   uuid: () => Crypto.randomUUID(),
 });
+
+// One per process, deliberately module-scoped: the playback services are
+// rebuilt on every connection generation, and the ledger's once-only orphan
+// snapshot has to outlive them. See `sessionLedger.ts`.
+const sessionLedger = new SessionLedger(clientStore);
 
 export interface MachaServices {
   registry: EndpointRegistry;
@@ -174,10 +180,16 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
    */
   const viewerSession = useMemo(() => Crypto.randomUUID(), []);
 
+  /** Sessions a previous process left open, waiting for a seeded registry. */
+  const orphansRef = useRef<string[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     void clientStore.hydrate().then(() => {
       if (cancelled) return;
+      // Before any endpoint exists to create a session on, so nothing this
+      // process holds can be in it. A remount in the same process gets none.
+      orphansRef.current = sessionLedger.takeOrphans();
       setClientId(getClientId());
       setEndpoints(getConfiguredEndpoints());
       setHydrated(true);
@@ -206,7 +218,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const services = useMemo<MachaServices>(() => {
     const auth = sessions;
     const catalogue = new ClusterCatalogueApi(router, auth);
-    const playbackApi = new ClusterPlaybackApi(router, auth, viewerSession);
+    const playbackApi = new ClusterPlaybackApi(router, auth, viewerSession, sessionLedger);
     const downloads = new DownloadStore(clientId || 'anonymous');
     const continueWatching = new ContinueWatchingStore(clientId || 'anonymous');
     // Idempotent: it returns immediately once the store has anything in it, so
@@ -236,6 +248,18 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, router, sessions, connectivity, clientId, viewerSession, generation]);
+
+  // Close what a killed process left open, once, as soon as the registry is
+  // seeded: core recovers each session's node from its id, and a node that is
+  // not in the registry cannot be asked. Every `install -r` and every swipe-away
+  // leaves one, holding a transcode slot for thirty minutes otherwise.
+  useEffect(() => {
+    if (generation === 0 || orphansRef.current.length === 0) return;
+    const orphans = orphansRef.current;
+    orphansRef.current = [];
+    console.log('[macha] [playback] orphan-sessions-reclaim', { count: orphans.length });
+    void reclaimOrphans(orphans, sessionLedger, (sessionId) => services.playback.stopById(sessionId));
+  }, [generation, services]);
 
   // Going offline (or coming back) changes what every screen should be
   // showing, so it invalidates loaded data exactly like reconfiguring the

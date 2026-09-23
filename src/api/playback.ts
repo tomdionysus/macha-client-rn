@@ -12,6 +12,7 @@ import {
 } from '@machafoundation/core';
 import { deviceCapabilities } from '../playback/capabilities';
 import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/policy';
+import type { SessionLedger } from '../playback/sessionLedger';
 
 // The session model and its wire decoding are core's. This module was a second
 // implementation of both — the keystone of the duplication, and the reason the
@@ -48,9 +49,25 @@ export class ClusterPlaybackApi {
   private readonly resolver: ClusterPlaybackResolver;
   private readonly factsApi: ClusterPlaybackFactsApi;
 
-  constructor(router: ClusterEndpointRouter, auth: AuthenticatedFetch, _viewerSession: string) {
+  /**
+   * `ledger` writes down every session id handed out, so the next process can
+   * close what a killed one left open; see `sessionLedger.ts`. Recorded when a
+   * session is handed out and forgotten only when a close succeeds — a failed
+   * close is exactly the case the next launch exists to retry.
+   */
+  constructor(
+    router: ClusterEndpointRouter,
+    auth: AuthenticatedFetch,
+    _viewerSession: string,
+    private readonly ledger?: SessionLedger,
+  ) {
     this.resolver = new ClusterPlaybackResolver(router, auth);
     this.factsApi = new ClusterPlaybackFactsApi(router, auth);
+  }
+
+  private held(session: PlaybackSession): PlaybackSession {
+    this.ledger?.record(session.sessionId);
+    return session;
   }
 
   /**
@@ -65,13 +82,15 @@ export class ClusterPlaybackApi {
     seekMs?: number,
     preferences?: PlaybackPreferencesUpdate,
   ): Promise<PlaybackSession> {
-    return this.resolver.resolve(media, deviceCapabilities(), seekMs, {
-      ...preferences,
-      mode: instruction.mode,
-      video: instruction.video,
-      audio: instruction.audio,
-      ...(instruction.container ? { container: instruction.container } : {}),
-    });
+    return this.resolver
+      .resolve(media, deviceCapabilities(), seekMs, {
+        ...preferences,
+        mode: instruction.mode,
+        video: instruction.video,
+        audio: instruction.audio,
+        ...(instruction.container ? { container: instruction.container } : {}),
+      })
+      .then((session) => this.held(session));
   }
 
   /**
@@ -95,18 +114,24 @@ export class ClusterPlaybackApi {
     media: MediaSummary,
     seekMs: number,
   ): Promise<PlaybackSession> {
-    return this.resolver.failover(
-      session,
-      media,
-      deviceCapabilities(),
-      seekMs,
-      // Same judgement as a mode switch: a replacement must not be asked to
-      // copy audio this device cannot decode. See `transformFor`.
-      transformFor(
-        session.preferences.mode,
-        audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
-      ),
-    );
+    return this.resolver
+      .failover(
+        session,
+        media,
+        deviceCapabilities(),
+        seekMs,
+        // Same judgement as a mode switch: a replacement must not be asked to
+        // copy audio this device cannot decode. See `transformFor`.
+        transformFor(
+          session.preferences.mode,
+          audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
+        ),
+      )
+      .then((next) => {
+        // Core releases the session it replaced; this one is now the holding.
+        this.ledger?.forget(session.sessionId);
+        return this.held(next);
+      });
   }
 
   update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {
@@ -114,7 +139,16 @@ export class ClusterPlaybackApi {
   }
 
   stop(session: PlaybackSession): Promise<void> {
-    return this.resolver.stop(session.sessionId);
+    return this.stopById(session.sessionId);
+  }
+
+  /**
+   * Close a session by id alone — including one from a previous process,
+   * which core closes by recovering the node from the id.
+   */
+  async stopById(sessionId: string): Promise<void> {
+    await this.resolver.stop(sessionId);
+    this.ledger?.forget(sessionId);
   }
 
   facts(ref: { itemId?: string; mediaId?: string }, signal?: AbortSignal): Promise<PlaybackMediaFacts[]> {
