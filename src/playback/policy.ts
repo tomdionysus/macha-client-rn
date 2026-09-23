@@ -1,6 +1,7 @@
 import { deviceCapabilities } from './capabilities';
 import {
   isAccountSessionLimit,
+  playbackFailureDetail,
   playbackFailureStatus,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
@@ -224,13 +225,13 @@ export function spendsFailoverBudget(error: unknown): boolean {
  * the same argument `isAuthRefusal` makes about 401 and 403: true, accurate
  * and useless to whoever is holding the phone.
  *
- * The server states the limit and the current count in the body, and the
- * envelope's message is the only place this client can see them, so it is kept
- * as a detail rather than discarded. Nothing here parses figures out of it —
+ * The server states the limit and the current count in the body, and its
+ * sentence is the only place this client can see them, so it is kept as a
+ * detail rather than discarded. Nothing here parses figures out of it —
  * that would be a second reading of a format the server owns.
  */
 export function accountSessionLimitMessage(error: unknown): string {
-  const detail = error instanceof Error ? error.message.replace(/^Macha playback request failed:\s*/, '') : '';
+  const detail = playbackFailureDetail(error);
   const lead = 'This account is already playing on as many devices as it is allowed. Stop playback elsewhere and try again.';
   return detail ? `${lead} (${detail})` : lead;
 }
@@ -254,39 +255,17 @@ export function accountSessionLimitMessage(error: unknown): string {
  *
  * The node's own sentence is kept as a detail rather than discarded: it is the
  * only place the reason appears, and nothing here parses figures out of it.
+ * It is read through core's `playbackFailureDetail`, which carries it beside
+ * the message instead of inside it. This used to strip core's `Macha ...
+ * failed:` prefixes off `.message` until none matched, which would have gone
+ * silent the first time core reworded one. No detail means no layer stated a
+ * sentence, and the lead stands alone rather than quoting a log line.
  */
 export function updateRefusalMessage(error: unknown): string {
   if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
   const lead = 'The node could not change the stream just now. Playback has carried on unchanged.';
-  return detail(error) ? `${lead} (${detail(error)})` : lead;
-}
-
-/**
- * The node's own sentence, with core's wrappers taken off.
- *
- * **Seen on the A85 2026-09-21 and it is why this is not a single `replace`.**
- * Core nests its envelopes, so what arrives is *"Macha endpoint
- * https://macnessa.macha.network failed: Macha playback request failed: timed
- * out waiting for first fragmented-MP4 segment"* — and stripping one prefix
- * left the viewer reading the other one plus a node URL. Strip them until none
- * is left, rather than matching the two spellings known today.
- *
- * The node hostname is core's to log and not the viewer's to read: it names
- * infrastructure they cannot act on, in a message whose whole point is that
- * nothing is broken.
- */
-function detail(error: unknown): string {
-  if (!(error instanceof Error)) return '';
-  let message = error.message;
-  // Each pass takes off one `Macha <something> failed: ` wrapper. Bounded by
-  // the string shrinking every time, so a pathological nesting cannot spin.
-  for (;;) {
-    // Non-greedy, and colons are allowed inside: the endpoint wrapper carries
-    // a URL, so a `[^:]*` class stops dead at `https://`.
-    const stripped = message.replace(/^Macha\b.*?\sfailed:\s*/, '');
-    if (stripped === message) return stripped.trim();
-    message = stripped;
-  }
+  const detail = playbackFailureDetail(error);
+  return detail ? `${lead} (${detail})` : lead;
 }
 
 /** The audio codecs this device can actually decode. */

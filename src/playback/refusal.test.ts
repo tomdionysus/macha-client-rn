@@ -56,7 +56,14 @@ describe('classifyCreateRefusal', () => {
 describe('accountSessionLimitMessage', () => {
   it('leads with what the viewer can do, not with a failure', () => {
     const message = accountSessionLimitMessage(
-      new MachaPlaybackError('Macha playback request failed: account already holds 3 sessions (limit 3)', 429),
+      new MachaPlaybackError(
+        'Macha playback request failed: account already holds 3 sessions (limit 3)',
+        429,
+        'account_session_limit',
+        undefined,
+        undefined,
+        'account already holds 3 sessions (limit 3)',
+      ),
     );
     expect(message).toContain('Stop playback elsewhere');
     // Core's wrapper reads as a breakage and the node is working as designed.
@@ -68,6 +75,24 @@ describe('accountSessionLimitMessage', () => {
 
   it('still says something useful when the node offered no detail', () => {
     expect(accountSessionLimitMessage(undefined)).toContain('Stop playback elsewhere');
+  });
+
+  it('quotes the server through the cluster wrapper, and not the node address with it', () => {
+    // The cap is found through `endpointFailure` (see below), so the message
+    // is built from the wrapped error too. Taking off one known prefix left
+    // the other, and the node's address, in front of the viewer.
+    const inner = new MachaPlaybackError(
+      'Macha playback request failed: account already holds 3 sessions (limit 3)',
+      429,
+      'account_session_limit',
+      undefined,
+      undefined,
+      'account already holds 3 sessions (limit 3)',
+    );
+    const message = accountSessionLimitMessage(endpointFailure('endpoint-1', 'http://node.example', inner));
+    expect(message).toContain('(account already holds 3 sessions (limit 3))');
+    expect(message).not.toContain('endpoint-1');
+    expect(message).not.toContain('Macha');
   });
 });
 

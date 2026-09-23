@@ -8,6 +8,55 @@ Newest first.
 
 ---
 
+## 2026-09-23 — 0.8.0 seen running on the A85, and refusal copy reads core's `detail`
+
+### 0.8.0 on hardware
+
+The tagged build, not the dev tree: gated on `A85` / `A85EEA0000005410`,
+`versionCode 800`, `lastUpdateTime 2026-09-21 23:31:24` before anything was
+sent. Tom unlocked the phone; wireless debugging had rotated to `:45101`, and
+the `G10` television had attached itself alongside it.
+
+- Cold start signed in, catalogue and Continue Watching from `macnessa`,
+  `route-success` at 1.4 s, no `FATAL` or `AndroidRuntime`.
+- *Dark* S01E01 from Continue Watching: codec probe ran (20 decoders, `hevc
+  [1, 4]`, `av1 [1, 4096, 8192]`, no Dolby, no HDR display); claim sent
+  `h264, hevc, vp9, av1` / `hdr: not-advertised`; transcode session
+  `37a4fd7b…` `201` after **14.7 s**; `c2.unisoc.avc.decoder` and
+  `c2.android.aac.decoder` allocated; picture at `2:04 / 51:32` resumed from
+  `1:54`, header *Transcode*; no error-level line anywhere.
+- **Not verified:** sound by ear, and every path but transcode.
+
+### `playbackFailureDetail` replaces the prefix-stripping loop
+
+`updateRefusalMessage` and `accountSessionLimitMessage` in
+`src/playback/policy.ts` now read core's `playbackFailureDetail` (core 0.18.0,
+checked in the tag and in the linked `dist`) instead of stripping `Macha ...
+failed:` off `.message`. The `detail()` helper is gone. Core fills `detail`
+with the server's sentence in `throwResponseError`, and `endpointFailure`
+keeps the original as `cause`, so the accessor reaches it through the wrapper.
+
+Three tests written first, all three **failed against the old code**:
+
+- **A reworded prefix leaked.** `Macha playback refused (503): ...` survived
+  the regex and reached the viewer.
+- **No detail quoted a log line.** A wrapped `TypeError('Network request
+  failed')` came out as `(Network request failed)`; core's rule is that
+  `undefined` means the host writes its own sentence.
+- **The account cap showed the node address — a live bug, not a
+  hypothetical.** A cap refusal through `endpointFailure` rendered *"...
+  (Macha endpoint endpoint-1 failed: Macha playback request failed: account
+  already holds 3 sessions (limit 3))"*. The single-prefix `replace` only
+  ever handled the unwrapped case, while `classifyCreateRefusal` has found the
+  cap through the wrapper since the cutover.
+
+The existing refusal tests built plain `Error`s with prefixed messages, which
+carry no `detail`; they now build `MachaPlaybackError` the way core does.
+Suite 207 across 19 files, typecheck clean, against linked core `a3b40ca`
+(= `0.18.0`). **Not on hardware** — no refusal was provoked on the A85.
+
+---
+
 ## 2026-09-21 — 0.8.0 on `main`, pinned to published core 0.18.0 and pushed
 
 **The release the previous handover called impossible.** That handover recorded
@@ -26,7 +75,7 @@ this is the cutover.
 | Integrity | `sha512-oMOvevoZ46L8jbVKrUnAdrIO9nfmmeNLNW/OaHPT33Zoi6IxVK24RTWpqMRC286UGCQo72xdwiURjuWlj2VCwA==` |
 | Published | 2026-09-21T19:31:23Z, confirmed by `npm view` before pinning |
 | Tagged | `0.8.0`, annotated, on `7932542` — pushed |
-| On the A85 | installed 2026-09-21 23:31, `versionCode 800` — started, **not seen past the lock screen** |
+| On the A85 | installed 2026-09-21 23:31, `versionCode 800` — started, **not seen past the lock screen**; seen playing 2026-09-23, entry above |
 
 ### What was actually verified, and against which tree
 

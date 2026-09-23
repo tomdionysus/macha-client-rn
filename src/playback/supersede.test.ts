@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlaybackSession } from '@machafoundation/core';
+import { endpointFailure, MachaPlaybackError, type PlaybackSession } from '@machafoundation/core';
 import { errorBlamesEndpoint, selfSupersededGeneration, updateRefusalMessage } from './policy';
 
 /**
@@ -86,11 +86,16 @@ describe('errorBlamesEndpoint with a generation this client superseded', () => {
   });
 });
 
+// Built the way core's `throwResponseError` builds them: the prefixed message
+// for a log, and the server's own sentence carried separately as `detail`.
+const refused = (sentence: string, status = 503, code?: string) =>
+  new MachaPlaybackError(`Macha playback request failed: ${sentence}`, status, code, undefined, undefined, sentence);
+const viaNode = (inner: unknown) => endpointFailure('https://macnessa.macha.network', 'https://macnessa.macha.network', inner);
+
 describe('updateRefusalMessage', () => {
   it('does not tell a viewer whose film is still playing that it failed', () => {
     // Measured refusal, verbatim from the A85 run.
-    const error = new Error('Macha playback request failed: video transcode limit reached');
-    const message = updateRefusalMessage(error);
+    const message = updateRefusalMessage(refused('video transcode limit reached', 429, 'resource_limit'));
     expect(message).toContain('carried on unchanged');
     expect(message).not.toMatch(/^Macha playback request failed/);
     // The node's reason is the only place it appears, so it is kept.
@@ -98,7 +103,7 @@ describe('updateRefusalMessage', () => {
   });
 
   it('keeps the remux timeout reason too', () => {
-    const error = new Error('Macha playback request failed: timed out waiting for first fragmented-MP4 segment');
+    const error = refused('timed out waiting for first fragmented-MP4 segment', 503, 'playback_pipeline_start_failed');
     expect(updateRefusalMessage(error)).toContain('timed out waiting for first fragmented-MP4 segment');
   });
 
@@ -108,16 +113,40 @@ describe('updateRefusalMessage', () => {
 });
 
 describe('updateRefusalMessage detail, as it actually arrives', () => {
-  it('strips core’s nested envelopes and the node hostname with them', () => {
-    // Verbatim from the A85 screen, 2026-09-21: stripping a single prefix left
-    // the viewer reading the other one and a URL they cannot act on.
-    const error = new Error(
-      'Macha endpoint https://macnessa.macha.network failed: Macha playback request failed: timed out waiting for first fragmented-MP4 segment',
-    );
-    const message = updateRefusalMessage(error);
+  it('quotes the node through core’s nested envelopes, and not the hostname with them', () => {
+    // Verbatim from the A85 screen, 2026-09-21: the message crossing
+    // `endpointFailure` carries both of core's prefixes and a URL the viewer
+    // cannot act on.
+    const message = updateRefusalMessage(viaNode(refused('timed out waiting for first fragmented-MP4 segment')));
     expect(message).toContain('(timed out waiting for first fragmented-MP4 segment)');
     expect(message).not.toContain('macnessa');
     expect(message).not.toContain('Macha endpoint');
     expect(message).not.toContain('request failed');
+  });
+
+  it('does not depend on how core words its prefixes', () => {
+    // The day core rewords an envelope, stripping by pattern stops matching
+    // and the viewer reads the wrapper again. The detail travels beside the
+    // message, so it cannot drift with it.
+    const reworded = new MachaPlaybackError(
+      'Macha playback refused (503): timed out waiting for first fragmented-MP4 segment',
+      503,
+      'playback_pipeline_start_failed',
+      undefined,
+      undefined,
+      'timed out waiting for first fragmented-MP4 segment',
+    );
+    const message = updateRefusalMessage(viaNode(reworded));
+    expect(message).toBe(
+      'The node could not change the stream just now. Playback has carried on unchanged. (timed out waiting for first fragmented-MP4 segment)',
+    );
+  });
+
+  it('says its own sentence when no layer stated one, rather than quoting a log line', () => {
+    // A transport failure has no server sentence. Its `.message` is core's log
+    // line, node address included; core's rule is that `undefined` detail
+    // means the host speaks for itself.
+    const message = updateRefusalMessage(viaNode(new TypeError('Network request failed')));
+    expect(message).toBe('The node could not change the stream just now. Playback has carried on unchanged.');
   });
 });

@@ -70,12 +70,22 @@ and is not comparable.
 2026-09-21 23:31 from the APK built off `main` at `7932542` with core from the
 registry.** It launched: the process is alive, `mFocusedApp` is
 `foundation.macha.client/.MainActivity`, and `logcat` carries no `FATAL`,
-`AndroidRuntime` or crash line. **Nobody has seen it render.** The phone sits
-behind a secure lock screen that `wm dismiss-keyguard` does not clear, and
-the session stopped there rather than guess at a PIN. So "the A85 is on
-0.8.0" means *installed and started*, not *working*, and **the first job is to
-have it unlocked and look** — then `adb -s <A85> logcat | grep ReactNativeJS`
-through a catalogue load and a play.
+`AndroidRuntime` or crash line. **Seen running 2026-09-23 17:53, after Tom unlocked it.** Identity gated
+first (`A85` / `A85EEA0000005410`, `versionCode 800`, `lastUpdateTime
+2026-09-21 23:31:24`). Cold start signed in, catalogue and Continue Watching
+from `macnessa`, `route-success` at 1.4 s, no `FATAL` or `AndroidRuntime`.
+One play, *Dark* S01E01 from Continue Watching: the codec probe ran (20
+decoders, `hevc [1, 4]`, `av1 [1, 4096, 8192]`, no Dolby, no HDR display) and
+the claim sent was `h264, hevc, vp9, av1` / `hdr: not-advertised`; transcode
+session `37a4fd7b…` created `201`; `c2.unisoc.avc.decoder` and
+`c2.android.aac.decoder` both allocated; picture on screen at `2:04 / 51:32`,
+resumed from the saved `1:54`, header reading *Transcode*; no error-level
+line from JS, ExoPlayer or the codecs. **Sound was not confirmed by ear** —
+the AAC decoder starting is the evidence, not a listener.
+
+**The session create took 14.7 s** (`elapsedMs: 14732`) with the spinner up
+the whole time. Not investigated; it is the server starting a transcode at
+an offset, most likely, and it is the thing a viewer would notice first.
 
 The build it replaced was an unreleased dev tree labelled `0.7.0` /
 `versionCode 700` — the same source as 0.8.0 minus the version bump and with
@@ -137,14 +147,17 @@ screen. The evidence for each is in COMPLETED under that date.
 
 ### Open, in the order worth taking them
 
-1. **Unlock the A85 and see 0.8.0 run.** Above. Until then every claim about
-   0.8.0 on hardware is a claim about a different build.
+1. ~~**Unlock the A85 and see 0.8.0 run.**~~ Done 2026-09-23 — one transcode
+   play, above. Only the transcode path; item 3's remux, account cap and
+   mode-switch guard are still unexercised on this build.
 2. **The supersede guard swallows a fatal error.** P1 below — a black screen
    with no message, seen on the A85. The most user-visible thing open.
 3. **A real smoke test on 0.8.0.** The last one got three titles deep on the
    dev build. Remux, the account cap and the mode-switch guard have never been
    exercised on hardware — see *What the route cutover left open*.
-4. **Take core's `playbackFailureDetail`.** P1 below; small.
+4. ~~**Take core's `playbackFailureDetail`.**~~ Done 2026-09-23, in
+   COMPLETED. It turned up **a failed create showing core's log line** — P1
+   below, waiting on a sentence from Tom.
 5. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
    core first** — it exists (checked 2026-09-23), it is the contract for hosts
    driving the resolver without a coordinator, written partly from this
@@ -612,18 +625,23 @@ that would be a gap in theirs rather than a preference.
 
 ---
 
-## P1 — Take core's `playbackFailureDetail`, and delete the prefix-stripping loop
+## P1 — A failed session create shows the viewer core's log line
 
-`updateRefusalMessage` and its `detail()` helper in `src/playback/policy.ts`
-strip core's nested envelopes — *"Macha endpoint ... failed: Macha playback
-request failed: ..."* — by matching `/^Macha\b.*?\sfailed:\s*/` until nothing
-matches. That pattern-matches on core's wording and will break **silently** the
-day a prefix is reworded; the viewer would read a node hostname again and no
-test here would notice. Core's `MachaPlaybackResolver.d.ts` says in its own
-docblock to read the detail through `playbackFailureDetail` (checked in `dist`
-2026-09-23). Take it. `undefined` from it means write our own sentence, not
-fall back to `.message`. `accountSessionLimitMessage` has a smaller copy of the
-same strip and goes the same way.
+**Found 2026-09-23 while taking `playbackFailureDetail`; not fixed, because it
+needs a sentence nobody has written.** `PlaybackProvider.tsx` (the create
+`catch`, `error: capped ? accountSessionLimitMessage(error) :
+describeError(error)`) sends every non-cap create failure through
+`describeError`, which returns `.message` verbatim — *"Macha endpoint
+https://macnessa.macha.network failed: Macha playback request failed: ..."*,
+both envelopes and the node address, as the `status: 'failed'` copy. The same
+thing `updateRefusalMessage` was fixed for, on the path where playback really
+has failed.
+
+The shape is the refusal functions': a lead of our own, plus
+`playbackFailureDetail` in brackets when it is defined. **The lead is Tom's
+call** — this is the screen a viewer reads when a title will not start, and
+unlike the refusal it cannot say *carried on unchanged*. Check the other
+`describeError` call sites that can receive a core error while there.
 
 ---
 
