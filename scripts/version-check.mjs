@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * The three places a version is stated must agree.
+ * Every place a version is stated must agree.
  *
  * `package.json` is what the repo calls itself, `app.json` is what Expo writes
- * into the built app, and the git tag is what a release is found by. They have
+ * into the built app, the git tag is what a release is found by, and the
+ * README line under the title is what a person reads first. They have
  * drifted before and the drift is silent: the Android project carried 0.1.0
  * while the repo was at 0.3.5, and the device reported 0.1.0 for months because
  * nothing ever compared them.
@@ -63,6 +64,21 @@ if (gradle) {
         `run npx expo prebuild --platform android before building`,
     );
   }
+}
+
+// The README states the version in italics directly under its title, Tom's
+// convention from 2026-09-23. A line a person reads first and nothing
+// compares is exactly the kind that drifts, so it is compared here like every
+// other place the version is written.
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const readmeLine = readme.split('\n').slice(1).find((line) => line.trim() !== '')?.trim();
+const readmeVersion = /^\*v(\d+\.\d+\.\d+)\*$/.exec(readmeLine ?? '')?.[1];
+if (readmeVersion !== pkg.version) {
+  problems.push(
+    readmeVersion
+      ? `README.md says v${readmeVersion}, package.json says ${pkg.version}`
+      : `README.md has no *v${pkg.version}* line under its title`,
+  );
 }
 
 const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version);

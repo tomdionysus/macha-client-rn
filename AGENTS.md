@@ -15,7 +15,8 @@ repo had a `release/0.5.0` carrying a patch within a day of its being created.
 **Put the version bump in the release commit**, so the tag points at a tree that
 is exactly what ships rather than at one missing its own version number.
 
-`npm run version:check` compares `package.json`, `app.json` and the tag, and
+`npm run version:check` compares `package.json`, `app.json`, the tag and the
+`*vX.Y.Z*` line under the README's title (Tom, 2026-09-23), and
 derives `android.versionCode` as `major*10000 + minor*100 + patch`. Run it before
 tagging. It exists because **Android compares `versionCode` and ignores
 `versionName` entirely**: every build before 0.4.1 shipped `versionCode 1`, so

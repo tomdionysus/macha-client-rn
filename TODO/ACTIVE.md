@@ -204,8 +204,9 @@ can attach the price.
    containing the release commit.**
 3. `test -L node_modules/@machafoundation/core` must **fail**, and the lockfile
    `resolved` must be a registry URL. Those two cannot lie.
-4. Bump `package.json` and `app.json` (`versionCode` = major*10000 +
-   minor*100 + patch) **in the same commit**; `npm install` to sync the
+4. Bump `package.json`, `app.json` (`versionCode` = major*10000 +
+   minor*100 + patch) and the README's `*vX.Y.Z*` line **in the same
+   commit**; `npm install` to sync the
    lockfile's own version; `npx expo prebuild --platform android`; `npm run
    version:check`; typecheck; tests; a real `expo export`.
 5. Commit; `git tag -a x.y.z`; push `main` and the tag; `version:check` once
