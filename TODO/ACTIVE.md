@@ -148,13 +148,17 @@ screen. The evidence for each is in COMPLETED under that date.
 ### Open, in the order worth taking them
 
 1. ~~**Unlock the A85 and see 0.8.0 run.**~~ Done 2026-09-23 — one transcode
-   play, above. Only the transcode path; item 3's remux, account cap and
-   mode-switch guard are still unexercised on this build.
+   play, above. The remux switch was tried the same afternoon and failed —
+   see 2 and the new remux entry.
 2. **The supersede guard swallows a fatal error.** P1 below — a black screen
    with no message, seen on the A85. The most user-visible thing open.
-3. **A real smoke test on 0.8.0.** The last one got three titles deep on the
-   dev build. Remux, the account cap and the mode-switch guard have never been
-   exercised on hardware — see *What the route cutover left open*.
+3. **Remux copies undecodable video.** New P1 below, found on the smoke
+   test; the remedy is Tom's call. **The account cap still cannot be tested**
+   — the node limit refuses first (*What the route cutover left open*).
+3a. **The rest of the smoke test on 0.8.0.** Remux and the mode-switch guard
+   have now run on hardware, once each, on one ten-bit title: the guard
+   declined correctly and silently. Still unrun: remux on an eight-bit title,
+   Direct by name, a quality change, a second title.
 4. ~~**Take core's `playbackFailureDetail`.**~~ Done 2026-09-23, in
    COMPLETED. It turned up **a failed create showing core's log line** — P1
    below, waiting on a sentence from Tom.
@@ -297,6 +301,17 @@ for "handled", nothing set `status: 'failed'`, nothing rendered, and **the
 viewer was left on a black screen at `0:33` with a play button and no message
 of any kind.** A silent failure, introduced by the fix for another one.
 
+**Reproduced 2026-09-23 18:31 on the tagged 0.8.0, by an ordinary tap.** No
+forced Direct this time: *Dark* S01E01 playing in transcode, the viewer picks
+**Remux** from the Playback sheet. PATCH `200` in 1.2 s, new generation `/2/`
+with `transform: { video: 'copy', audio: 'transcode' }`;
+`c2.unisoc.hevc.decoder` refuses `hvc1.2.4.L120.90` 10-bit as
+`NO_EXCEEDS_CAPABILITIES`; `failover-declined { reason:
+'generation-superseded-by-us' }`; screen at `0:00 / 51:32`, spinner on the
+play button, black picture, header still *Transcode*, **no message**. So this
+is reachable from the menu on any ten-bit title, which makes it more urgent
+than a forced-mode edge case — and the next entry is why the menu leads there.
+
 **The guard suppresses the wrong remedy and must not also suppress the
 report.** Declining to fail over cannot mean pretending nothing happened. The
 shape of the fix: let the decline stand, but still surface a failure when
@@ -305,6 +320,40 @@ already uses, no new constant. It is a behaviour change on the failover path
 and wants Tom's call, as the guard itself did (`selfSupersededGeneration`,
 `PendingSupersede`, `src/playback/policy.ts`). Write the test first and check
 it fails.
+
+---
+
+## P1 — Remux copies video the device has just said it cannot decode
+
+**Found 2026-09-23 on the A85, tagged 0.8.0; the cause read in source, not
+inferred.** The viewer picked Remux on *Dark* S01E01 (10-bit HEVC Main 10,
+`hvc1.2.4`, in Matroska). `statedUpdate` sent `{ mode: 'transcode', video:
+'copy', audio: 'transcode' }` — the audio half correctly corrected by
+`audioCopyable`, the video half copied — and the device's own probe that
+session reported `hevc: [1, 4]`, which has no Main 10 profile.
+`videoBitDepth` is derived as `8` for exactly that reason. The HEVC decoder
+refused the copy and the entry above took it from there.
+
+**The 0.8.0 line "Remux asks for a transform the device can play" is true of
+audio only.** `transformFor`'s docblock says so outright — *"Video is
+untouched: this says nothing about video decoders"* — so this is a known
+limit that the release summary overstated, not a regression.
+
+**Not fixed, because the remedy is Tom's call.** For a title whose video this
+device cannot decode, "copy the video" has no correct form: correcting it to
+`video: 'transcode'` makes it a full transcode, which is the mode the viewer
+just left. Options: offer Remux only when the session's video stream is
+copyable here (codec **and** bit depth, from the same probe `capabilities.ts`
+already uses), or keep the option and say why it is unavailable. Either wants
+the audio rule's shape — a `videoCopyable` beside `audioCopyable` — with a
+test built from this session's stream first. Direct play has the same hole and
+the docblock defends leaving it; whether that defence survives a menu that
+offers a mode this device cannot play is the same question.
+
+**Unverified, noted for whoever fixes it:** the updated session reported
+`seekMs: 0` and the bar read `0:00`. Playback had been running since 17:53, so
+the position may have been lost across the switch — or the bar may just be
+showing a generation that never started. Not distinguishable from this run.
 
 ---
 
