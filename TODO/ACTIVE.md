@@ -176,6 +176,14 @@ episode naming — COMPLETED 2026-09-24) this tree imports `mediaSort` and
 be cut until core publishes a version carrying them** — `version:check` and
 the registry install will both say so. That is Tom's call on the publish.
 
+**Artwork host by round trip (core `154270d`, Tom's P0 on slow artwork) needs
+nothing here — checked, not assumed.** Every artwork URL in this client comes
+from `MediaApi.artworkUrls`, which is core's `MachaMediaApi.artworkUrls`
+(`src/api/media.ts:110`): the `Artwork` component, Now Playing, and
+downloaded artwork. And the registry health probes that feed the round trip
+already run here. Expect one re-download of posters on the first run where it
+switches. Not yet seen on the phone.
+
 **Relayed and not yet confirmed by Tom** — reached this client through the
 web client and core on 2026-09-24, same two hops as the sort and episode
 rulings, which Tom did confirm. Hold until he does:
