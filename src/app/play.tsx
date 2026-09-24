@@ -32,6 +32,7 @@ import { PlaybackOptionsSheet } from '../ui/PlaybackOptionsSheet';
 import { SeekBar } from '../ui/SeekBar';
 import { Button } from '../ui/controls';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../ui/theme';
+import { episodeCode } from '../ui/labels';
 
 /** Chrome fades out this long after the last touch, but only while playback is actually running. */
 const CONTROLS_HIDE_DELAY_MS = 3_500;
@@ -239,9 +240,9 @@ export default function PlayerScreen() {
               <Text numberOfLines={1} style={styles.title}>
                 {media.title}
               </Text>
-              {subtitleFor(media.playbackContext?.series.title, media.subtitle, session?.mode) ? (
+              {subtitleFor(media.playbackContext?.series.title, episodeCode(media), session?.mode) ? (
                 <Text numberOfLines={1} style={styles.subtitle}>
-                  {subtitleFor(media.playbackContext?.series.title, media.subtitle, session?.mode)}
+                  {subtitleFor(media.playbackContext?.series.title, episodeCode(media), session?.mode)}
                 </Text>
               ) : null}
             </View>

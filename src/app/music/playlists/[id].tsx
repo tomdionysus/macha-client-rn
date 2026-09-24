@@ -4,7 +4,8 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
-import { trackSubtitle, type Playlist } from '@machafoundation/core';
+import type { Playlist } from '@machafoundation/core';
+import { albumLabel } from '../../../ui/labels';
 import { Artwork } from '../../../ui/Artwork';
 import { ChevronDownIcon, CloseIcon, PlayIcon, ShuffleIcon, TrashIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';
@@ -99,9 +100,17 @@ export default function PlaylistScreen() {
                   <Text numberOfLines={1} style={[styles.title, nowPlaying?.id === item.id && styles.playing]}>
                     {item.title}
                   </Text>
-                  <Text numberOfLines={1} style={styles.subtitle}>
-                    {trackSubtitle(item)}
-                  </Text>
+                  {/* The album, then the artist below it (Tom, 2026-09-24). */}
+                  {item.musicContext ? (
+                    <Text numberOfLines={1} style={styles.subtitle}>
+                      {albumLabel(item.musicContext.album)}
+                    </Text>
+                  ) : null}
+                  {item.musicContext?.artist ? (
+                    <Text numberOfLines={1} style={styles.subtitle}>
+                      {item.musicContext.artist.title}
+                    </Text>
+                  ) : null}
                 </View>
               </Pressable>
               <Pressable

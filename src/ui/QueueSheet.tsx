@@ -42,7 +42,7 @@ export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): 
                     {item.title}
                   </Text>
                   <Text numberOfLines={1} style={styles.subtitle}>
-                    {item.musicContext?.artist?.title ?? item.playbackContext?.series.title ?? item.subtitle ?? ''}
+                    {item.musicContext?.artist?.title ?? item.playbackContext?.series.title ?? ''}
                   </Text>
                 </View>
                 {current ? (

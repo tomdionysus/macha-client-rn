@@ -1,10 +1,10 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { albumLabel, episodeLabel, trackNumberLabel } from '@machafoundation/core';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { Artwork } from './Artwork';
 import { CloseIcon, PlayIcon } from './Icons';
+import { albumLabel, episodeCode, episodeLabel, trackNumberLabel } from './labels';
 import { hrefFor } from './navigation';
 import { colors, radius, space, type as typography } from './theme';
 
@@ -44,6 +44,7 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
   const episode = episodeLinks(item);
   const track = item.kind === 'track' ? item.musicContext : undefined;
   const trackNumber = item.kind === 'track' ? trackNumberLabel(item) : undefined;
+  const albumArtist = item.kind === 'album' ? item.musicContext?.artist : undefined;
   const height = width / ASPECT[cardShape];
   const artwork =
     cardShape === 'still'
@@ -105,24 +106,45 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
         </>
       ) : track ? (
         <>
-          {/* Core's `trackSubtitle` wording — "Artist - Album (year)" — with
-              each half a link, as on the web (Tom, 2026-09-24). */}
-          <Text numberOfLines={1} style={styles.subtitle}>
-            {track.artist ? (
-              <>
-                <Text accessibilityRole="link" onPress={() => navigateTo(router, hrefFor('artist', track.artist!.id))}>
-                  {track.artist.title}
-                </Text>
-                {' - '}
-              </>
-            ) : null}
-            <Text accessibilityRole="link" onPress={() => navigateTo(router, hrefFor('album', track.album.id))}>
-              {albumLabel(track)}
-            </Text>
+          {/* The album, then the artist below it (Tom, 2026-09-24), each a
+              link; then the track number. The words are this client's. */}
+          <Text
+            numberOfLines={1}
+            accessibilityRole="link"
+            onPress={() => navigateTo(router, hrefFor('album', track.album.id))}
+            style={styles.subtitle}>
+            {albumLabel(track.album)}
           </Text>
+          {track.artist ? (
+            <Text
+              numberOfLines={1}
+              accessibilityRole="link"
+              onPress={() => navigateTo(router, hrefFor('artist', track.artist!.id))}
+              style={styles.subtitle}>
+              {track.artist.title}
+            </Text>
+          ) : null}
           {trackNumber ? (
             <Text numberOfLines={1} style={styles.subtitle}>
               {trackNumber}
+            </Text>
+          ) : null}
+        </>
+      ) : albumArtist ? (
+        <>
+          {/* The artist below the album's name, and the year kept (Tom,
+              2026-09-24). Core leaves the artist off albums on the artist's
+              own page, where it would only repeat the page. */}
+          <Text
+            numberOfLines={1}
+            accessibilityRole="link"
+            onPress={() => navigateTo(router, hrefFor('artist', albumArtist.id))}
+            style={styles.subtitle}>
+            {albumArtist.title}
+          </Text>
+          {item.year ? (
+            <Text numberOfLines={1} style={styles.subtitle}>
+              {String(item.year)}
             </Text>
           ) : null}
         </>
@@ -142,19 +164,19 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
  * Tom's ruling, relayed by core and confirmed here 2026-09-23: in search
  * results and Continue Watching an episode reads this way, never `S01E04`.
  * This card is what both draw; a season page draws its own compact rows and
- * keeps them. The label is core's `episodeLabel` so every client words it the
- * same, and the ids are the ones `playbackContext` carries. An episode without
- * that context falls back to the old line rather than guessing at links.
+ * keeps them. The label is this client's `episodeLabel` (core writes no viewer
+ * text since 2026-09-24), worded as the other clients word it, and the ids are
+ * the ones `playbackContext` carries. An episode without that context falls
+ * back to the old line rather than guessing at links.
  */
 function episodeLinks(
   item: MediaSummary,
 ): { series: { id: string; title: string }; seasonId: string; label: string | undefined } | undefined {
   if (item.kind !== 'episode' || !item.playbackContext) return undefined;
   const { series, season } = item.playbackContext;
-  // A stored snapshot can lack `episodeNumber`, and then core has no label to
-  // give. The node's own subtitle still says which episode it is, and losing
-  // that would be worse than its wording.
-  return { series, seasonId: season.id, label: episodeLabel(item) ?? item.subtitle };
+  // A stored snapshot can lack `episodeNumber`; then there is no label to
+  // give, and the link line is left out rather than guessed at.
+  return { series, seasonId: season.id, label: episodeLabel(item) };
 }
 
 function navigateTo(router: ReturnType<typeof useRouter>, href: string | undefined): void {
@@ -164,10 +186,9 @@ function navigateTo(router: ReturnType<typeof useRouter>, href: string | undefin
 function cardSubtitle(item: MediaSummary): string | undefined {
   if (item.kind === 'episode') {
     const context = item.playbackContext?.series.title;
-    return [item.subtitle, context].filter(Boolean).join(' · ') || undefined;
+    return [episodeCode(item), context].filter(Boolean).join(' · ') || undefined;
   }
-  if (item.year) return String(item.year);
-  return item.subtitle;
+  return item.year ? String(item.year) : undefined;
 }
 
 const styles = StyleSheet.create({

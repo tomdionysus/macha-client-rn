@@ -8,6 +8,7 @@ import { MediaProfileFacts } from '../../ui/MediaProfile';
 import { PlayActions } from '../../ui/PlayActions';
 import { Screen } from '../../ui/Screen';
 import { ErrorState, Loading } from '../../ui/Status';
+import { episodeCode } from '../../ui/labels';
 
 export default function EpisodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,7 +34,7 @@ export default function EpisodeScreen() {
             item={episode}
             facts={[
               episode.playbackContext?.season.title,
-              episode.subtitle,
+              episodeCode(episode),
               episode.year ? String(episode.year) : undefined,
             ]}
             actions={<PlayActions item={episode} queue={siblings.value} />}

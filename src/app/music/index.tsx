@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { trackSubtitle } from '@machafoundation/core';
+import { albumLabel } from '../../ui/labels';
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { newestCatalogueFirst } from '../../api/media';
@@ -291,10 +291,16 @@ function TrackRow({
           <Text numberOfLines={1} style={styles.trackTitle}>
             {track.title}
           </Text>
+          {/* The album, then the artist below it (Tom, 2026-09-24). */}
           <Text numberOfLines={1} style={styles.trackSubtitle}>
-            {trackSubtitle(track)}
+            {track.musicContext ? albumLabel(track.musicContext.album) : ''}
             {playCount > 0 ? `  ·  ${playCount} play${playCount === 1 ? '' : 's'}` : ''}
           </Text>
+          {track.musicContext?.artist ? (
+            <Text numberOfLines={1} style={styles.trackSubtitle}>
+              {track.musicContext.artist.title}
+            </Text>
+          ) : null}
         </View>
       </Pressable>
       <Pressable

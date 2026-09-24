@@ -1457,7 +1457,7 @@ function applySource(
 function nowPlayingArtist(media: MediaSummary): string {
   const music = media.musicContext;
   if (music) return [music.artist?.title, music.album.title].filter(Boolean).join(' — ') || 'Macha';
-  return media.playbackContext?.series.title ?? media.subtitle ?? 'Macha';
+  return media.playbackContext?.series.title ?? 'Macha';
 }
 
 /**

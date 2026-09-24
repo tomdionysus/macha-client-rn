@@ -13,6 +13,7 @@ import { ErrorState, Loading } from '../../ui/Status';
 import { Button } from '../../ui/controls';
 import { pluralize } from '../../ui/format';
 import { colors, radius, space, type as typography } from '../../ui/theme';
+import { episodeCode } from '../../ui/labels';
 
 export default function SeasonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -119,7 +120,7 @@ function EpisodeRow({
         accessibilityLabel={`About ${episode.title}`}
         onPress={onOpen}
         style={styles.rowText}>
-        <Text style={styles.episodeNumber}>{episode.subtitle ?? `Episode ${episode.episodeNumber}`}</Text>
+        <Text style={styles.episodeNumber}>{episodeCode(episode) ?? `Episode ${episode.episodeNumber}`}</Text>
         <Text numberOfLines={2} style={styles.episodeTitle}>
           {episode.title}
         </Text>

@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
 import { SearchIcon } from '../ui/Icons';
+import { CATEGORY_LABELS } from '../ui/labels';
 import { MediaGrid } from '../ui/MediaGrid';
 import { SortControl } from '../ui/SortControl';
 import { Screen } from '../ui/Screen';
@@ -87,7 +88,7 @@ export default function SearchScreen() {
               accessibilityState={{ checked: on }}
               onPress={() => toggleCategory(category.key)}
               style={[styles.toggle, on && styles.toggleOn]}>
-              <Text style={[styles.toggleLabel, on && styles.toggleLabelOn]}>{category.label}</Text>
+              <Text style={[styles.toggleLabel, on && styles.toggleLabelOn]}>{CATEGORY_LABELS[category.key]}</Text>
             </Pressable>
           );
         })}

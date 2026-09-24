@@ -20,7 +20,7 @@ export function MiniPlayer() {
 
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
   const artwork = media.artwork?.thumbnail ?? media.artwork?.poster ?? media.artwork?.backdrop;
-  const subtitle = error ?? media.playbackContext?.series.title ?? media.subtitle ?? '';
+  const subtitle = error ?? media.playbackContext?.series.title ?? media.musicContext?.artist?.title ?? '';
 
   return (
     <Pressable
