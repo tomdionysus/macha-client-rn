@@ -22,7 +22,14 @@ export function Sheet({ visible, title, onClose, children }: SheetProps) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" style={styles.scrim} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
+      {/* The side insets too: in landscape the system navigation sits on one
+          side, and without them its glyphs drew over the first option (A85,
+          2026-09-24). Portrait insets are zero at the sides, so nothing moves there. */}
+      <View
+        style={[
+          styles.sheet,
+          { paddingBottom: insets.bottom + space.lg, paddingLeft: insets.left, paddingRight: insets.right },
+        ]}>
         <View style={styles.grabber} />
         <View style={styles.header}>
           <Text style={styles.title}>{title ?? ''}</Text>
