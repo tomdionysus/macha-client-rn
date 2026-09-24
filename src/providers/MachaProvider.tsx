@@ -365,10 +365,11 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
         const down = state.isConnected === false;
         setNetworkDown(down);
         if (down) return;
-        // Restarting the loop runs a cycle now instead of on its next tick.
-        const monitor = monitorRef.current;
-        monitor?.stop();
-        monitor?.start();
+        // A cycle now instead of on the next tick. `probeNow` awaits one already
+        // running rather than aborting it, and leaves a monitor stopped for the
+        // background stopped — the `stop()`/`start()` this replaced restarted
+        // polling whenever the radio came back with the app in the background.
+        void monitorRef.current?.probeNow().catch(() => undefined);
       }),
     [],
   );

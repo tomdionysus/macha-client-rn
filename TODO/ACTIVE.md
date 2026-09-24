@@ -424,10 +424,9 @@ The mechanical hour:
 - `signOut()` — core revokes itself and throws on failure, which is what this
   client hand-rolled in `MachaProvider`. Delete our composition, keep the
   rethrow.
-- `probeNow()` — retires the `monitor.stop()`/`start()` radio workaround at
-  `MachaProvider.tsx:353`. Core's doc says the workaround "throws away the
-  answer it was about to get in order to ask the question again"; `probeNow`
-  awaits a cycle already running instead. Minutes.
+- ~~`probeNow()`~~ — **done 2026-09-24**. It also stops a radio change from
+  restarting polling while the app is in the background, which the old
+  `stop()`/`start()` did.
 - `noteArtworkLoaded` — see the P2 below.
 
 **Settled and not to be reopened:** core's `isMachaStorageKey` must **not**
@@ -725,6 +724,17 @@ Both raised, both declined at the time, both still true.
   twice**. A flapping cluster can oscillate it. It should key on
   `mayRequestMedia(access)` changing, a boolean that only flips when the answer
   does, rather than on `access.kind`.
+  **Do not make that change on its own; checked 2026-09-24.** After
+  `d5a7273` the first cold-start load, which fires before the session
+  manager starts, is answered with the downloads (`isSessionNotStarted`), and
+  the `unknown → granted` bump is the **only** thing that reloads the real
+  catalogue afterwards. Keying on the boolean removes that reload, and a cold
+  start sits on downloads alone. It needs its own trigger first: bump
+  `generation` once the session manager has started. **Related risk to check
+  on the phone:** if access stays `unknown` (the whoami never answers),
+  nothing reloads at all. That screen used to be an error with a retry
+  button; it is now the downloads with no error, and only pull-to-refresh
+  gets the catalogue.
 - **One node's 401 stands for the whole cluster.** `isAuthRefusal` in
   `MediaApi.serve` (which could not fire at all before `d5a7273`) collapses to the local library without trying another node,
   and the router will not walk on a 4xx. Usually right, because sessions and
