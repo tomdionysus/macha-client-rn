@@ -928,6 +928,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     // itself: the failed player repeats its error for as long as it is up.
     failoverInFlightRef.current = true;
     const erroredGeneration = generationRef.current;
+    console.log('[macha] [playback] player-error-settling', { settleMs: errorSettleMs(session) });
     try {
       await new Promise((resolve) => setTimeout(resolve, errorSettleMs(session)));
     } finally {

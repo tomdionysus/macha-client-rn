@@ -186,21 +186,36 @@ already run here. Expect one re-download of posters on the first run where it
 switches. Not yet seen on the phone.
 
 **Tom's decisions, 2026-09-24:** Direct greyed like Remux, and the three
-search rulings — **both done**, COMPLETED. **Still open: the reaped-session
-probe's attribution**, put to Tom as A (wait out the node's window, act only
-if the player is still in error; recommended) or B (ignore errors for a
-fixed period after every source change). No answer yet; nothing on the
-probe until he picks.
+search rulings — **both done**, COMPLETED.
+
+**The reaped-session probe is built and not yet proven — `61ce107`.** Tom
+answered "Ok, continue" to the A/B question right after A was recommended;
+**that was taken as A**, and said so to him. So: a player error the guards
+do not excuse waits `errorSettleMs` (the node's own window) and is acted on
+only if the player is still in error under the same generation; then
+`sessionAlive` → `classifyProbe` → `recoveryAfterProbe`: `gone` regenerates
+on the same node (no charge, no failover budget), bounded by core's
+same-position rule; `alive`, unanswerable, or a failed regeneration fail
+over as before. Codes, not wording. Eight policy tests, red first.
+
+**Still to do: prove it on the A85.** Build of `61ce107` is made (core
+`287e959`, dist `8a9598e46d95`) and **not installed** — the phone had
+dropped off ADB. The run: play a transcode, pause for 31 minutes (past
+`session_idle`), resume, and read for `player-error-settling` →
+`session-probe { outcome: 'gone', recovery: 'regenerate' }` →
+`regenerate-result`, **not** `failover-attempt`. It may instead show that
+the session is never reaped while paused — something keeping it alive —
+which is worth knowing either way. **Every genuine failover now starts up to
+~8 s later**; that is the price Tom's A pays, and it applies to all of them.
 
 **The web Search page's design language** (from the web client's session,
 reference, not spec) has two parts not built here: an A–Z index shown only
 under Title order (this client has none anywhere), and the one-row control
 layout, which on a phone wraps by design.
 
-**The Playback sheet runs under the navigation bar in landscape** (A85,
-2026-09-24 11:25): the system back and home glyphs sat over the "Direct play"
-row, because `Sheet` pads only the bottom inset. Pad the side insets too.
-Small; not yet done.
+**The Playback sheet ran under the navigation bar in landscape** (A85,
+2026-09-24 11:25) — fixed in `f293cf2` (side insets padded), **not yet seen
+on the phone**.
 
 **The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
 favour of the session leak, with its design question put and not answered:**
