@@ -173,13 +173,6 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const sessions = useMemo(() => new SessionManager(), []);
   // One connectivity fact for the whole app, outliving service rebuilds.
   const connectivity = useMemo(() => new Connectivity(), []);
-  /**
-   * One opaque viewer identity for the life of the app process. It rides every
-   * playback-session POST so the node can recognise one logical viewer across
-   * reloads, seeks, retries and node failover. It is not an account.
-   */
-  const viewerSession = useMemo(() => Crypto.randomUUID(), []);
-
   /** Sessions a previous process left open, waiting for a seeded registry. */
   const orphansRef = useRef<string[]>([]);
 
@@ -218,7 +211,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   const services = useMemo<MachaServices>(() => {
     const auth = sessions;
     const catalogue = new ClusterCatalogueApi(router, auth);
-    const playbackApi = new ClusterPlaybackApi(router, auth, viewerSession, sessionLedger);
+    const playbackApi = new ClusterPlaybackApi(router, auth, sessionLedger);
     const downloads = new DownloadStore(clientId || 'anonymous');
     const continueWatching = new ContinueWatchingStore(clientId || 'anonymous');
     // Idempotent: it returns immediately once the store has anything in it, so
@@ -247,7 +240,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     // `generation` deliberately participates: reconfiguring the connection must
     // hand every screen freshly built services rather than stale closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, router, sessions, connectivity, clientId, viewerSession, generation]);
+  }, [registry, router, sessions, connectivity, clientId, generation]);
 
   // Close what a killed process left open, once, as soon as the registry is
   // seeded: core recovers each session's node from its id, and a node that is

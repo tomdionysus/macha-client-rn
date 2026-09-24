@@ -58,7 +58,6 @@ export class ClusterPlaybackApi {
   constructor(
     router: ClusterEndpointRouter,
     auth: AuthenticatedFetch,
-    _viewerSession: string,
     private readonly ledger?: SessionLedger,
   ) {
     this.resolver = new ClusterPlaybackResolver(router, auth);

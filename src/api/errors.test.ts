@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MachaApiError, MachaConnectionError, isAuthRefusal } from './errors';
+import { MachaApiError, MachaConnectionError } from '@machafoundation/core';
+import { isAuthRefusal } from './errors';
 
 describe('isAuthRefusal', () => {
   // The two the cluster answers with when it will not serve this viewer. Every

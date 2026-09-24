@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { endpointFailure, MachaPlaybackError } from '@machafoundation/core';
-import { MachaApiError } from '../api/errors';
+import { endpointFailure, MachaApiError, MachaPlaybackError } from '@machafoundation/core';
 import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, seekRefusalMessage, spendsFailoverBudget } from './policy';
 
-// Core's resolver raises its own `MachaPlaybackError`, not this client's
-// `MachaApiError`. That is the whole reason this classifier is duck-typed:
+// Core's resolver raises its own `MachaPlaybackError`, not the catalogue's
+// `MachaApiError` (this client had a class of that name too, deleted
+// 2026-09-24). That is the whole reason this classifier is duck-typed:
 // two classes carry the same four fields, and core itself reads `code` and
 // `reason` off the object rather than testing identity.
 describe('the two error classes on the create path', () => {
-  it('proves core\'s playback error is not this client\'s api error', () => {
+  it('proves core\'s playback error is not the api error', () => {
     // `createSession` tested `error instanceof MachaApiError` before deciding
     // whether to degrade. Core throws the other class, so that branch could
     // never be taken and every refusal was fatal.

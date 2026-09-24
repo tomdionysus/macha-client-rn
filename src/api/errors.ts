@@ -19,61 +19,6 @@ export const SERVER_UNREACHABLE_MESSAGE =
  */
 export { MachaConnectionError };
 
-export function serverUnreachable(detail?: string): MachaConnectionError {
-  return new MachaConnectionError(detail ? `${SERVER_UNREACHABLE_MESSAGE} (${detail})` : SERVER_UNREACHABLE_MESSAGE);
-}
-
-/** A Macha node answered, but not with what was asked for. */
-export class MachaApiError extends Error {
-  readonly name = 'MachaApiError';
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly code?: string,
-    readonly retryAfterMs?: number,
-    /**
-     * Why the node failed, where it says so — `source_unsupported`,
-     * `source_unreadable`, `source_read_timed_out`.
-     *
-     * Carried because core's `retryableEndpointFailure` reads it off the error
-     * and lets it outrank the status. `source_unsupported` is a fact about the
-     * bytes, and every node holds the same bytes, so it must end a cluster walk
-     * rather than collect three identical refusals. Dropping this field would
-     * leave a 5xx looking node-local and spend the viewer's time proving it
-     * isn't.
-     */
-    readonly reason?: string,
-  ) {
-    super(message);
-  }
-}
-
-/**
- * Error-envelope parsing is core's: same two accepted body shapes, same
- * `message`/`code`/`reason` extraction, including the `reason` this client
- * needs for `retryableEndpointFailure` to tell a node-local failure from a
- * fact about the file.
- */
-export { parseErrorEnvelope, type ParsedErrorEnvelope } from '@machafoundation/core';
-
-export function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const name = (error as { name?: unknown }).name;
-  return name === 'AbortError';
-}
-
-/**
- * Whether a failure says something about the *endpoint* rather than about the
- * request. Caller cancellation and ordinary 4xx answers do not: only transport
- * failures and 5xx do, and only those may move the registry off a node.
- */
-export function isEndpointFailure(error: unknown): boolean {
-  if (isAbortError(error)) return false;
-  if (error instanceof MachaConnectionError) return true;
-  if (error instanceof MachaApiError) return error.status === undefined || error.status >= 500;
-  return true;
-}
-
 /**
  * Whether a node refused this viewer, rather than failing to answer.
  *
@@ -82,15 +27,15 @@ export function isEndpointFailure(error: unknown): boolean {
  * putting in front of a person: "a valid session bearer token is required" is
  * true, accurate, and useless to whoever is holding the phone.
  *
- * It matters that this is not `isEndpointFailure`. That asks whether to move
- * off a node; this asks whether the cluster has refused *us*, which every node
- * will answer identically because sessions and roles are replicated. A caller
+ * This asks whether the cluster has refused *us*, not whether to move off a
+ * node — every node will answer identically, because sessions and roles are
+ * replicated. A caller
  * with a local library should serve it and let the account notice explain why
  * the rest is missing.
  */
 export function isAuthRefusal(error: unknown): boolean {
-  // Read through core's accessor, never by class. This tested `instanceof` the
-  // `MachaApiError` above until 2026-09-24 — a class nothing in the app throws:
+  // Read through core's accessor, never by class. This tested `instanceof` a
+  // local `MachaApiError` until 2026-09-24 — a class nothing in the app threw:
   // a refusal arrives as core's own `MachaApiError`, sometimes inside a
   // `MachaEndpointError`, so the branch that serves a refused viewer their
   // downloads could not fire.
