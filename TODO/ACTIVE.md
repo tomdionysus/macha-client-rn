@@ -895,6 +895,21 @@ Do not chase a self-changing node count as a bug.
 
 ## Waiting on other sessions
 
+**macha 0.56.0, announced 2026-09-24 by `Macha Server`, not yet deployed**
+(es-1 and fi-1 were unreachable from home; the server session will say when
+each node has it). Every JSON object response gains a top-level snake_case
+`"status"` — `"ok"` on success, the handler's own code otherwise, equal to
+`error.code` on an error — as the first key; nothing existing moves, and
+streams, 204/304 and non-JSON bodies are unchanged. Tom's rule with it:
+**every client checks everything it parses.** **Checked here 2026-09-24:
+this client parses no server JSON itself** — the only `JSON.parse` calls read
+its own storage (`sessionLedger.ts`, `continueWatchingMigration.ts`), and
+every response comes through core — so the change reaches it through core,
+and whether core's parsers accept or check the new key is core's. **When it
+is deployed:** confirm core has taken it, then watch the A85 for any parse
+failure. Management-view fields (`error_code` on jobs and hints) are not used
+here. Details in the server's `CHANGELOG.md` under 0.56.0.
+
 - **The mint-failed window is still open and is core's**, confirmed by core
   on 2026-09-20 against its `develop`, and by diff here: `0.12.0` through
   `0.14.0` ship a byte-identical `SessionManager.js`. Core carries it as a P1
