@@ -8,6 +8,60 @@ Newest first.
 
 ---
 
+## 2026-09-24 evening — Failure wording off core's log text; the offline fallback that could not fire
+
+`d5a7273`. Suite **287 across 25 files**, typecheck clean against core
+`5973dc5` and again at `b47773d` (dist `2e40b5cd306e`). Not on hardware; the
+A85 was off ADB throughout.
+
+### Every failure outside playback worded here
+
+Core defined `.message` as log text on 2026-09-24, and `describeError` showed
+`.message`. **Five sites, not the four ACTIVE listed**: `ErrorState` in
+`src/ui/Status.tsx` read `.message` itself, on home, search, status and both
+music screens. `src/api/failureMessages.ts` replaces them all with the shape
+`createFailureMessage` already had: one lead per kind of failure, keyed on
+status and code through core's accessors, the server's `detail` quoted in
+brackets where it gave one, **never `.message` as a fallback**. A local
+failure (the file system, say) gets the lead alone. Login gives one sentence
+for any 401, so an unknown user and a wrong password still read the same.
+Logout says the phone is signed out and the old session stays valid until
+it expires. `describeError` is deleted. Eleven tests, all red first against
+the old behaviour, printing the exact log line a viewer would have seen.
+
+An unnamed playlist (core stores `''`) reads "Untitled playlist" via
+`playlistName` in `labels.ts`. One test, red first.
+
+Checked and **not used here**, as ACTIVE already said: `checkEndpointConfiguration`,
+`formatPlaybackTime`, `startupPhaseLabel`, `describePlaybackSession`, the
+alphabet index. `SERVER_UNREACHABLE_MESSAGE` is this client's own, in
+`errors.ts`, still used by `connect.tsx`.
+
+### `MediaApi.serve`'s fallbacks tested identity, and none could fire
+
+Found by reading core's router (`endpointRouting.ts`, `route` and `find`)
+while checking what `isUnreachable` should accept. An exhausted walk throws
+`MachaClusterRouteError`, which is **not** a `MachaConnectionError`. A 4xx
+ends the walk and comes out as **core's** `MachaApiError`, not this client's
+class of the same name. `SessionNotStartedError` is thrown inside each
+endpoint's operation, so it arrives wrapped. All three `serve` branches
+tested `instanceof`, so in the app:
+
+- **offline**: the first loads before core's health verdict, and every
+  20 s `shouldProbe` request after it, showed an error where the downloads
+  were the answer;
+- **refused viewer**: the catch branch never fired (the `mayRequest`
+  pre-check covers the steady state, so this was the first load only);
+- **session not started**: fell through to an error as well.
+
+`media.test.ts` passed throughout because it threw the bare class. Now
+`isUnreachable`, `isSessionNotStarted` and `isAuthRefusal` read fields and
+walk `cause`, core's rule. Four tests in the router's real shapes, three red
+first; the answered-500 case stays an error. **By source, not by device.**
+ACTIVE Open item 3 is the check on the phone.
+
+---
+
 ## 2026-09-24 afternoon — Core writes no viewer text; the music lines; the probe built
 
 Three things, none yet on hardware. Suite **271 across 24 files**, typecheck

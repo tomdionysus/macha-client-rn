@@ -15,7 +15,7 @@ Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
 Last rationalised 2026-09-24 afternoon, for a session starting cold after a
-`/clear`. Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
+`/clear`; Open item 3 done that evening in `d5a7273`. Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
 those dates; what is below is what is still open, and where things stand.
 
 ---
@@ -30,10 +30,11 @@ those dates; what is below is what is still open, and where things stand.
 `git log develop..main` is empty and must stay so.
 
 **`develop` is well past `main` — two days of work, all pushed but the last
-rationalisation** (check `git log origin/develop..develop`; push is Tom's to
-authorise, and he has authorised it several times this run by saying so). Suite
-**271 tests across 24 files, typecheck clean** at `0746aa3`, against the linked
-core at `b5c0128`. Working tree clean but for `.claude/settings.json`,
+rationalisation and `d5a7273`** (check `git log origin/develop..develop`; push
+is Tom's to authorise, and he has authorised it several times this run by
+saying so). Suite **287 tests across 25 files, typecheck clean** at `d5a7273`,
+against the linked core at `b47773d` (dist `2e40b5cd306e`) — core's commit is
+local only, GitHub SSH being unreachable from its session. Working tree clean but for `.claude/settings.json`,
 `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
 
 **Check `tsc`'s exit code, not a grep of its output.** Its errors are
@@ -69,7 +70,14 @@ package manager cannot tell it from 0.8.0**; identify it by
 `lastUpdateTime`. **Everything after `22935ca` is built on `develop` and not on
 the phone**: the sheet's landscape insets (`f293cf2`), the reaped-session
 probe (`61ce107`, `a11e150`), and the viewer-text move with Tom's music
-ruling (`0746aa3`). At the last look it had dropped off ADB (asleep).
+ruling (`0746aa3`), and the failure wording and offline fallback
+(`d5a7273`). At the last look it had dropped off ADB (asleep); still absent
+from `adb devices` on 2026-09-24 evening.
+
+**`ramaroja` is offline for the foreseeable future** — Tom, relayed by core
+2026-09-24 as said to it directly. The A85 has it configured beside
+`macnessa` and the LAN node; remove it from the node list when next on the
+phone, so the walk stops spending time on it. Nothing in `src` names it.
 
 ### Driving the phone — read this before sending a single tap
 
@@ -129,20 +137,12 @@ screen. The evidence for each is in COMPLETED under that date.
    the core SHA and `dist:hash` with the install.
 2. **Prove the reaped-session probe.** P1 below — a 31-minute pause on the
    A85. Built on Tom's option A; unproven.
-3. **Finish moving off core's text.** The build compiles, but core's
-   2026-09-24 cut changed meanings the types do not catch:
-   - **`describeError` shows `.message`, which core now defines as log
-     text.** Four sites: the home "Refresh failed" line
-     (`src/app/index.tsx:102`), sign-out (`settings.tsx:75`), login
-     (`login.tsx:53`), download failures (`DownloadManager.ts:307`). Key on
-     class, status and code, and quote only `detail` — the shape
-     `createFailureMessage` already has for playback.
-   - **An unnamed playlist is stored as `''` now** (core's `PlaylistStore`);
-     `src/app/music/index.tsx:242–253` and `music/playlists/[id].tsx:42,64` show
-     `playlist.name` raw and need a placeholder.
-   - Checked and **not used here**: `checkEndpointConfiguration`,
-     `SERVER_UNREACHABLE_MESSAGE`, the alphabet index (`'#'` → `'other'`),
-     `formatPlaybackTime`, `startupPhaseLabel`, `describePlaybackSession`.
+3. **Look at the new failure wording on the phone** (`d5a7273`). The
+   cheapest check: a refresh with the cluster unreachable should now show
+   the **downloads** rather than an error — the offline fallback could not
+   fire before (COMPLETED, 2026-09-24 evening). Then the home refresh line,
+   a wrong password ("That username or password was not accepted."), and an
+   unnamed playlist reading "Untitled playlist".
 4. **The rest of the smoke test.** Unrun on hardware: a **quality change**, the
    create-failure copy, the player-failure copy, Remux's container branch of
    `directUnavailableReason`, the offline search path. **The account cap still
@@ -305,6 +305,16 @@ awake, so wireless ADB should hold.
 
 **Not built:** the proactive half — asking when `AppState` returns to
 `active` with an old session, before the viewer presses play.
+
+**One divergence from core's written sequence, undecided.** Core wrote the
+resolver-direct recovery down on 2026-09-24 (`docs/writing-a-player.md`,
+*Recovering without the coordinator*, core `5973dc5`). This build matches it
+except in two places. `alive` fails over where core stops — deliberate and
+commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
+tell the cases apart. **`session_provenance_unknown`** is classified
+separately by `classifyProbe` and then **fails over**, where core says
+**stop**; nothing records that as a choice. Ask Tom before changing it:
+stopping ends playback on a node that could not say whose session it was.
 
 ---
 
@@ -511,6 +521,22 @@ opinions.
 `CONNECTION_CHECK_TIMEOUT_MS = 6_000` in `connect.tsx` goes with it. If any of
 ours is kept, say what shape core's result does not give — core asked, because
 that would be a gap in theirs rather than a preference.
+
+---
+
+## P3 — Dead error plumbing in `src/api`
+
+Found 2026-09-24 while fixing `MediaApi.serve`. **This client's own
+`MachaApiError`** is constructed only by `throwResponseError` in `http.ts`,
+and nothing calls `throwResponseError`; `retryAfterMs` goes with it.
+`isEndpointFailure` and `isAbortError` in `errors.ts` have no caller either.
+A class nothing throws is how `isAuthRefusal` tested identity against it for
+months and passed its tests. `refusal.test.ts` and `supersede.test.ts` use the
+class deliberately, to prove duck typing, so swap them to core's
+`MachaApiError` when deleting it. Also optional: core `b47773d` offers
+`seedEndpoints({ configured, environment?, remembered? })`, the shared form of
+what `MachaProvider.tsx:207` does with `applyAdvertisement`. Ours is already
+the right shape, so adopting it removes a mirror and fixes nothing.
 
 ---
 
@@ -731,7 +757,7 @@ Both raised, both declined at the time, both still true.
   `mayRequestMedia(access)` changing, a boolean that only flips when the answer
   does, rather than on `access.kind`.
 - **One node's 401 stands for the whole cluster.** `isAuthRefusal` in
-  `MediaApi.serve` collapses to the local library without trying another node,
+  `MediaApi.serve` (which could not fire at all before `d5a7273`) collapses to the local library without trying another node,
   and the router will not walk on a 4xx. Usually right, because sessions and
   roles are replicated — but during a rolling upgrade an older build's session
   carries a role vocabulary the newer one refuses.
