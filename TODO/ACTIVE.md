@@ -318,14 +318,14 @@ awake, so wireless ADB should hold.
 **Not built:** the proactive half — asking when `AppState` returns to
 `active` with an old session, before the viewer presses play.
 
-**One divergence from core's written sequence, undecided.** Core wrote the
+**One divergence from core's written sequence, since resolved.** Core wrote the
 resolver-direct recovery down on 2026-09-24 (`docs/writing-a-player.md`,
 *Recovering without the coordinator*, core `5973dc5`). This build matches it
 except in two places. `alive` fails over where core stops — deliberate and
 commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
 tell the cases apart. **`session_provenance_unknown`** is classified
 separately by `classifyProbe` and then **fails over**, where core says
-**stop**. **Recommended 2026-09-24: keep failing over** (below; put to Tom, not yet ruled). Core, 2026-09-24: `alive` →
+**stop**. **Resolved 2026-09-24: failing over is right, and core's doc now says so** (core `746aba5`: its "stop" predated ids carrying their node). Core, 2026-09-24: `alive` →
 fail over is defensible given expo-video; provenance is the one to settle —
 with session ids now carrying their node it fires only for an id this
 resolver never issued, and failing over then charges a healthy node.
