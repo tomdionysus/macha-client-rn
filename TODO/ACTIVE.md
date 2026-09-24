@@ -417,7 +417,26 @@ told it is because they are on mobile data. Both can be set in Settings.
 The phone supplies the connection kind (NetInfo `type`); core is asked for
 a reason code for "capped because on mobile data" so the words stay ours.
 
-Waiting on core's consolidation and Tom's decision.
+**Settled by Tom, 2026-09-25, as consolidated by core** (this supersedes
+the open points and relays above):
+- Beside the generic Play ("decide for me"), per-quality buttons, capping
+  down only, from the best file's class to 720p.
+- **Below 720p, the best file's own class is shown** (e.g. 480p), never a
+  class above it. Core's classes: 2160, 1440, 1080, 720, 576, 480, 360.
+  (The phone had assumed Play only; Tom chose otherwise.)
+- **With no setting, automatic play caps at the display's resolution
+  class**, which the phone states to core. An explicit setting overrides
+  it, and a cap that limits the choice comes with a reason code for us to
+  word. (The phone had suggested no ceiling on Wi-Fi; Tom chose the
+  display.) This is a preference default, not a capability, so the README
+  rule that screen size is never a capability stands.
+- An explicit pick is never capped.
+- **Phone only:** Wi-Fi and mobile-data ceilings, the mobile one lower, with
+  a reason code to explain and an override in Settings. We pass the
+  connection kind; `'unknown'` counts as Wi-Fi.
+
+**Waiting on core's API**, which follows verification of the 0.58.0 fix
+(`de86392`, in the linked `dist`, 306 green). Nothing built.
 
 ---
 
