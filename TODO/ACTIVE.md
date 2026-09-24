@@ -14,85 +14,62 @@ source or a device, it says so; where it was taken on trust, it says that too.
 Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
-Last rationalised 2026-09-23, after 0.8.0 was tagged, pushed and installed on
-the A85 against published core 0.18.0. The whole of 2026-09-21 — the codec
-probe, seven fixes, the route cutover, five retractions and the release — is
-in COMPLETED; what is left here is what is still open, with the day's evidence
-cited rather than repeated.
+Last rationalised 2026-09-24 afternoon, for a session starting cold after a
+`/clear`. Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
+those dates; what is below is what is still open, and where things stand.
 
 ---
 
 ## Start here
 
-**Handover rationalised 2026-09-23 for a session starting cold after a
-`/clear`. Read this before anything.**
+**Read this section before anything.**
 
 ### Where the code is
 
-**`main` is at `7932542`, tagged `0.8.0`, pushed.** The tag is annotated, bare
-semver, and `version:check` was re-run against it: `0.8.0 (versionCode 800),
-tagged 0.8.0 — consistent`. That run was the first time the two checks that
-fire only in a release context — the tag against `package.json`, and the
-refusal of a `file:`/`link:` dependency — had ever executed on this tree.
+**`main` is at `7932542`, tagged `0.8.0`, pushed, unchanged since.**
+`git log develop..main` is empty and must stay so.
 
-**`develop` is `main` plus the link restoration, the tag record, and this
-rationalisation.** `git log develop..main` is empty and must stay so: the
-0.8.0 bump was made on `main` and `develop` was fast-forwarded onto it
-afterwards, which is what keeps the next release a fast-forward rather than a
-merge conflicting on `package.json`. Everything up to `96cfe5f` is on
-`origin`; **the rationalisation commit is not pushed** — push is Tom's.
+**`develop` is well past `main` — two days of work, all pushed but the last
+rationalisation** (check `git log origin/develop..develop`; push is Tom's to
+authorise, and he has authorised it several times this run by saying so). Suite
+**271 tests across 24 files, typecheck clean** at `0746aa3`, against the linked
+core at `b5c0128`. Working tree clean but for `.claude/settings.json`,
+`CLAUDE.local.md` and `basemind.toml`, none of which are this work.
 
-**Suite: 204 tests across 19 files, typecheck clean**, run both ways on
-2026-09-21 — against the registry copy of core 0.18.0 on `main`, and against
-core `a3b40ca` through the link on `develop`. A real `expo export` produced a
-4.9 MB Hermes bundle from the registry copy. Working tree clean but for
-`.claude/settings.json`, `CLAUDE.local.md` and `basemind.toml`, none of which
-are this work.
+**Check `tsc`'s exit code, not a grep of its output.** Its errors are
+coloured, and `grep "error TS"` does not match through the escape codes — on
+2026-09-24 that read zero errors where there were twenty. `npx tsc --noEmit
+-p . >/dev/null; echo $?`, or pipe to `head` and read it.
 
-### Core
+### Core — `develop` cannot be released until core publishes
 
 `package.json` pins `file:../macha-ts` on `develop`; a release on `main` pins
 the published package; **a `file:` dependency must never reach `main`**, and
-`version:check` refuses one there mechanically. **Core `0.18.0` is on npm**
-(2026-09-21T19:31Z) and 0.8.0 pins `^0.18.0`. `../macha-ts` was at `a3b40ca` (= `0.18.0`) on
-2026-09-21 and **had moved to `51e1ad8` plus uncommitted edits by 2026-09-23
-18:50** — six commits, all in `PlaybackCoordinator`/`PlaybackRuntime`, which
-this client does not call. Every core export used by the 2026-09-23 work was
-checked present in the `0.18.0` tag, so a release pinning `^0.18.0` still
-carries them. `git -C ../macha-ts describe --tags` and a core rebuild before
-trusting a typecheck.
+`version:check` refuses one there mechanically. Published core is still
+**`0.18.0`**. **`develop` now depends on a great deal of unpublished core**:
+the sort vocabulary (`LIBRARY_SORTS`, `SEARCH_SORTS`, `orderMedia`), search
+categories and terms (`SEARCH_CATEGORIES`, `isSearchable`, `searchTerms`,
+`searchCategoryOf`), the regenerate codes (`SESSION_PROVENANCE_UNKNOWN_CODE`,
+`REGENERATION_ENDPOINT_GONE_CODE`), and **core's removal of all viewer text**
+(`MediaSummary.subtitle`, the label helpers, sort and category labels — all
+gone on core `develop` from `826e38a`). **The next release waits on a core
+publish — Tom's call** — and then the full registry procedure under
+*Releasing*, not a lockfile edit.
 
-**Use `npm run dist:hash` in core and nothing else** for the dist figure; every
-hash in this file from before 2026-09-21 19:00 is the narrower `*.js`-only one
-and is not comparable.
+**Core moves several times a day.** `git -C ../macha-ts log --oneline -1`, `git
+-C ../macha-ts status --short`, and `npm run dist:hash` in core before trusting
+a typecheck or recording a build. Core's own session rebuilds its `dist`; do
+not rebuild it from here while that session is live.
 
 ### What is on the phone
 
-**The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-24 11:01:02 from `develop` at `22935ca`, core through the link at
-`../macha-ts` `460ad1a` (**unpublished work in it**), **core `dist:hash`
-`3edcfc76d7a3`**. It still says `versionCode 800` because the version was not
-bumped — **so the package manager cannot tell it from 0.8.0**, and neither
-can anyone reading `dumpsys`. Identify it by `lastUpdateTime`. Left playing
-*Dark* S01E06 in transcode, in landscape — a session open, which the next
-launch closes.
-
-To put the release back: build `assembleRelease` from `main` at `7932542`
-with the registry core (the procedure under *Releasing*), and `install -r`.
-A copy of the 0.8.0 APK was kept only in a session scratchpad, which does
-not survive the session — do not count on it.
-
-**The tagged 0.8.0 was seen running before that**, 2026-09-23 17:53 —
-COMPLETED has the transcode play, and the Remux black screen it then showed.
-
-**Build times, measured:** 90 seconds to 3.5 minutes incremental; **37 minutes
-cold** (778 Gradle tasks, 2026-09-21), and that cold build shared the machine
-with a concurrent Gradle build from `macha-client-rn-tv`. `expo prebuild`
-clears `android/`, so the first build after a prebuild is always cold.
-`assembleRelease` autolinks `modules/macha-codecs` on its own. **On
-2026-09-23 `:app:packageRelease` failed once in `IncrementalSplitterRunnable`
-with nothing wrong, deleted the old APK, and passed on a plain rerun** — check
-the APK's timestamp, not just the exit code of the first attempt.
+**The A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
+11:01:02, core `460ad1a`, dist `3edcfc76d7a3`. Still `versionCode 800` — **the
+package manager cannot tell it from 0.8.0**; identify it by
+`lastUpdateTime`. **Everything after `22935ca` is built on `develop` and not on
+the phone**: the sheet's landscape insets (`f293cf2`), the reaped-session
+probe (`61ce107`, `a11e150`), and the viewer-text move with Tom's music
+ruling (`0746aa3`). At the last look it had dropped off ADB (asleep).
 
 ### Driving the phone — read this before sending a single tap
 
@@ -143,92 +120,39 @@ screen. The evidence for each is in COMPLETED under that date.
 
 ### Open, in the order worth taking them
 
-1. **The rest of the smoke test.** Done on hardware 2026-09-23: transcode
-   play, Remux blocked on ten-bit and offered and working on eight-bit, the
-   guard reporting on Direct, Try again, the orphan reclaim, a mode switch
-   keeping its place. Still unrun: **a quality change** (the phone was turned
-   to landscape mid-run and the portrait tap map stopped applying), the
-   create-failure copy (nothing failed to start where a viewer saw it), the
-   player-failure copy. **The account cap still cannot be tested** — the
-   node limit refuses first.
-2. **The reaped-session probe.** P1 below. **Read `docs/resolver-direct.md` in
-   core first** — it exists (checked 2026-09-23), it is the contract for hosts
-   driving the resolver without a coordinator, written partly from this
-   client's case, and it is unread here.
-3. **Left over from the failure screen.** P2 below — `durationRef` across a
-   load, and whether Direct should be marked unavailable like Remux (Tom's
-   call, not yet asked).
-4. **Zulu.** P2 below.
-5. **544 MPEG-4 Part 2 files.** P2 below.
-6. **AV1 ten-bit SDR.** P2 below.
+1. **Put `develop` on the A85 and look.** Nothing since `22935ca` has been seen
+   on hardware. Check: album cards read title / artist / year; track search
+   cards read album (year) / artist / "Track 9", both links working; music and
+   playlist rows read album then artist; episode cards still "Season 1
+   Episode 6"; the sort pill still "Sort By Title"; the Playback sheet clear of
+   the navigation bar **in landscape**. Core rebuilds `dist` often — record
+   the core SHA and `dist:hash` with the install.
+2. **Prove the reaped-session probe.** P1 below — a 31-minute pause on the
+   A85. Built on Tom's option A; unproven.
+3. **Finish moving off core's text.** The build compiles, but core's
+   2026-09-24 cut changed meanings the types do not catch:
+   - **`describeError` shows `.message`, which core now defines as log
+     text.** Four sites: the home "Refresh failed" line
+     (`src/app/index.tsx:102`), sign-out (`settings.tsx:75`), login
+     (`login.tsx:53`), download failures (`DownloadManager.ts:307`). Key on
+     class, status and code, and quote only `detail` — the shape
+     `createFailureMessage` already has for playback.
+   - **An unnamed playlist is stored as `''` now** (core's `PlaylistStore`);
+     `src/app/music/index.tsx:242–253` and `music/playlists/[id].tsx:42,64` show
+     `playlist.name` raw and need a placeholder.
+   - Checked and **not used here**: `checkEndpointConfiguration`,
+     `SERVER_UNREACHABLE_MESSAGE`, the alphabet index (`'#'` → `'other'`),
+     `formatPlaybackTime`, `startupPhaseLabel`, `describePlaybackSession`.
+4. **The rest of the smoke test.** Unrun on hardware: a **quality change**, the
+   create-failure copy, the player-failure copy, Remux's container branch of
+   `directUnavailableReason`, the offline search path. **The account cap still
+   cannot be tested** — the node limit refuses first.
+5. **`durationRef` survives `load`** — P2 below.
+6. **Zulu**, **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
 
-Done 2026-09-23 and in COMPLETED: 0.8.0 seen running; refusal copy through
-`playbackFailureDetail`; the supersede guard reports; Remux unavailable with
-a reason; a failed start in words a viewer can use; Try again no longer
-skips episodes; the README states the version; sessions a killed process
-left are closed at the next launch; the failure panel is clear of the
-transport; a refused jump says so; a mode switch keeps its place; library
-titles sort as on every other client; core's sort choices on every list and
-episodes named by season (both on unpublished core).
-
-**`develop` now needs unpublished core.** Since `159dce7` (sort controls,
-episode naming — COMPLETED 2026-09-24) this tree imports `mediaSort` and
-`episodeLabel`, which are on core `develop` only. **The next release cannot
-be cut until core publishes a version carrying them** — `version:check` and
-the registry install will both say so. That is Tom's call on the publish.
-
-**Artwork host by round trip (core `154270d`, Tom's P0 on slow artwork) needs
-nothing here — checked, not assumed.** Every artwork URL in this client comes
-from `MediaApi.artworkUrls`, which is core's `MachaMediaApi.artworkUrls`
-(`src/api/media.ts:110`): the `Artwork` component, Now Playing, and
-downloaded artwork. And the registry health probes that feed the round trip
-already run here. Expect one re-download of posters on the first run where it
-switches. Not yet seen on the phone.
-
-**Tom's decisions, 2026-09-24:** Direct greyed like Remux, and the three
-search rulings — **both done**, COMPLETED.
-
-**The reaped-session probe is built and not yet proven — `61ce107`.** Tom
-answered "Ok, continue" to the A/B question right after A was recommended;
-**that was taken as A**, and said so to him. So: a player error the guards
-do not excuse waits `errorSettleMs` (the node's own window) and is acted on
-only if the player is still in error under the same generation; then
-`sessionAlive` → `classifyProbe` → `recoveryAfterProbe`: `gone` regenerates
-on the same node (no charge, no failover budget), bounded by core's
-same-position rule; `alive`, unanswerable, or a failed regeneration fail
-over as before. Codes, not wording. Eight policy tests, red first.
-
-**Still to do: prove it on the A85.** Build of `61ce107` is made (core
-`287e959`, dist `8a9598e46d95`) and **not installed** — the phone had
-dropped off ADB. The run: play a transcode, pause for 31 minutes (past
-`session_idle`), resume, and read for `player-error-settling` →
-`session-probe { outcome: 'gone', recovery: 'regenerate' }` →
-`regenerate-result`, **not** `failover-attempt`. It may instead show that
-the session is never reaped while paused — something keeping it alive —
-which is worth knowing either way. **Every genuine failover now starts up to
-~8 s later**; that is the price Tom's A pays, and it applies to all of them.
-
-**The web Search page's design language** (from the web client's session,
-reference, not spec) has two parts not built here: an A–Z index shown only
-under Title order (this client has none anywhere), and the one-row control
-layout, which on a phone wraps by design.
-
-**The Playback sheet ran under the navigation bar in landscape** (A85,
-2026-09-24 11:25) — fixed in `f293cf2` (side insets padded), **not yet seen
-on the phone**.
-
-**The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
-favour of the session leak, with its design question put and not answered:**
-attribute a player error to its generation by *persistence* (wait out the
-node's window, act only if the player is still in error — the rule the
-supersede fix already uses) or by a fixed quiet period after `replace`.
-Persistence was recommended. **Two facts found while asking, both against
-the entry below:** `sessionAlive` has recovered the node from the id since
-`0.18.0`, so probing a released session no longer throws — it answers
-`false`, which the planned sequence reads as *regenerate*, and that makes
-attribution matter more, not less; and `regenerate`'s "no endpoint" throw is
-still a bare `Error` with no code, so telling its two throws apart needs one
-from core before it can be done without matching core's wording.
+**Not built, deliberately:** the web Search page's A–Z index (shown only under
+Title order; this client has no A–Z index anywhere) — the web client's design
+notes were sent as reference, not spec, and the phone is iterated separately.
 
 ### The habit that paid, and the one that did not
 
@@ -243,6 +167,16 @@ rather than deleted, because the retraction is the useful part.
 cost on the way.** "One `pm clear` and a login" is a complete instruction that
 says nothing about 539 MB of downloads. Whoever relays is the last person who
 can attach the price.
+
+### Peer sessions, 2026-09-24
+
+**`Macha Client Core`** (`uds:/tmp/cc-socks/40630.sock` this run) and **`Macha
+Client`**, the web client (`uds:/tmp/cc-socks/23042.sock`), both message this
+session. **Relayed rulings are confirmed with Tom before building** — two hops
+is where a claim stops being checked. Rulings core says Tom gave it
+*directly* have been accepted, and one (the music lines) was still asked about
+because it changed work already done. Reply to a message by copying its
+`from` address.
 
 ### Releasing — run end to end twice now, and none of it optional
 
@@ -313,8 +247,8 @@ after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **Do not skip prebuild after a version bump.** Every command needs `-s`.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has a **dev build
-  of `15a1e0b`** labelled `versionCode 800` since 2026-09-23 18:59 (*What is
-  on the phone*). Wireless debugging was at `10.35.1.164:45101` on
+  of `22935ca`** labelled `versionCode 800` since 2026-09-24 11:01 (*What is
+  on the phone*).
   2026-09-23, `:35737` and `:41931` on 2026-09-21: the port rotates, so
   rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
@@ -339,126 +273,38 @@ after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 landed in another app mid-sequence. `dumpsys window | grep mCurrentFocus` first,
 and abort if it is not `foundation.macha.client`.
 
-### Peer sessions
-
-Core answers to **`Macha Client Core`** — the name `ListAgents` printed on
-2026-09-20 and the one a send reached first time. Earlier notes here about
-`Macha NPM Core` and a name containing a slash are stale. There are two
-`Macha Server` rows; the live one needs its `[ref]`. Send with
-`notify_when_idle` and carry on; a reply arrives as a cross-session message.
-
 ---
 
----
+## P1 — A reaped session is charged to the node that answered honestly — built, unproven
 
-## P1 — A reaped session is charged to the node that answered honestly
+**Built 2026-09-24 in `61ce107` (+ the `player-error-settling` log line in
+`a11e150`) on Tom's option A; not yet run on hardware.** The design history —
+core's corrected sequence, the attribution question, the divergence on a live
+session — is in COMPLETED under 2026-09-24, *The reaped-session probe*.
 
-**From core 0.13.0. The resolver half reaches this client and is unused; the
-coordinator half does not reach us at all.** Core initially told this client
-that nothing in 0.13.0 was reachable here, then withdrew it — `sessionAlive`
-and `regenerate` are public on `ClusterPlaybackResolver`, new in that tarball,
-and are exactly the tools this fault needs.
+**What it does.** A player error the guards do not excuse waits
+`errorSettleMs` — the node's own window, about 8 s — and is acted on only if
+the player is still in error under the same generation, so an error from a
+source already replaced never reaches the probe. Then `sessionAlive` on the
+owning node (records nothing either way) → `classifyProbe` →
+`recoveryAfterProbe`: **`gone` regenerates on the same node**, no charge and
+no failover budget, bounded by core's same-position rule; `alive`,
+unanswerable, or a failed regeneration fail over as before. Branches on core's
+codes, never its wording.
 
-**The condition.** A viewer pauses for more than `session_idle` (30 minutes;
-`SERVER_SESSION_IDLE_MS`). The node reaps the play session — correctly. The
-viewer resumes, the buffer plays out, media3 asks for the next fragment, gets
-`404 not_found`, and raises a fatal error. `statusChange` sees `error` and
-calls `failoverSource`, whose only exit is `failover`, whose first act is
-`recordEndpointFailure`. So the node that answered honestly is charged,
-dropped, and the viewer is sent to a node that never held the session. Core
-observed exactly that live on 2026-09-17.
+**The cost, and it applies to every genuine failover:** they now start up to
+the node's window later than before.
 
-**This client cannot see the 404** (`PlayerError` is `{ message }`), so it
-cannot classify the error. **It can ask instead.** `sessionAlive(sessionId)`
-is pinned to the owning node, does no walk, and **records nothing against the
-registry in either direction** — core's comment: a probe that moved the
-registry "would make asking a question cost the node something, which is how
-a diagnostic turns into the fault it was meant to diagnose". So probing before
-spending failover budget is free.
+**The run that proves it** (A85, about 35 minutes): play a transcode, pause
+31 minutes — past `session_idle` — resume, and read logcat for
+`player-error-settling` → `session-probe { outcome: 'gone', recovery:
+'regenerate' }` → `regenerate-result`, **not** `failover-attempt`. It may
+instead show the session is never reaped while paused — something keeping it
+alive — which is worth knowing either way. The player screen keeps the phone
+awake, so wireless ADB should hold.
 
-### The sequence, corrected by core on 2026-09-20 — do not build the naive one
-
-The obvious version ("probe; regenerate on false; failover on true or on a
-throw") is wrong in its last clause, and core has measured the cost.
-
-- **`alive === false` → `regenerate`.** Same node, no charge, and core
-  releases the old session *before* creating and waits for it, because the
-  node's one transcode slot is held by the session being replaced.
-- **A `sessionAlive` throw is two unrelated things and they want opposite
-  actions.** "no endpoint provenance" means the resolver holds no record of
-  that id **because it was already released** — nothing is wrong and nothing
-  needs recovering. Treating it as "could not find out" cost a viewer 82
-  seconds of playable video on 2026-09-17: a late fatal named a superseded
-  source, the probe threw, the throw sent it to failover, and failover
-  released a replacement that was already built and waiting. A transport
-  failure is the other case and gets ordinary evidence handling.
-- **`regenerate` has its own distinct throw**, "has no endpoint to regenerate
-  on", when the endpoint has gone from the registry. **There failover is
-  right.** Two throws, two answers, and only one of them is in a docstring.
-- **Regeneration must be bounded.** Core logs
-  `session-regeneration-made-no-progress`: a second not-found at the same
-  position means the regeneration changed nothing and the next step must
-  differ. Without the bound this loops against a node that keeps answering
-  the same way.
-
-**Core survives the superseded-source trap only through coordinator machinery
-this client does not have** — `failNow` checks `pendingReplacement` before
-reaching the probe. So the equivalent has to be built here, and core's advice
-is to **track which session id is current and ignore failures naming a
-superseded one**, rather than matching on the provenance message, which is
-core's text to change.
-
-**And this client's shape makes it worse in a way core's warning does not
-quite cover.** `failoverSource` reads `sessionRef.current`, so a late error
-from a dying source does not probe the old id at all — it probes the **new**
-one, finds it alive, and under the plan above fails over, discarding a
-regeneration completed a second earlier. A dying source keeps talking; core
-has that measured three ways. So the guard cannot be "ignore a throw naming
-a superseded id" alone: **the error itself has to be attributable to a
-generation**, and expo-video does not label it. The likely shape is a short
-quiet period after `player.replace`, in the same spirit as
-`errorBlamesEndpoint`'s seek window, rather than a session-id test. **Decide
-this before writing the probe**, because a wrong guard here turns a fixed
-fault into a worse one.
-
-**And it gets harder, not easier, once an account may hold several live
-sessions** - core's point on 2026-09-21, with the REST-resource change above.
-A quiet period after `player.replace` has to hold under that too. Recorded as
-a constraint on the design, not as a reason to consider it settled.
-
-### One deliberate divergence from core, recorded as a choice
-
-On `alive === true` core does **not** fail over: it logs
-`source-not-found-on-live-session` and stops, because an alive session
-answering 404 for a fragment is a fragment past the end of a live plan, the
-node is fine, and replacing it fixes nothing. **This client cannot tell that
-case apart**, because expo-video hides the status, so `alive → failover`
-stays. It is strictly better than today, where everything fails over, and
-core agrees it is defensible — but it means this client will fail over on a
-case core deliberately does not. **That is a choice, not a side effect.**
-
-### Doing it
-
-- Add `sessionAlive` and `regenerate` to `ClusterPlaybackApi`
-  (`src/api/playback.ts`).
-- Put the decision in `policy.ts` as a pure function over (probe result,
-  throw kind, attempt count, position) so it can be tested without the
-  player, the way `errorBlamesEndpoint` already is. **Prove each branch fails
-  against the current code first** — and check *why* each is red, which is
-  the failure mode core and the web client both hit this week.
-- **Also worth doing proactively:** on `AppState` returning to `active` with
-  a session older than a few minutes, ask before the viewer presses play
-  rather than after the fragment fails. Not measured; the reactive half is
-  enough to stop charging the node.
-- Verify on the A85: pause 31 minutes, resume, read `logcat` for a
-  regenerate rather than a `failover-attempt`.
-
-**Core owes a docs section and has filed it.** The recovery sequence is
-documented nowhere — every method has a docstring, the sequence has none,
-because core only ever documented it through `PlaybackCoordinator`. Three of
-four clients now drive playback below that class. When
-`docs/writing-a-player.md` grows a resolver-level recovery section, check it
-against this item rather than replacing this item with it.
+**Not built:** the proactive half — asking when `AppState` returns to
+`active` with an old session, before the viewer presses play.
 
 ---
 
@@ -668,23 +514,13 @@ that would be a gap in theirs rather than a preference.
 
 ---
 
-## P2 — Left over from the failure screen
+## P2 — `durationRef` survives `load`
 
-The transport over the failure panel and the refused-seek copy were done
-2026-09-23 (COMPLETED). Two things remain.
-
-- **`durationRef` is not reset by `load`.** The 22:37 `play-to-end` for
-  S01E04 carried S01E03's duration (`2732334`). `knownDurationRef` is reset,
-  `durationRef` is not, so until the new source reports one, anything
-  reading it — the Continue Watching retire, the seek bound — uses the last
-  item's. Harmless in the case seen, because that end is now ignored; not
-  checked anywhere else.
-- **Direct play has the same video hole Remux had, and was left alone on
-  purpose** — `transformFor`'s docblock argues a viewer who names Direct gets
-  what they asked for. Tom's 2026-09-23 decision was about Remux. With the
-  guard now reporting, Direct on an undecodable title ends in an honest
-  failure rather than a black screen; whether it should instead be marked
-  unavailable like Remux is Tom's call and has not been asked.
+The 22:37 `play-to-end` for S01E04 on 2026-09-23 carried S01E03's duration
+(`2732334`). `load` resets `knownDurationRef` but not `durationRef`, so until
+the new source reports one, anything reading it — the Continue Watching
+retire, the seek bound — uses the last item's. Harmless in the case seen,
+because that end is now ignored; not checked anywhere else.
 
 ---
 

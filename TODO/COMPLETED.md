@@ -8,6 +8,185 @@ Newest first.
 
 ---
 
+## 2026-09-24 afternoon — Core writes no viewer text; the music lines; the probe built
+
+Three things, none yet on hardware. Suite **271 across 24 files**, typecheck
+clean against core `b5c0128`.
+
+### Every viewer label is this client's — `0746aa3`
+
+**Tom's ruling, given to core directly: core composes no viewer text** — it
+hands over structured data and codes, and every word a viewer reads is the
+client's. Core hard-cut its label helpers (`episodeLabel`, `albumLabel`,
+`trackSubtitle`, `trackNumberLabel`, `formatPlaybackTime`),
+`MediaSummary.subtitle`, and the `label`/`choiceLabel` fields on sorts and
+categories (core `826e38a`, `f016815`, `8db0a12`, `e28d6ad`, `f75b2bd`).
+Through the link, `develop` stopped compiling: **twenty errors in twelve
+files.**
+
+`src/ui/labels.ts` now owns the wording — `episodeLabel`, `episodeCode` (the
+compact `S01E05` a season page lists, which had been the server's subtitle),
+`albumLabel`, `trackNumberLabel`, `sortChoiceLabel`, `CATEGORY_LABELS` —
+matched to what core composed so no screen changed by accident. Eight tests,
+red first on the missing module. Every `subtitle` fallback is gone (mini
+player, queue, player header, lock-screen artist, offline albums).
+
+**What the types did not catch** is in ACTIVE, Open item 3: `describeError`
+showing what core now calls log text, and unnamed playlists stored as `''`.
+
+**A near miss worth keeping:** a count of `tsc` errors by `grep "error TS"`
+read zero where there were twenty — `tsc` colours its output and the escape
+codes break the match. Earlier checks in this run piped `tsc` to `head`, which
+shows errors whatever their colour, so they stand; the exit code is the test
+that cannot be fooled.
+
+### The artist below the album — `0746aa3`
+
+Core relayed Tom's ruling "On Music, put the artist below the album name";
+**asked of Tom directly**, because it replaced the one-line "Artist - Album
+(year)" built that morning. His answer: yes, and keep the year on albums.
+Album cards read title / artist (link) / year. Track search cards read album
+with year (link) / artist (link) / "Track 9". Music and playlist rows read
+album, then artist. Core leaves the artist off albums on the artist's own
+page, where it would repeat the page.
+
+### The sheet clear of the navigation bar in landscape — `f293cf2`
+
+`Sheet` padded only the bottom safe-area inset; in landscape on the A85 the
+system back and home glyphs drew over the first option. Side insets padded.
+
+### The reaped-session probe — `61ce107`, `a11e150`
+
+**Tom's attribution call:** he answered "Ok, continue" right after option A
+was recommended, and it was taken as A and said so to him. So an error must
+persist through `errorSettleMs` — the node's window — before anything acts on
+it; then `sessionAlive` → `classifyProbe` → `recoveryAfterProbe`, `gone`
+regenerating on the same node, bounded by core's same-position rule
+(`session-regeneration-made-no-progress`, rounded millisecond equality,
+checked in core's coordinator). `ClusterPlaybackApi` gained `sessionAlive` and
+`regenerate`, the latter keeping the session ledger right. Eight policy tests,
+red first. **Two facts changed the plan on the way**, both found by opening
+core rather than trusting the entry: `sessionAlive` has recovered the node
+from the id since `0.18.0`, so a released session answers `false` — which is
+why attribution comes first — and core added the two codes this client asked
+for (`22281d0`), so neither throw is matched on wording.
+
+**Unproven on hardware** — ACTIVE has the 31-minute run.
+
+### The P1 entry as it stood before the build, kept for its reasoning
+
+**From core 0.13.0. The resolver half reaches this client and is unused; the
+coordinator half does not reach us at all.** Core initially told this client
+that nothing in 0.13.0 was reachable here, then withdrew it — `sessionAlive`
+and `regenerate` are public on `ClusterPlaybackResolver`, new in that tarball,
+and are exactly the tools this fault needs.
+
+**The condition.** A viewer pauses for more than `session_idle` (30 minutes;
+`SERVER_SESSION_IDLE_MS`). The node reaps the play session — correctly. The
+viewer resumes, the buffer plays out, media3 asks for the next fragment, gets
+`404 not_found`, and raises a fatal error. `statusChange` sees `error` and
+calls `failoverSource`, whose only exit is `failover`, whose first act is
+`recordEndpointFailure`. So the node that answered honestly is charged,
+dropped, and the viewer is sent to a node that never held the session. Core
+observed exactly that live on 2026-09-17.
+
+**This client cannot see the 404** (`PlayerError` is `{ message }`), so it
+cannot classify the error. **It can ask instead.** `sessionAlive(sessionId)`
+is pinned to the owning node, does no walk, and **records nothing against the
+registry in either direction** — core's comment: a probe that moved the
+registry "would make asking a question cost the node something, which is how
+a diagnostic turns into the fault it was meant to diagnose". So probing before
+spending failover budget is free.
+
+#### The sequence, corrected by core on 2026-09-20 — do not build the naive one
+
+The obvious version ("probe; regenerate on false; failover on true or on a
+throw") is wrong in its last clause, and core has measured the cost.
+
+- **`alive === false` → `regenerate`.** Same node, no charge, and core
+  releases the old session *before* creating and waits for it, because the
+  node's one transcode slot is held by the session being replaced.
+- **A `sessionAlive` throw is two unrelated things and they want opposite
+  actions.** "no endpoint provenance" means the resolver holds no record of
+  that id **because it was already released** — nothing is wrong and nothing
+  needs recovering. Treating it as "could not find out" cost a viewer 82
+  seconds of playable video on 2026-09-17: a late fatal named a superseded
+  source, the probe threw, the throw sent it to failover, and failover
+  released a replacement that was already built and waiting. A transport
+  failure is the other case and gets ordinary evidence handling.
+- **`regenerate` has its own distinct throw**, "has no endpoint to regenerate
+  on", when the endpoint has gone from the registry. **There failover is
+  right.** Two throws, two answers, and only one of them is in a docstring.
+- **Regeneration must be bounded.** Core logs
+  `session-regeneration-made-no-progress`: a second not-found at the same
+  position means the regeneration changed nothing and the next step must
+  differ. Without the bound this loops against a node that keeps answering
+  the same way.
+
+**Core survives the superseded-source trap only through coordinator machinery
+this client does not have** — `failNow` checks `pendingReplacement` before
+reaching the probe. So the equivalent has to be built here, and core's advice
+is to **track which session id is current and ignore failures naming a
+superseded one**, rather than matching on the provenance message, which is
+core's text to change.
+
+**And this client's shape makes it worse in a way core's warning does not
+quite cover.** `failoverSource` reads `sessionRef.current`, so a late error
+from a dying source does not probe the old id at all — it probes the **new**
+one, finds it alive, and under the plan above fails over, discarding a
+regeneration completed a second earlier. A dying source keeps talking; core
+has that measured three ways. So the guard cannot be "ignore a throw naming
+a superseded id" alone: **the error itself has to be attributable to a
+generation**, and expo-video does not label it. The likely shape is a short
+quiet period after `player.replace`, in the same spirit as
+`errorBlamesEndpoint`'s seek window, rather than a session-id test. **Decide
+this before writing the probe**, because a wrong guard here turns a fixed
+fault into a worse one.
+
+**And it gets harder, not easier, once an account may hold several live
+sessions** - core's point on 2026-09-21, with the REST-resource change above.
+A quiet period after `player.replace` has to hold under that too. Recorded as
+a constraint on the design, not as a reason to consider it settled.
+
+#### One deliberate divergence from core, recorded as a choice
+
+On `alive === true` core does **not** fail over: it logs
+`source-not-found-on-live-session` and stops, because an alive session
+answering 404 for a fragment is a fragment past the end of a live plan, the
+node is fine, and replacing it fixes nothing. **This client cannot tell that
+case apart**, because expo-video hides the status, so `alive → failover`
+stays. It is strictly better than today, where everything fails over, and
+core agrees it is defensible — but it means this client will fail over on a
+case core deliberately does not. **That is a choice, not a side effect.**
+
+#### Doing it
+
+- Add `sessionAlive` and `regenerate` to `ClusterPlaybackApi`
+  (`src/api/playback.ts`).
+- Put the decision in `policy.ts` as a pure function over (probe result,
+  throw kind, attempt count, position) so it can be tested without the
+  player, the way `errorBlamesEndpoint` already is. **Prove each branch fails
+  against the current code first** — and check *why* each is red, which is
+  the failure mode core and the web client both hit this week.
+- **Also worth doing proactively:** on `AppState` returning to `active` with
+  a session older than a few minutes, ask before the viewer presses play
+  rather than after the fragment fails. Not measured; the reactive half is
+  enough to stop charging the node.
+- Verify on the A85: pause 31 minutes, resume, read `logcat` for a
+  regenerate rather than a `failover-attempt`.
+
+**Core owes a docs section and has filed it.** The recovery sequence is
+documented nowhere — every method has a docstring, the sequence has none,
+because core only ever documented it through `PlaybackCoordinator`. Three of
+four clients now drive playback below that class. When
+`docs/writing-a-player.md` grows a resolver-level recovery section, check it
+against this item rather than replacing this item with it.
+
+---
+
+
+---
+
 ## 2026-09-24 — Direct greyed like Remux, and the search rulings
 
 Tom's calls of 2026-09-24. `97f8dc7` and `22935ca`, on the A85 11:20–11:25
