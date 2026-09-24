@@ -10,9 +10,31 @@ Newest first.
 
 ## 2026-09-24 evening — Failure wording off core's log text; the offline fallback that could not fire
 
-`d5a7273`. Suite **287 across 25 files**, typecheck clean against core
+`d5a7273`, then `38ee145`, `592b904`, `287e79b`. Suite **290 across 25 files**, typecheck clean against core
 `5973dc5` and again at `b47773d` (dist `2e40b5cd306e`). Not on hardware; the
 A85 was off ADB throughout.
+
+### Four smaller items closed after it
+
+- **`durationRef` survives `load`** — `38ee145`. It is now seeded from
+  `media.durationMs` beside the `knownDurationRef` reset. `mediaRef` and
+  `positionRef` had already moved to the new item, so in that window every
+  reader paired the new item with the previous one's length. No test, because
+  the refs live in the provider.
+- **`firstReachable` deleted for core's `checkEndpointConfiguration`** —
+  `592b904`. `connectOutcome` in `endpointList.ts` words core's `pending`
+  and `unreachable` differently. An address that only *answered*, without
+  identifying as Macha, is saved on a second tap after saying so, where
+  before it was accepted silently. Core's deadline is 4 s rather than our
+  6 s, and it does not abort. Three tests, red first.
+- **The viewer-session UUID** and **the dead error plumbing** — `287e79b`.
+  `http.ts` is now `coerceEndpointUrl` alone. This client's `MachaApiError`,
+  `throwResponseError`, `retryAfterMs`, `serverUnreachable`,
+  `isEndpointFailure` and `isAbortError` had no callers. The tests that
+  built the local class now build core's.
+- **`dash: true` not deleted**: core's type requires it. ACTIVE says so.
+
+`expo export --platform android` builds at `287e79b`.
 
 ### Every failure outside playback worded here
 

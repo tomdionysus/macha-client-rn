@@ -15,7 +15,8 @@ Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
 Last rationalised 2026-09-24 afternoon, for a session starting cold after a
-`/clear`; Open item 3 done that evening in `d5a7273`. Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
+`/clear`; Open item 3 done that evening in `d5a7273`, and four smaller items
+closed after it (COMPLETED, 2026-09-24 evening). Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
 those dates; what is below is what is still open, and where things stand.
 
 ---
@@ -29,15 +30,16 @@ those dates; what is below is what is still open, and where things stand.
 **`main` is at `7932542`, tagged `0.8.0`, pushed, unchanged since.**
 `git log develop..main` is empty and must stay so.
 
-**`develop` is well past `main` — two days of work, all pushed but the last
-rationalisation and `d5a7273`** (check `git log origin/develop..develop`; push
-is Tom's to authorise, and he has authorised it several times this run by
-saying so). Suite **287 tests across 25 files, typecheck clean** at `d5a7273`,
-re-run green against core `f3cf74c` (dist `cd4e4e631e2c`, pushed). `9654e1e`
-hedges cached-token validation across nodes (1 s per dead node, not 8) and
-keeps a cached session when no node answers rather than re-minting — relevant
-to the 30-day P1 and the unexplained sign-out of 2026-09-16. Working tree clean but for `.claude/settings.json`,
-`CLAUDE.local.md` and `basemind.toml`, none of which are this work.
+**`develop` is well past `main`, and pushed through `287e79b` on Tom's word
+(2026-09-24 evening)** — check `git log origin/develop..develop` for anything
+after. Suite **290 tests across 25 files, typecheck clean, `expo export`
+builds** at `287e79b`, against the linked core at `6fd7747` (dist
+`b1a7c8dd8ee5`). Core `9654e1e` in that range hedges cached-token validation
+across nodes (1 s per dead node, not 8) and keeps a cached session when no
+node answers rather than re-minting — relevant to the 30-day P1 and the
+unexplained sign-out of 2026-09-16. Working tree clean but for
+`.claude/settings.json`, `CLAUDE.local.md` and `basemind.toml`, none of which
+are this work.
 
 **Check `tsc`'s exit code, not a grep of its output.** Its errors are
 coloured, and `grep "error TS"` does not match through the escape codes — on
@@ -72,8 +74,9 @@ package manager cannot tell it from 0.8.0**; identify it by
 `lastUpdateTime`. **Everything after `22935ca` is built on `develop` and not on
 the phone**: the sheet's landscape insets (`f293cf2`), the reaped-session
 probe (`61ce107`, `a11e150`), and the viewer-text move with Tom's music
-ruling (`0746aa3`), and the failure wording and offline fallback
-(`d5a7273`). At the last look it had dropped off ADB (asleep); still absent
+ruling (`0746aa3`), the failure wording and offline fallback
+(`d5a7273`), the connect screen's core gate (`592b904`) and the duration fix
+(`38ee145`). At the last look it had dropped off ADB (asleep); still absent
 from `adb devices` on 2026-09-24 evening.
 
 **Another unpublished core dependency:** `isUnreachable` relies on core
@@ -150,13 +153,14 @@ screen. The evidence for each is in COMPLETED under that date.
    the **downloads** rather than an error — the offline fallback could not
    fire before (COMPLETED, 2026-09-24 evening). Then the home refresh line,
    a wrong password ("That username or password was not accepted."), and an
-   unnamed playlist reading "Untitled playlist".
+   unnamed playlist reading "Untitled playlist". The connect screen is best
+   tried on the Galaxy, which has no endpoints: a wrong port should now say
+   "did not identify itself as a Macha node" and save on a second tap.
 4. **The rest of the smoke test.** Unrun on hardware: a **quality change**, the
    create-failure copy, the player-failure copy, Remux's container branch of
    `directUnavailableReason`, the offline search path. **The account cap still
    cannot be tested** — the node limit refuses first.
-5. **`durationRef` survives `load`** — P2 below.
-6. **Zulu**, **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
+5. **Zulu**, **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
 
 **Not built, deliberately:** the web Search page's A–Z index (shown only under
 Title order; this client has no A–Z index anywhere) — the web client's design
@@ -512,55 +516,6 @@ since confirmed it for a signed-in user. No `users.me()` fallback needs writing.
 
 ---
 
-## P1 — Delete `firstReachable`; core ships that gate now
-
-**Small, and it removes a mirror.** `src/app/connect.tsx` has its own pre-save
-connection gate. Core's `checkEndpointConfiguration(urls, fetch, timeoutMs)` —
-present in the installed `dist` — does the same job and more: it returns
-`unconfirmed`, naming endpoints that answered without a 2xx, so the screen can
-say "reached, but it did not identify itself as a Macha server" rather than
-silently accepting a mistyped address, and it separates "still pending" from
-"unreachable" behind a UI deadline, so a slow node does not read as a dead one.
-
-**Why a copy exists at all is the part worth keeping.** Core's gate was broken
-until 0.9.0 — it counted an endpoint available only on `response.ok` against a
-route every node answers 401 to unauthenticated, so a fresh install could not
-be configured. This client routed around a genuine defect. But nobody goes back
-without being told, which is how one rule ends up in four places with four
-opinions.
-
-`CONNECTION_CHECK_TIMEOUT_MS = 6_000` in `connect.tsx` goes with it. If any of
-ours is kept, say what shape core's result does not give — core asked, because
-that would be a gap in theirs rather than a preference.
-
----
-
-## P3 — Dead error plumbing in `src/api`
-
-Found 2026-09-24 while fixing `MediaApi.serve`. **This client's own
-`MachaApiError`** is constructed only by `throwResponseError` in `http.ts`,
-and nothing calls `throwResponseError`; `retryAfterMs` goes with it.
-`isEndpointFailure` and `isAbortError` in `errors.ts` have no caller either.
-A class nothing throws is how `isAuthRefusal` tested identity against it for
-months and passed its tests. `refusal.test.ts` and `supersede.test.ts` use the
-class deliberately, to prove duck typing, so swap them to core's
-`MachaApiError` when deleting it. Also optional: core `b47773d` offers
-`seedEndpoints({ configured, environment?, remembered? })`, the shared form of
-what `MachaProvider.tsx:207` does with `applyAdvertisement`. Ours is already
-the right shape, so adopting it removes a mirror and fixes nothing.
-
----
-
-## P2 — `durationRef` survives `load`
-
-The 22:37 `play-to-end` for S01E04 on 2026-09-23 carried S01E03's duration
-(`2732334`). `load` resets `knownDurationRef` but not `durationRef`, so until
-the new source reports one, anything reading it — the Continue Watching
-retire, the seek bound — uses the last item's. Harmless in the case seen,
-because that end is now ignored; not checked anywhere else.
-
----
-
 ## P2 — What the route cutover left open
 
 The cutover itself is done and on hardware — COMPLETED, 2026-09-21, *Playback
@@ -750,7 +705,10 @@ lists on Android. Left over from the 2026-09-21 audit (COMPLETED):
 - **`hlsFmp4`, `hlsTs`** — unconditional. media3 facts, never checked against
   the media3 version actually linked.
 - **`dash: true`** — inherited without reasoning, and **dead**: core reads
-  `capabilities.dash` nowhere. Delete it.
+  `capabilities.dash` nowhere. **It cannot be deleted from here**, checked
+  2026-09-24: `dash: boolean` is a required field of core's
+  `DeviceCapabilities` (`types.ts:210`). Dropping it is core's change; ask
+  when next talking to core rather than setting it to `false` to look tidy.
 - **The whole iOS and web branches** — asserted end to end, no probe, no
   device. iOS `videoBitDepth: 8` is very likely wrong (iPhones decode ten-bit
   HEVC), and `ac3`/`eac3` are still claimed unconditionally there.
@@ -893,19 +851,6 @@ so misattribution cannot occur by construction.
 
 ---
 
-## P3 — Dead viewer-session identity
-
-`MachaProvider.tsx` generates a per-process UUID and hands it to
-`ClusterPlaybackApi`, whose constructor takes it as `_viewerSession` — the
-underscore being the previous author's note that it goes nowhere. It also sits
-in a `useMemo` dependency array.
-
-`Macha-Viewer-Session` is **retired** server-side; the logical viewer session
-is keyed on the **auth** session id, which is cluster-replicated. Delete the
-UUID, the constructor parameter and the dependency.
-
----
-
 ## Open observations from the A85, 2026-09-16
 
 The run itself is recorded in COMPLETED. Two things from it are still open:
@@ -931,6 +876,11 @@ Do not chase a self-changing node count as a bug.
 ---
 
 ## Waiting on other sessions
+
+**Optional, from core `b47773d`:** `seedEndpoints({ configured, environment?,
+remembered? })` is the shared form of what `MachaProvider.tsx` does with
+`applyAdvertisement`. Ours is already the right shape, so adopting it removes
+a mirror and fixes nothing.
 
 **macha 0.56.0, announced 2026-09-24 by `Macha Server`, not yet deployed**
 (es-1 and fi-1 were unreachable from home; the server session will say when
