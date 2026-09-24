@@ -1,6 +1,7 @@
 import {
   ClusterPlaybackFactsApi,
   ClusterPlaybackResolver,
+  preparePlaybackPatch,
   type AuthenticatedFetch,
   type ClusterEndpointRouter,
   type MediaSummary,
@@ -10,7 +11,7 @@ import {
   type PlaybackSession,
   type PlaybackUpdate,
 } from '@machafoundation/core';
-import { deviceCapabilities } from '../playback/capabilities';
+import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/policy';
 import type { SessionLedger } from '../playback/sessionLedger';
 
@@ -169,8 +170,25 @@ export class ClusterPlaybackApi {
       });
   }
 
+  /**
+   * A PATCH, as server 0.58.0 needs it.
+   *
+   * A session begun as Direct named no streams, and 0.58.0 holds a PATCH to
+   * the same choices as a create. So a change into Remux or Transcode on a file
+   * with several audio streams was refused `choice_required`. Core's resolver
+   * then retried with the first candidate the node listed: the node's first
+   * container and the file's first audio stream, not this device's container
+   * or the default-flagged stream, after an extra refused round trip. Core's
+   * `preparePlaybackPatch` names the device's segment container and the
+   * streams, restating the ones already playing. It is what the coordinator
+   * does on its own updates, and it leaves a seek-only update untouched.
+   */
   update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {
-    return this.resolver.update(session.sessionId, update, signal);
+    return this.resolver.update(
+      session.sessionId,
+      preparePlaybackPatch(update, session, deviceCapabilities(), devicePlaybackOverrides()),
+      signal,
+    );
   }
 
   stop(session: PlaybackSession): Promise<void> {

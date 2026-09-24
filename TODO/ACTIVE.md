@@ -82,6 +82,14 @@ per-quality design replaces it. Core names a stream where a file has
 several, and answers `choice_required` / `choice_not_available` once per
 kind (logged `stream-unchosen-defaulted`).
 
+**Every PATCH now goes through core's `preparePlaybackPatch`** (core `a50ef64`,
+2026-09-25). 0.58.0 holds a PATCH to a create's choices, and a Direct session
+names no streams, so a mode switch on a multi-audio file was refused
+`choice_required`. Core's resolver then fell back to the node's first
+container and first audio stream. **I first told core that its coordinator
+fix reached us, which was wrong**: we call `resolver.update` directly, and
+core corrected it.
+
 **Core asked for, on the A85 against fi-1 / gbni-1:** a multi-file item in
 auto and under a mode the viewer picked; a file with several audio tracks,
 in remux and in transcode; failover between nodes mid-play. Send core any
