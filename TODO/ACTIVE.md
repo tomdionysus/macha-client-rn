@@ -25,6 +25,31 @@ those dates; what is below is what is still open, and where things stand.
 
 **Read this section before anything.**
 
+### Release in preparation — Tom, 2026-09-24 evening
+
+**Tom: "We're going to do a release, so clear up what is in flight and
+stabilise."** Scope: everything on `develop`. The 31-minute pause test is
+explicitly **out**, and the probe ships unproven on hardware. State at
+`1d0c7b5`:
+
+- **Blocked on a core publish.** npm still has **0.18.0**, and core's
+  `package.json` still says `0.18.0` at `d8600cb`. `develop` needs core
+  `f3cf74c` or later at minimum (`unreachableEndpointFailure` reading the
+  route error, without which the offline fallback is dead again), plus
+  everything listed under *Core* below. Then run the *Releasing* procedure
+  in full.
+- **Working tree not clean, and not by design.** `npm run lint` (`expo
+  lint`) at 18:09 installed ESLint on its own: `eslint` and
+  `eslint-config-expo` in `package.json`, a rewritten lockfile, and
+  `eslint.config.js`. Nothing is committed. Reverting it and running `npm
+  install` was refused by the harness as destructive, so it is Tom's to run.
+  **Do not run `npm run lint` again** until ESLint is a deliberate
+  dependency. Until the revert, `node_modules` does not match the lockfile
+  and no check run against it counts.
+- **On-phone checks before tagging** (Open items 1, 3, 4), all waiting on the
+  A85 coming back to ADB: install `develop`, then look at the viewer text,
+  the offline fallback, the connect screen, and removing ramaroja.
+
 ### Where the code is
 
 **`main` is at `7932542`, tagged `0.8.0`, pushed, unchanged since.**
