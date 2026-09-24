@@ -1,7 +1,7 @@
 # Macha principles and laws
 
 **The shared text, as every Macha project states it.** Taken from core's
-`docs/principles-and-laws.md` (macha-core-npm `65d1594`) on Tom's ruling of
+`docs/principles-and-laws.md` (macha-core-npm `89df8b3`) on Tom's ruling of
 2026-09-24 that all projects adopt core's law numbering and order. The laws
 and principles are core's words unchanged. The one change is where core names
 its own playback classes: this states what owns that here instead.
@@ -55,9 +55,10 @@ Here `PlaybackProvider` (`src/providers/PlaybackProvider.tsx`), mounted once
 at the root in `src/app/_layout.tsx` above every route, is that owner. It
 creates the one expo-video player, holds the server session lease and the
 source generations, and drives the audio engine for music
-(`src/playback/AudioEngine.ts`) and core's `ClusterPlaybackResolver` directly. Screens present its state and bind
-surfaces: `/play` binds a `VideoView` to its player. Route and presentation
-changes do not create, replace or destroy playback resources.
+(`src/playback/AudioEngine.ts`) and core's `ClusterPlaybackResolver`
+directly. Screens present its state and bind surfaces: `/play` binds a
+`VideoView` to its player. Route and presentation changes do not create,
+replace or destroy playback resources.
 
 New user intent supersedes obsolete work. Play, pause and seeks supported by the
 active generation are immediate local transport operations. Server preparation

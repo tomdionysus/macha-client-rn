@@ -892,10 +892,11 @@ reads 1 control, 2 viewer, 3 loader, 4 foot). It also wrote a merged
 Law 4. The TV added the document (`95a5664`, local, unpushed). **Open with
 Tom, from the web client:** its Law 2 citation for "a degraded state must be
 visible" belongs to a principle, not the viewer law; left as written under
-"don't reattribute" until he rules. Core drops its
-"numbering disagrees" blockquote once the server's commit lands. If core
-adopts the server's merged text, this repo's copy should follow; its header
-names the commit it came from (`65d1594`).
+"don't reattribute" until he rules. Core removed its
+"numbering disagrees" note in `89df8b3`, and this repo's copy matches core's
+text there apart from its header and ownership paragraph. If core adopts the
+server's merged text, this repo's copy should follow; its header names the
+commit it came from.
 
 **Optional, from core `b47773d`:** `seedEndpoints({ configured, environment?,
 remembered? })` is the shared form of what `MachaProvider.tsx` does with
