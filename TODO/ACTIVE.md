@@ -477,6 +477,14 @@ nothing confirms it. The next time it happens, read `lastIdentityChange`.
 
 **Do not fold this into the TTL item.** That one is decided and closed.
 
+**The pre-emptive half is built (2026-09-24, on `develop`):** a signed-in
+session within 3 days of `expires_unix_ms` shows a banner on Home, "Your login
+expires in N days", which opens the login screen (`src/account/expiry.ts`,
+tested). The 3-day window is a choice, not a ruling. Not seen on a device, and
+it cannot be seen there without a session near its expiry. Still missing: the
+distinction afterwards, between "this cluster refuses you" and "your session
+aged out", read from `lastIdentityChange`.
+
 **Half answered on 2026-09-21, and the half that remains is the pre-emptive
 one.** A session granted no roles now maps to `no-roles` in
 `describeMediaAccess` and tells the viewer to log in again rather than to find

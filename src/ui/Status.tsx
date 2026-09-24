@@ -64,6 +64,25 @@ export function InlineError({ message }: { message: string }) {
   );
 }
 
+/**
+ * A banner asking the viewer to do something, rather than reporting a failure.
+ * Tappable as a whole, since the whole of it is the action.
+ */
+export function Notice({ title, detail, onPress }: { title: string; detail?: string; onPress(): void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={detail ? `${title}. ${detail}` : title}
+      onPress={onPress}
+      style={({ pressed }) => [styles.banner, pressed && styles.pressed]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.noticeTitle}>{title}</Text>
+        {detail ? <Text style={styles.bannerText}>{detail}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   block: {
     minHeight: 120,
@@ -120,5 +139,10 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textDim,
     flex: 1,
+  },
+  noticeTitle: {
+    ...typography.label,
+    color: colors.text,
+    marginBottom: 2,
   },
 });

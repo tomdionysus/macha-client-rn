@@ -7,7 +7,7 @@ import { useMacha, useProblems } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { HeaderButton, Screen } from '../ui/Screen';
-import { ErrorState, InlineError, Loading } from '../ui/Status';
+import { ErrorState, InlineError, Loading, Notice } from '../ui/Status';
 import { MediaRow } from '../ui/MediaRow';
 import { MachaLogo } from '../ui/Logo';
 import { SettingsIcon } from '../ui/Icons';
@@ -17,12 +17,13 @@ import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
 import { localCopyOf, useDownloads } from '../hooks/useDownloads';
 import { clusterMediaUnavailable, describeEmptyLibrary } from '../state/problems';
+import { sessionExpiryNotice } from '../account/expiry';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
 
 export default function HomeScreen() {
-  const { media, endpoints, continueWatching, generation } = useMacha();
+  const { media, endpoints, continueWatching, generation, account } = useMacha();
   const problems = useProblems();
   const { playItem } = usePlayback();
   const router = useRouter();
@@ -57,6 +58,11 @@ export default function HomeScreen() {
    * question this rail actually has, which is not about the network.
    */
   const unavailable = clusterMediaUnavailable(problems);
+  // Read against the clock at render, with no timer. The window is days wide,
+  // so the banner appearing at Home's next render (a refresh, a return to the
+  // screen, an account change) is soon enough. It goes as soon as a login
+  // replaces the session.
+  const expiry = sessionExpiryNotice(account, Date.now());
   const resumableItems = useMemo(
     () =>
       resumable.flatMap((entry) => {
@@ -97,6 +103,7 @@ export default function HomeScreen() {
           </HeaderButton>
         </View>
       }>
+      {expiry ? <Notice title={expiry.title} detail={expiry.detail} onPress={() => router.navigate('/login')} /> : null}
       {!home.value && home.loading ? <Loading /> : null}
       {!home.value && home.error ? <ErrorState error={home.error} onRetry={home.refresh} /> : null}
       {home.value && home.error ? <InlineError message={refreshFailureMessage(home.error)} /> : null}
