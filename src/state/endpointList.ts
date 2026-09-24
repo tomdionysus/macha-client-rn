@@ -1,3 +1,6 @@
+import type { ConnectionCheckResult } from '@machafoundation/core';
+import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
+
 /**
  * The node list as rows, because a newline could not be typed.
  *
@@ -82,3 +85,46 @@ export function adoptEndpoint(rows: readonly string[], endpoint: string): string
   else next.push(endpoint);
   return next;
 }
+
+/** What the connect screen does once core has checked the addresses. */
+export type ConnectOutcome =
+  | { kind: 'save'; endpoints: string[] }
+  | { kind: 'refuse'; message: string }
+  /** Only reached, never confirmed as Macha: say so, and save on a second tap. */
+  | { kind: 'confirm'; message: string };
+
+/**
+ * Turns core's `checkEndpointConfiguration` result into what the screen does.
+ *
+ * Every address is saved, not only those that answered: a node that is down
+ * tonight is still in the cluster. Those that answered as Macha go first so
+ * the first request starts on one known to answer, then those that merely
+ * answered, then the rest.
+ *
+ * `acknowledged` is the viewer having already seen the "did not identify
+ * itself" warning for these same addresses.
+ */
+export function connectOutcome(result: ConnectionCheckResult, acknowledged: boolean): ConnectOutcome {
+  if (result.problem === 'no-endpoints') return { kind: 'refuse', message: NO_ENDPOINT_MESSAGE };
+  if (result.problem === 'pending') {
+    return {
+      kind: 'refuse',
+      message: 'No node has answered yet. It may still be starting, or the address may be wrong. Try again in a moment.',
+    };
+  }
+  if (result.problem === 'unreachable' || result.available.length === 0) return { kind: 'refuse', message: SERVER_UNREACHABLE_MESSAGE };
+
+  const unconfirmed = new Set(result.unconfirmed);
+  const confirmed = result.available.filter((endpoint) => !unconfirmed.has(endpoint));
+  if (confirmed.length === 0 && !acknowledged) {
+    return {
+      kind: 'confirm',
+      message:
+        'Something answered at that address, but it did not identify itself as a Macha node. Check the address and port, or tap Connect again to use it anyway.',
+    };
+  }
+  const answered = [...confirmed, ...result.available.filter((endpoint) => unconfirmed.has(endpoint))];
+  return { kind: 'save', endpoints: [...answered, ...result.endpoints.filter((endpoint) => !answered.includes(endpoint))] };
+}
+
+export const NO_ENDPOINT_MESSAGE = 'Enter the address of a Macha node, for example 192.168.1.20:7438';

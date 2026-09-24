@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addRow, adoptEndpoint, editRow, removeRow, splitEndpointEntries } from './endpointList';
+import { addRow, adoptEndpoint, connectOutcome, editRow, removeRow, splitEndpointEntries } from './endpointList';
 
 describe('splitEndpointEntries', () => {
   it('takes a list however it was separated', () => {
@@ -53,5 +53,40 @@ describe('adoptEndpoint', () => {
   it('appends when every row is spoken for, and never duplicates', () => {
     expect(adoptEndpoint(['http://a:7438'], 'http://b:7438')).toEqual(['http://a:7438', 'http://b:7438']);
     expect(adoptEndpoint(['http://a:7438'], 'http://a:7438')).toEqual(['http://a:7438']);
+  });
+});
+
+/**
+ * What the connect screen does with core's `checkEndpointConfiguration`.
+ *
+ * It replaced a local `firstReachable` that asked the same route but could
+ * not tell "still waiting" from "nothing there", and accepted anything that
+ * answered 401/403/404/503 without saying it might not be Macha.
+ */
+describe('connectOutcome', () => {
+  const base = { endpoints: ['http://a:7438', 'http://b:7438', 'http://c:7438'], available: [], unconfirmed: [] };
+
+  it('saves every address, those that answered as Macha first', () => {
+    const outcome = connectOutcome({ ...base, available: ['http://c:7438', 'http://b:7438'], unconfirmed: ['http://b:7438'] }, false);
+    expect(outcome).toEqual({ kind: 'save', endpoints: ['http://c:7438', 'http://b:7438', 'http://a:7438'] });
+  });
+
+  // A mistyped router address answers too. Say so rather than silently
+  // accepting it — or refusing it, since a node behind a proxy may look the same.
+  it('asks before saving when nothing identified itself as Macha', () => {
+    const result = { ...base, available: ['http://b:7438'], unconfirmed: ['http://b:7438'] };
+    const first = connectOutcome(result, false);
+    expect(first.kind).toBe('confirm');
+    expect(first.kind === 'confirm' && first.message).toMatch(/did not identify itself as a Macha node/);
+    expect(connectOutcome(result, true)).toEqual({ kind: 'save', endpoints: ['http://b:7438', 'http://a:7438', 'http://c:7438'] });
+  });
+
+  it('tells a slow node from an absent one', () => {
+    const pending = connectOutcome({ ...base, problem: 'pending' }, false);
+    const unreachable = connectOutcome({ ...base, problem: 'unreachable' }, false);
+    expect(pending.kind).toBe('refuse');
+    expect(unreachable.kind).toBe('refuse');
+    expect(pending).not.toEqual(unreachable);
+    expect(pending.kind === 'refuse' && pending.message).toMatch(/No node has answered yet/);
   });
 });

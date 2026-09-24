@@ -2,17 +2,22 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LIVENESS_PATH } from '@machafoundation/core';
-import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
-import { coerceEndpointUrl, fetchWithTimeout } from '../api/http';
+import { checkEndpointConfiguration } from '@machafoundation/core';
+import { coerceEndpointUrl } from '../api/http';
 import { useMacha } from '../providers/MachaProvider';
-import { addRow, adoptEndpoint, editRow, removeRow, splitEndpointEntries } from '../state/endpointList';
+import {
+  addRow,
+  adoptEndpoint,
+  connectOutcome,
+  editRow,
+  NO_ENDPOINT_MESSAGE,
+  removeRow,
+  splitEndpointEntries,
+} from '../state/endpointList';
 import { Button } from '../ui/controls';
 import { CloseIcon, PlusIcon, ScanIcon } from '../ui/Icons';
 import { MachaLogo } from '../ui/Logo';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../ui/theme';
-
-const CONNECTION_CHECK_TIMEOUT_MS = 6_000;
 
 /**
  * The connection gate. Macha has no accounts and no cloud directory, so the
@@ -28,6 +33,9 @@ export default function ConnectScreen() {
   const [rows, setRows] = useState<string[]>(endpoints.length > 0 ? [...endpoints] : ['']);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
+  // The addresses the viewer has already been warned did not identify
+  // themselves as Macha. A second tap on the same list saves it anyway.
+  const warnedFor = useRef<string | undefined>(undefined);
 
   // A scanned address takes the empty row a fresh screen starts with, or adds
   // one of its own, rather than replacing what is already there — someone who
@@ -49,21 +57,23 @@ export default function ConnectScreen() {
       .filter(Boolean);
 
     if (candidates.length === 0) {
-      setMessage('Enter the address of a Macha node, for example 192.168.1.20:7438');
+      setMessage(NO_ENDPOINT_MESSAGE);
       return;
     }
 
     setChecking(true);
     setMessage(undefined);
     try {
-      const reachable = await firstReachable(candidates);
-      if (!reachable) {
-        setMessage(SERVER_UNREACHABLE_MESSAGE);
+      // Core's pre-save check, on core's liveness route: every address at once,
+      // unauthenticated, behind a UI deadline that does not abort the request.
+      const key = candidates.join('\n');
+      const outcome = connectOutcome(await checkEndpointConfiguration(candidates), warnedFor.current === key);
+      if (outcome.kind !== 'save') {
+        warnedFor.current = outcome.kind === 'confirm' ? key : undefined;
+        setMessage(outcome.message);
         return;
       }
-      // The reachable node goes first so the very next request starts on a node
-      // already known to answer, rather than retrying a dead seed.
-      configure([reachable, ...candidates.filter((candidate) => candidate !== reachable)]);
+      configure(outcome.endpoints);
       router.replace('/');
     } finally {
       setChecking(false);
@@ -138,41 +148,6 @@ export default function ConnectScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
   );
-}
-
-/**
- * The first candidate that answers core's liveness route. Every candidate is
- * probed at once rather than in series: on a LAN, a wrong address usually hangs
- * until its deadline, and making the viewer wait through each one in turn is
- * the difference between "instant" and "seems broken".
- */
-async function firstReachable(candidates: readonly string[]): Promise<string | undefined> {
-  const probes = candidates.map(async (baseUrl) => {
-    const response = await fetchWithTimeout(
-      (url, init) => fetch(url, init),
-      `${baseUrl}${LIVENESS_PATH}`,
-      { method: 'GET', headers: { Accept: 'application/json' } },
-      CONNECTION_CHECK_TIMEOUT_MS,
-    );
-    // Unauthenticated on purpose: this probe runs before any session exists.
-    // It asks core's liveness route, which takes no token and needs no role —
-    // `/api/v1/catalogue/status` used to serve this and cannot any more, because
-    // under the roles model it needs `media_viewer`, and the one client asking
-    // is precisely the one that has neither a session nor a role yet.
-    //
-    // Any answer proves a node is listening, which is all this gate asks. Core's
-    // contract is 200 while serving and 503 while recovering or failed; a node
-    // too old for the route (0.38.1 is still in the field) answers 404. None of
-    // those mean "not there". 401 and 403 are kept for a deployment that puts
-    // something in front of the node. Only a transport failure — which throws
-    // rather than answering — means nothing is at that address.
-    const answered = response.ok || [401, 403, 404, 503].includes(response.status);
-    if (!answered) throw new Error(`${response.status}`);
-    return baseUrl;
-  });
-
-  const results = await Promise.allSettled(probes);
-  return results.find((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')?.value;
 }
 
 const styles = StyleSheet.create({
