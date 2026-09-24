@@ -788,6 +788,15 @@ export function classifyProbe(result: { alive: boolean } | { error: unknown }): 
  * apart — expo-video hides the status — so a live session under a failing
  * player keeps the old behaviour. **Anything unanswerable fails over too**:
  * ordinary evidence, handled as before.
+ *
+ * **`unknown-provenance` fails over, where core's written sequence stops, and
+ * that is deliberate.** Core raises it only when the id
+ * names no node, which never happens here because every id is core's own, or
+ * when the resolver has no record of the session and its node has left the
+ * registry. Here that takes a services rebuild mid-playback (an access
+ * change or a node reconfiguration builds a new resolver) *and* the serving
+ * node dropping out of cluster membership. The node that held the session is
+ * then gone, and stopping would end playback for nothing.
  */
 export function recoveryAfterProbe(
   outcome: ProbeOutcome,

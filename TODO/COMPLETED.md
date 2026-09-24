@@ -14,6 +14,19 @@ Newest first.
 `5973dc5` and again at `b47773d` (dist `2e40b5cd306e`). Not on hardware; the
 A85 was off ADB throughout.
 
+### Declined by Tom: a transcode fallback on a decoder failure
+
+Core `e840d72` added one to its `PlaybackCoordinator`: once per playback,
+never over a mode the viewer chose. This client could not have recognised
+the failure. expo-video 57.0.4's `PlaybackError.kt` keeps only the message
+text of media3's `PlaybackException` and discards `errorCode` (the 4001–4005
+decoder family), and the options were a fallback on any player error or a
+patch to expo-video. **Tom, 2026-09-24: no. "We can't go hacking on this.
+There will be many, many different models and makes of phones."** The
+`MediaCodecList` probe choosing only what the device says it decodes is the
+approach, and what fixed the ten-bit HEVC Remux case. Do not re-raise the
+expo-video patch for this.
+
 ### Four smaller items closed after it
 
 - **`durationRef` survives `load`** — `38ee145`. It is now seeded from

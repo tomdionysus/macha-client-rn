@@ -325,11 +325,19 @@ except in two places. `alive` fails over where core stops — deliberate and
 commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
 tell the cases apart. **`session_provenance_unknown`** is classified
 separately by `classifyProbe` and then **fails over**, where core says
-**stop**; nothing records that as a choice. Core, 2026-09-24: `alive` →
+**stop**. **Recommended 2026-09-24: keep failing over** (below; put to Tom, not yet ruled). Core, 2026-09-24: `alive` →
 fail over is defensible given expo-video; provenance is the one to settle —
 with session ids now carrying their node it fires only for an id this
-resolver never issued, and failing over then charges a healthy node. **Ask
-Tom.**
+resolver never issued, and failing over then charges a healthy node.
+**Tom asked how it could ever happen; the answer, from source:** core raises
+it only for an id with no node prefix, which is impossible here because every
+id is core's own, or for a session missing from the resolver's map whose node
+is no longer in the registry. `candidates()` filters nothing by health, so it
+means *gone from membership*. That needs a services rebuild mid-playback
+(`MachaProvider`'s `generation`: an access change or a reconfigure builds a
+new resolver while the player keeps its session) **and** the serving node
+leaving the cluster. The node is then gone, so failing over is right, and the
+reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 
@@ -512,65 +520,6 @@ connect screen.
 node "names no user". `session_json` writes `username` beside `user_id`
 whenever the session names one; the device agrees, and a successful login has
 since confirmed it for a signed-in user. No `users.me()` fallback needs writing.
-
----
-
-## P2 — Core's transcode fallback on a decoder failure: wanted here, and detectable?
-
-**Core `e840d72`, on Tom's ruling as relayed by core, 2026-09-24.** When the
-player cannot decode a copied stream (a `media` or `unsupported` failure),
-core's `PlaybackCoordinator` falls back to transcode. It does so once per
-playback, and never over a mode the viewer chose. This client does not use
-the coordinator, so it does not get this. Core's recipe for a resolver-direct
-host: on a decoder failure of a direct or remux session the viewer did not
-pick, call `resolver.update(session, { preferences: { mode: 'transcode',
-video: 'transcode', audio: 'transcode' } })` once.
-
-**It is exactly the 2026-09-23 case.** A Remux tap copied ten-bit HEVC the
-A85 cannot decode, and the result was a black picture. Direct on *The
-Cannonball Run* is the same shape.
-
-**The obstacle is ours.** expo-video hands JS a `PlayerError` of `{ message }`
-and nothing else (the native-player-error-opacity note). A decoder refusal
-is visible in `logcat` as `MediaCodec`, not in JS. Telling `media` from a
-network failure means matching ExoPlayer's wording, which is a rule this
-project keeps retracting. Two routes that do not match wording:
-
-1. **Fall back on any player error** of an unchosen direct or remux session,
-   once. It is cheap and honest about not knowing the cause. It would also
-   transcode a session whose node merely hiccuped, which the reaped-session
-   probe runs first and may have explained.
-2. **A native signal**: the codec probe module already talks to
-   `MediaCodecList`. Checking the copied stream's codec and profile against
-   it *before* choosing is what 0.8.0's probe does for the chooser. The
-   2026-09-23 miss was Remux copying video it should not have, and that was
-   fixed on `develop`. That makes a runtime fallback a second line, not the
-   first.
-
-**Core's answer, 2026-09-24.** Core's coordinator classifies nothing; the
-adapter does. The web maps `MediaError.code` (3 → `media`, 4 →
-`unsupported`), a structured code. The television is in our position, and
-its AVI failure reached core as `unknown`. Core prefers (2), and warns that
-(1) masks node and network faults. **Its narrowing fits a branch we already
-have:** fall back only when `sessionAlive` says the session is alive. The
-reaped-session probe already asks that, and its `alive` outcome currently
-fails over. "Alive, a copy mode the viewer did not choose, first time" →
-transcode would slot into `recoveryAfterProbe`.
-
-**A third route, found by opening the file** (expo-video 57.0.4,
-`android/.../records/PlaybackError.kt`). The record JS receives is built
-*from* media3's `PlaybackException` and keeps only `localizedMessage`.
-**`exception.errorCode` is in hand there and discarded.** One `@Field var
-code: Int?` set from it would give JS the 4001–4005 decoder family, and
-`2004` (`ERROR_CODE_IO_BAD_HTTP_STATUS`, though not the status itself).
-That's a patch to expo-video (patch-package, or upstream), not a native
-module, plus a prebuild and cold Gradle build. It would also help the media3
-P1 read what the player actually went terminal on.
-
-**Ask Tom** whether he wants the fallback on the phone at all, given (2)
-already covers the cases seen so far, and if so, whether by the probe's
-`alive` branch or by the `errorCode` patch. Relayed rulings are confirmed
-before building.
 
 ---
 
