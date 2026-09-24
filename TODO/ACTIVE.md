@@ -481,9 +481,14 @@ nothing confirms it. The next time it happens, read `lastIdentityChange`.
 session within 3 days of `expires_unix_ms` shows a banner on Home, "Your login
 expires in N days", which opens the login screen (`src/account/expiry.ts`,
 tested). The 3-day window is a choice, not a ruling. Not seen on a device, and
-it cannot be seen there without a session near its expiry. Still missing: the
-distinction afterwards, between "this cluster refuses you" and "your session
-aged out", read from `lastIdentityChange`.
+it cannot be seen there without a session near its expiry. **The after-the-
+fact half is built too:** when core's `lastIdentityChange` shows a named
+account replaced by an anonymous session, Home says "You have been logged
+out" and names the account (`sessionEndedNotice`, tested). It doesn't say
+"expired", because a 401 cannot tell expiry from revoke or a password change.
+Core clears the record on a deliberate logout, so that doesn't trigger it.
+**This is also the instrument for the unexplained 2026-09-16 sign-out**: if
+it happens again, the banner names the account that was lost.
 
 **Half answered on 2026-09-21, and the half that remains is the pre-emptive
 one.** A session granted no roles now maps to `no-roles` in

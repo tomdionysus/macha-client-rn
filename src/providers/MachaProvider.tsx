@@ -13,6 +13,7 @@ import {
   bootstrapEndpoints,
   configureMachaHost,
   subscribeConnectionState,
+  type SessionIdentityChange,
 } from '@machafoundation/core';
 import { MediaApi } from '../api/media';
 import { ClusterUsersApi, type CurrentSession } from '../api/users';
@@ -86,6 +87,11 @@ export interface MachaServices {
 export interface AccountState {
   session?: CurrentSession;
   known: boolean;
+  /**
+   * Core's `lastIdentityChange` as of the same read, so a named account
+   * replaced by an anonymous session can be told so (`sessionEndedNotice`).
+   */
+  identityChange?: SessionIdentityChange;
 }
 
 interface MachaContextValue extends MachaServices {
@@ -409,7 +415,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
     const read = () => {
       services.users.currentSession(controller.signal).then(
         (session) => {
-          if (!controller.signal.aborted) setAccount({ session, known: true });
+          if (!controller.signal.aborted) setAccount({ session, known: true, identityChange: sessions.lastIdentityChange });
         },
         () => {
           // A node too old to answer and a node that cannot be reached mean

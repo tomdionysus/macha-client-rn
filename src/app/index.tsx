@@ -17,7 +17,7 @@ import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
 import { localCopyOf, useDownloads } from '../hooks/useDownloads';
 import { clusterMediaUnavailable, describeEmptyLibrary } from '../state/problems';
-import { sessionExpiryNotice } from '../account/expiry';
+import { sessionEndedNotice, sessionExpiryNotice } from '../account/expiry';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
@@ -61,8 +61,9 @@ export default function HomeScreen() {
   // Read against the clock at render, with no timer. The window is days wide,
   // so the banner appearing at Home's next render (a refresh, a return to the
   // screen, an account change) is soon enough. It goes as soon as a login
-  // replaces the session.
-  const expiry = sessionExpiryNotice(account, Date.now());
+  // replaces the session. Otherwise, if a named login has already been
+  // replaced, say that instead. The two cannot both apply.
+  const accountNotice = sessionExpiryNotice(account, Date.now()) ?? sessionEndedNotice(account);
   const resumableItems = useMemo(
     () =>
       resumable.flatMap((entry) => {
@@ -103,7 +104,9 @@ export default function HomeScreen() {
           </HeaderButton>
         </View>
       }>
-      {expiry ? <Notice title={expiry.title} detail={expiry.detail} onPress={() => router.navigate('/login')} /> : null}
+      {accountNotice ? (
+        <Notice title={accountNotice.title} detail={accountNotice.detail} onPress={() => router.navigate('/login')} />
+      ) : null}
       {!home.value && home.loading ? <Loading /> : null}
       {!home.value && home.error ? <ErrorState error={home.error} onRetry={home.refresh} /> : null}
       {home.value && home.error ? <InlineError message={refreshFailureMessage(home.error)} /> : null}

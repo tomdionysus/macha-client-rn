@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CurrentSession } from '@machafoundation/core';
-import { EXPIRY_WARNING_MS, sessionExpiryNotice } from './expiry';
+import { EXPIRY_WARNING_MS, sessionEndedNotice, sessionExpiryNotice } from './expiry';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -40,5 +40,34 @@ describe('sessionExpiryNotice', () => {
   // future would be describing the past.
   it('says nothing once the expiry has passed', () => {
     expect(sessionExpiryNotice(signedIn(-HOUR), NOW)).toBeUndefined();
+  });
+});
+
+/**
+ * After the fact: a named account's session was replaced by one that is not
+ * signed in. Core records it in `lastIdentityChange` and says nothing about
+ * why, because a 401 cannot tell an expiry from a revoke or a password change.
+ * So neither does this.
+ */
+describe('sessionEndedNotice', () => {
+  const anonymous = { known: true, session: { username: 'anonymous', roles: ['media_viewer' as const], expires_unix_ms: NOW + DAY } };
+
+  it('tells a viewer whose login was replaced by an anonymous session', () => {
+    const notice = sessionEndedNotice({ ...anonymous, identityChange: { from: 'tom', to: 'anonymous', at: NOW } });
+    expect(notice?.title).toBe('You have been logged out');
+    expect(notice?.detail).toContain('tom');
+    expect(notice?.detail).not.toMatch(/expired/);
+  });
+
+  // Logging in is a change too, anonymous to named, and is not news.
+  it('says nothing about a login, or when nobody named was signed in before', () => {
+    expect(sessionEndedNotice({ ...signedIn(DAY), identityChange: { from: 'anonymous', to: 'tom', at: NOW } })).toBeUndefined();
+    expect(sessionEndedNotice({ ...anonymous, identityChange: { to: 'anonymous', at: NOW } })).toBeUndefined();
+    expect(sessionEndedNotice(anonymous)).toBeUndefined();
+  });
+
+  // Unknown is not "signed out": the cluster has not said who this is.
+  it('claims nothing while the current session is unknown', () => {
+    expect(sessionEndedNotice({ known: false, identityChange: { from: 'tom', to: 'anonymous', at: NOW } })).toBeUndefined();
   });
 });

@@ -1,3 +1,4 @@
+import { isSignedIn, type SessionIdentityChange } from '@machafoundation/core';
 import { describeAccount, type AccountState } from './marker';
 
 /**
@@ -50,4 +51,28 @@ function inWords(remainingMs: number): string {
 
 function count(n: number, unit: string): string {
   return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * A notice that a named account's session was replaced by one that is not
+ * signed in, or nothing.
+ *
+ * Core records the replacement in `lastIdentityChange` and does not say why:
+ * a 401 cannot tell an expiry from a revoke or a password change, so this
+ * does not say "expired" either. A deliberate logout clears the record in
+ * core, and logging back in replaces it with a change *to* the account, so
+ * neither shows this. It lasts until then, or until the app restarts, since
+ * core keeps the record in memory only.
+ */
+export function sessionEndedNotice(
+  state: AccountState & { identityChange?: SessionIdentityChange },
+): ExpiryNotice | undefined {
+  const from = state.identityChange?.from;
+  if (!from || !isSignedIn({ username: from })) return undefined;
+  const now = describeAccount(state).kind;
+  if (now !== 'anonymous' && now !== 'unstated') return undefined;
+  return {
+    title: 'You have been logged out',
+    detail: `This phone was logged in as ${from.trim()}, and the cluster has replaced that session. Log in again to get back everything that account can see.`,
+  };
 }
