@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { albumLabel } from '../../ui/labels';
+import { albumLabel, playlistName } from '../../ui/labels';
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { newestCatalogueFirst } from '../../api/media';
@@ -239,18 +239,18 @@ function PlaylistList({
             <Pressable
               key={playlist.id}
               accessibilityRole="button"
-              accessibilityLabel={playlist.name}
+              accessibilityLabel={playlistName(playlist)}
               onPress={() => onOpen(playlist.id)}
               style={({ pressed }) => [styles.playlistRow, pressed && styles.pressed]}>
               <Artwork
                 artwork={playlist.items[0]?.artwork?.poster ?? playlist.items[0]?.musicContext?.artwork}
-                fallbackText={playlist.name}
+                fallbackText={playlistName(playlist)}
                 style={styles.playlistArt}
                 borderRadius={radius.sm}
               />
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={styles.playlistName}>
-                  {playlist.name}
+                  {playlistName(playlist)}
                 </Text>
                 <Text style={styles.playlistCount}>{pluralize(playlist.items.length, 'track')}</Text>
               </View>

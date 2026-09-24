@@ -12,7 +12,7 @@ import { MediaRow } from '../ui/MediaRow';
 import { MachaLogo } from '../ui/Logo';
 import { SettingsIcon } from '../ui/Icons';
 import { AccountMarker } from '../ui/AccountMarker';
-import { describeError } from '../api/errors';
+import { refreshFailureMessage } from '../api/failureMessages';
 import { useOpenMedia } from '../ui/navigation';
 import { offlineMedia } from '../state/downloads';
 import { localCopyOf, useDownloads } from '../hooks/useDownloads';
@@ -99,7 +99,7 @@ export default function HomeScreen() {
       }>
       {!home.value && home.loading ? <Loading /> : null}
       {!home.value && home.error ? <ErrorState error={home.error} onRetry={home.refresh} /> : null}
-      {home.value && home.error ? <InlineError message={`Refresh failed: ${describeError(home.error)}`} /> : null}
+      {home.value && home.error ? <InlineError message={refreshFailureMessage(home.error)} /> : null}
 
       {home.value ? (
         <>

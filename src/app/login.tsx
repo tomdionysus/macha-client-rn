@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { describeError } from '../api/errors';
+import { signInFailureMessage } from '../api/failureMessages';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Button } from '../ui/controls';
@@ -47,10 +47,10 @@ export default function LoginScreen() {
       setPassword('');
       router.back();
     } catch (error) {
-      // Shown as the server worded it. A node answers an unknown username and
-      // a wrong password identically, and in the same time; rewording either
-      // here risks reintroducing the difference.
-      setMessage(describeError(error));
+      // One sentence for any refused sign-in: a node answers an unknown
+      // username and a wrong password identically, and the wording must not
+      // reintroduce the difference.
+      setMessage(signInFailureMessage(error));
       setPassword('');
     } finally {
       setBusy(false);

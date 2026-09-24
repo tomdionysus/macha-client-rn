@@ -1,9 +1,9 @@
-import { MachaMediaApi, MachaConnectionError, SessionNotStartedError, type ArtworkSource, type SearchCategoryKey } from '@machafoundation/core';
+import { MachaConnectionError, MachaMediaApi, type ArtworkSource, type SearchCategoryKey } from '@machafoundation/core';
 import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
 import type { Connectivity } from '../state/connectivity';
-import { isAuthRefusal } from './errors';
+import { isAuthRefusal, isSessionNotStarted, isUnreachable } from './errors';
 
 export { newestCatalogueFirst } from '@machafoundation/core';
 
@@ -72,8 +72,8 @@ export class MediaApi {
       // node gets their downloads instead of their library on every launch.
       // The stored library is still the right answer; the offline verdict is
       // not. Same reasoning as the refusal branch below, for the same reason.
-      if (library && error instanceof SessionNotStartedError) return stored(library);
-      if (library && error instanceof MachaConnectionError) {
+      if (library && isSessionNotStarted(error)) return stored(library);
+      if (library && isUnreachable(error)) {
         this.connectivity?.reportUnreachable();
         return stored(library);
       }

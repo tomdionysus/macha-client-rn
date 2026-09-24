@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { loadFailureMessage } from '../api/failureMessages';
 import { AlertIcon } from './Icons';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
@@ -25,7 +26,7 @@ export function Loading({ label }: { label?: string }) {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const message = error instanceof Error ? error.message : String(error ?? 'Something went wrong.');
+  const message = loadFailureMessage(error);
   return (
     <View style={styles.block}>
       <AlertIcon size={26} color={colors.danger} />

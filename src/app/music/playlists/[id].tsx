@@ -5,7 +5,7 @@ import { useMacha } from '../../../providers/MachaProvider';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
 import type { Playlist } from '@machafoundation/core';
-import { albumLabel } from '../../../ui/labels';
+import { albumLabel, playlistName } from '../../../ui/labels';
 import { Artwork } from '../../../ui/Artwork';
 import { ChevronDownIcon, CloseIcon, PlayIcon, ShuffleIcon, TrashIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';
@@ -39,7 +39,7 @@ export default function PlaylistScreen() {
 
   const confirmDelete = useCallback(() => {
     if (!playlist) return;
-    Alert.alert('Delete playlist', `Delete “${playlist.name}”? The tracks themselves are untouched.`, [
+    Alert.alert('Delete playlist', `Delete “${playlistName(playlist)}”? The tracks themselves are untouched.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -61,7 +61,7 @@ export default function PlaylistScreen() {
   }
 
   return (
-    <Screen showBack title={playlist.name} eyebrow={pluralize(playlist.items.length, 'track')}>
+    <Screen showBack title={playlistName(playlist)} eyebrow={pluralize(playlist.items.length, 'track')}>
       <View style={styles.actions}>
         <Button
           label="Play"

@@ -5,6 +5,7 @@ import {
   CATEGORY_LABELS,
   episodeCode,
   episodeLabel,
+  playlistName,
   sortChoiceLabel,
   trackNumberLabel,
 } from './labels';
@@ -70,5 +71,13 @@ describe('sort and category wording', () => {
 
   it('names the search categories as every client does', () => {
     expect(CATEGORY_LABELS).toEqual({ movies: 'Movies', shows: 'TV Shows', music: 'Music' });
+  });
+
+  // Core stores an unnamed playlist as '' — the list it adopts from the old
+  // store, and any name that trims to nothing. A row reading blank looked like
+  // a rendering fault.
+  it('gives an unnamed playlist a placeholder', () => {
+    expect(playlistName({ name: '' })).toBe('Untitled playlist');
+    expect(playlistName({ name: 'Road trip' })).toBe('Road trip');
   });
 });

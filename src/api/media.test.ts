@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MachaConnectionError, SessionNotStartedError } from '@machafoundation/core';
+import {
+  endpointFailure,
+  MachaApiError,
+  MachaClusterRouteError,
+  MachaConnectionError,
+  SessionNotStartedError,
+} from '@machafoundation/core';
 import { MediaApi } from './media';
 import { OfflineLibrary } from './offlineLibrary';
 import { DownloadStore } from '../state/downloads';
@@ -46,5 +52,55 @@ describe('MediaApi.serve error classification', () => {
     // stops being true, the branch ordering in `serve` is merely redundant
     // rather than load-bearing, and someone should know which.
     expect(new SessionNotStartedError('not-started')).toBeInstanceOf(MachaConnectionError);
+  });
+});
+
+/**
+ * What core's router actually throws, rather than the class it started as.
+ *
+ * Every test above hands `serve` a bare `MachaConnectionError`, and every
+ * branch they cover tested identity — so they passed while none of those
+ * branches could fire in the app. A walk that exhausts the cluster throws
+ * `MachaClusterRouteError` around a `MachaEndpointError` around the original;
+ * a 4xx ends the walk and comes out as core's own `MachaApiError`, not this
+ * client's class of the same name. What survives a layer boundary is fields,
+ * never identity (core's rule, `playbackFailureStatus`).
+ */
+describe('MediaApi.serve reads what the router throws', () => {
+  const walked = (error: unknown) =>
+    new MachaClusterRouteError(['http://a', 'http://b'], true, endpointFailure('http://b', 'http://b', error));
+
+  it('serves downloads when the whole cluster is unreachable, and records it', async () => {
+    const connectivity = new Connectivity();
+    const api = apiFailingWith(walked(new MachaConnectionError('no route')), connectivity);
+
+    await expect(api.movies()).resolves.toEqual([]);
+    expect(connectivity.isOffline).toBe(true);
+  });
+
+  it('does not mark the cluster offline for a session that has not started, wrapped by the walk', async () => {
+    const connectivity = new Connectivity();
+    const api = apiFailingWith(walked(new SessionNotStartedError('not-started')), connectivity);
+
+    await expect(api.movies()).resolves.toEqual([]);
+    expect(connectivity.isOffline).toBe(false);
+  });
+
+  it('serves downloads to a viewer the cluster refuses, without calling it offline', async () => {
+    for (const refusal of [
+      new MachaApiError('Macha catalogue request failed: forbidden', 403, 'forbidden'),
+      endpointFailure('http://a', 'http://a', new MachaApiError('Macha catalogue request failed: unauthorized', 401)),
+    ]) {
+      const connectivity = new Connectivity();
+      const api = apiFailingWith(refusal, connectivity);
+
+      await expect(api.movies()).resolves.toEqual([]);
+      expect(connectivity.isOffline).toBe(false);
+    }
+  });
+
+  it('still shows a node that answered with a failure', async () => {
+    const api = apiFailingWith(new MachaClusterRouteError(['http://a'], false, new MachaApiError('x', 500)), new Connectivity());
+    await expect(api.movies()).rejects.toBeInstanceOf(MachaClusterRouteError);
   });
 });

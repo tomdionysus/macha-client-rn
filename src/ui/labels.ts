@@ -64,3 +64,12 @@ export const CATEGORY_LABELS: Record<SearchCategoryKey, string> = {
   shows: 'TV Shows',
   music: 'Music',
 };
+
+/**
+ * A playlist's name, or a placeholder when it has none. Core stores an
+ * unnamed list as `''` — the one it adopts from the store it replaced, and any
+ * name that trims to nothing — and leaves the placeholder to the host.
+ */
+export function playlistName(playlist: { name: string }): string {
+  return playlist.name || 'Untitled playlist';
+}

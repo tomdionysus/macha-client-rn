@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { describeError } from '../api/errors';
+import { downloadFailureMessage } from '../api/failureMessages';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
 import type { EndpointRegistry, PlaybackInstruction } from '@machafoundation/core';
@@ -304,7 +304,7 @@ export class DownloadManager {
         this.cancelled.delete(mediaId);
         return;
       }
-      this.store.patch(mediaId, { state: 'failed', error: describeError(error) });
+      this.store.patch(mediaId, { state: 'failed', error: downloadFailureMessage(error) });
     } finally {
       // The lease goes back immediately whether or not the bytes arrived — a
       // download must never hold a session slot it is no longer using.

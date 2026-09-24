@@ -1,4 +1,11 @@
-import { MachaConnectionError } from '@machafoundation/core';
+import {
+  MachaClusterRouteError,
+  MachaConnectionError,
+  playbackFailureCode,
+  playbackFailureStatus,
+  SessionNotStartedError,
+  unreachableEndpointFailure,
+} from '@machafoundation/core';
 
 export const SERVER_UNREACHABLE_MESSAGE =
   'Cannot reach a Macha node. Check the address and that the node is running.';
@@ -83,11 +90,52 @@ export function isEndpointFailure(error: unknown): boolean {
  * the rest is missing.
  */
 export function isAuthRefusal(error: unknown): boolean {
-  return error instanceof MachaApiError && (error.status === 401 || error.status === 403);
+  // Read through core's accessor, never by class. This tested `instanceof` the
+  // `MachaApiError` above until 2026-09-24 — a class nothing in the app throws:
+  // a refusal arrives as core's own `MachaApiError`, sometimes inside a
+  // `MachaEndpointError`, so the branch that serves a refused viewer their
+  // downloads could not fire.
+  const status = playbackFailureStatus(error);
+  return status === 401 || status === 403;
 }
 
-export function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string' && error.trim()) return error.trim();
-  return 'Something went wrong.';
+/**
+ * Whether nothing answered at all — the cluster, not the request, is the
+ * problem.
+ *
+ * **Fields, not identity.** A walk that exhausts the cluster throws core's
+ * `MachaClusterRouteError`, which states `unreachable` itself and is not a
+ * `MachaConnectionError`; a pinned or mutation failure is a
+ * `MachaEndpointError` of kind `transport`. Until 2026-09-24 `MediaApi` tested
+ * `instanceof MachaConnectionError`, which only the bare class passes, so the
+ * offline fallback fired in its tests and never in the app.
+ *
+ * Claimed only when no layer stated a status **or** a code:
+ * `endpointFailure` files a 401 or 403 under `transport` too, and calling a
+ * refusal a connection problem would be the dishonest version.
+ */
+export function isUnreachable(error: unknown): boolean {
+  if (playbackFailureStatus(error) !== undefined || playbackFailureCode(error) !== undefined) return false;
+  if (error instanceof MachaClusterRouteError) return error.unreachable;
+  return unreachableEndpointFailure(error);
+}
+
+/**
+ * Whether the request was never made because the session manager is not
+ * running — "could not ask", which is neither a refusal nor an outage.
+ *
+ * Walks `cause`, because it is thrown inside each endpoint's operation and so
+ * arrives wrapped by the walk like any other failure. It extends
+ * `MachaConnectionError`, so the walk also calls it unreachable; branch on
+ * this first.
+ */
+export function isSessionNotStarted(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    if (current instanceof SessionNotStartedError) return true;
+    seen.add(current);
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }

@@ -5,7 +5,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useAccount, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { useAsync } from '../hooks/useAsync';
-import { describeError } from '../api/errors';
+import { signOutFailureMessage } from '../api/failureMessages';
 import { ChevronRightIcon, DownloadIcon, ServerIcon, TrashIcon, UserIcon } from '../ui/Icons';
 import { useDownloads } from '../hooks/useDownloads';
 import { formatBytes, pluralize } from '../ui/format';
@@ -72,7 +72,7 @@ export default function SettingsScreen() {
                 // Signing out locally has already happened by the time this
                 // throws — what failed is the revoke, so the honest thing to
                 // report is that the old session is still live elsewhere.
-                setSignOutError(describeError(error));
+                setSignOutError(signOutFailureMessage(error));
               } finally {
                 setSigningOut(false);
               }
@@ -143,9 +143,7 @@ export default function SettingsScreen() {
             </>
           ) : null}
           {signOutError ? (
-            <Text style={styles.error}>
-              {`Signed out on this device, but the session could not be revoked: ${signOutError}`}
-            </Text>
+            <Text style={styles.error}>{signOutError}</Text>
           ) : null}
         </Section>
       )}
