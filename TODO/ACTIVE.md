@@ -69,12 +69,13 @@ and is not comparable.
 ### What is on the phone
 
 **The A85 is on an unreleased dev build, not the tagged 0.8.0.** Installed
-2026-09-24 00:45:02 from `develop` at `159dce7`, core through the link at
-`../macha-ts` `e7adfdd` (**unpublished work in it**), **core `dist:hash`
-`a1500863411f`**. It still says `versionCode 800` because the version was not
+2026-09-24 11:01:02 from `develop` at `22935ca`, core through the link at
+`../macha-ts` `460ad1a` (**unpublished work in it**), **core `dist:hash`
+`3edcfc76d7a3`**. It still says `versionCode 800` because the version was not
 bumped — **so the package manager cannot tell it from 0.8.0**, and neither
-can anyone reading `dumpsys`. Identify it by `lastUpdateTime`. Left on the
-Films list sorted by year, nothing playing.
+can anyone reading `dumpsys`. Identify it by `lastUpdateTime`. Left playing
+*Dark* S01E06 in transcode, in landscape — a session open, which the next
+launch closes.
 
 To put the release back: build `assembleRelease` from `main` at `7932542`
 with the registry core (the procedure under *Releasing*), and `install -r`.
@@ -184,34 +185,22 @@ downloaded artwork. And the registry health probes that feed the round trip
 already run here. Expect one re-download of posters on the first run where it
 switches. Not yet seen on the phone.
 
-**Tom's decisions, 2026-09-24 — build these next, in this order:**
+**Tom's decisions, 2026-09-24:** Direct greyed like Remux, and the three
+search rulings — **both done**, COMPLETED. **Still open: the reaped-session
+probe's attribution**, put to Tom as A (wait out the node's window, act only
+if the player is still in error; recommended) or B (ignore errors for a
+fixed period after every source change). No answer yet; nothing on the
+probe until he picks.
 
-1. **Grey out Direct play like Remux** when this device cannot decode the
-   video (Tom: yes). Reuse `remuxUnavailableReason`'s shape in
-   `src/playback/policy.ts`, but judge Direct against `videoCodecs` (the
-   direct-play decoder list) rather than `hlsVideoCodecs`, and consider the
-   container too (`containerIsPlayable` in core). Wire it in
-   `src/ui/PlaybackOptionsSheet.tsx` beside `remuxBlocked`. Update
-   `transformFor`'s docblock, which argues the opposite. Test first; verify
-   on the A85 with *Dark* (ten-bit HEVC).
-2. **The three relayed search rulings below** (Tom: yes, all three).
-3. **The reaped-session probe's attribution** — put to Tom as A (wait out
-   the node's window, act only if the player is still in error;
-   recommended) or B (ignore errors for a fixed period after every source
-   change). **No answer yet.** Nothing on the probe until he picks.
+**The web Search page's design language** (from the web client's session,
+reference, not spec) has two parts not built here: an A–Z index shown only
+under Title order (this client has none anywhere), and the one-row control
+layout, which on a phone wraps by design.
 
-**Relayed search rulings — confirmed by Tom 2026-09-24:**
-- **Search terms:** core's `searchTerms` drops "the", "a", "an", and
-  `isSearchable` needs 2 characters left. `MachaMediaApi.search` applies both
-  itself, so this client may already inherit it through the catalogue —
-  **check, don't assume**; `search.tsx` still has its own raw-length gate.
-- **Search categories:** `SEARCH_CATEGORIES` (Movies, TV Shows, Music) as
-  toggles, passed as `search(query, signal, { categories })`.
-- **The track line:** "Artist - Album (year)", artist and album each linking
-  (`trackSubtitle`, `albumLabel`), and a "Track 9" line.
-- **The web Search page's design language** (from the web client's session,
-  explicitly reference, not spec): one control row, "Nothing found. Try
-  different search terms or filters.", an A–Z index only under Title.
+**The Playback sheet runs under the navigation bar in landscape** (A85,
+2026-09-24 11:25): the system back and home glyphs sat over the "Direct play"
+row, because `Sheet` pads only the bottom inset. Pad the side insets too.
+Small; not yet done.
 
 **The reaped-session probe (2 above) was parked by Tom on 2026-09-23 in
 favour of the session leak, with its design question put and not answered:**

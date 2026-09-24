@@ -8,6 +8,59 @@ Newest first.
 
 ---
 
+## 2026-09-24 — Direct greyed like Remux, and the search rulings
+
+Tom's calls of 2026-09-24. `97f8dc7` and `22935ca`, on the A85 11:20–11:25
+from a build of `22935ca`'s tree with core `460ad1a`, dist `3edcfc76d7a3`
+(unpublished work in it).
+
+### Direct play greyed out like Remux — `97f8dc7`
+
+Reverses the position `transformFor` had recorded ("a viewer who names
+Direct gets what they asked for"). `directUnavailableReason` judges the
+presented video against the **direct-play** decoders — not the HLS list
+Remux uses — and the container against core's `containerIsPlayable`. The
+remedy named follows the cause: undecodable video rules out Remux too, so
+"Transcode will play it"; a container alone is what Remux replaces, so
+"Remux will play it". Five tests, red first on the missing function.
+
+**On the A85:** *Dark* S01E06 — `mode-availability { codec: 'hevc', profile:
+'Main 10', bitDepth: 10, container: 'matroska,webm' }`, both Direct and Remux
+greyed with *"Unavailable: this video is 10-bit and this device can only
+decode 8-bit. Transcode will play it."* The container branch was not met on
+hardware — no un-openable container was to hand.
+
+### The search rulings — `22935ca`
+
+- **Terms:** "the", "a", "an" never searched; two characters left (core's
+  `isSearchable`, `searchTerms`). **On the A85:** "the" gave *"Nothing found.
+  Try different search terms or filters."* **That no request was sent is
+  from the code, not the log** — the catalogue path does not log requests;
+  with `isSearchable` false `media.search` is never called.
+- **Categories:** Movies, TV Shows, Music toggles, all on by default, passed
+  as `search(query, signal, { categories })`. **On the A85:** "love" with only
+  Music on returned tracks only.
+- **The offline path** — this client's own search over downloads — applied
+  none of the rules, so the same query answered differently in airplane
+  mode. `searchOffline` now uses core's functions. Six tests, red first.
+  Not exercised offline on hardware.
+- **Track line:** a search card reads "Artist - Album (year)", each half a
+  link, then `trackNumberLabel` ("Disc 4 · Track 1"). **On the A85:** Bon
+  Jovi tracks read that way; tapping "Bon Jovi" opened the artist page (45
+  albums) and created no session. The album link was not tapped. Music track
+  and playlist rows now show the same wording as text; not looked at.
+
+### Found on the way
+
+- **The player screen follows the phone's physical orientation** — it
+  unlocks rotation on arrival. That is what turned *2001* to landscape on
+  2026-09-23; not a tap. A driving session has to re-derive its tap map from
+  the screenshot, which is what this run did.
+- **The Playback sheet runs under the navigation bar in landscape** — see
+  ACTIVE.
+
+---
+
 ## 2026-09-24 — Core's sort choices on every list, and episodes named by season
 
 `159dce7`. Tom's rulings, relayed from the web client through core's session,
