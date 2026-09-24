@@ -143,7 +143,7 @@ seen on a dev build of that tree on 2026-09-21; COMPLETED has the evidence.
    cannot be tested** — the node limit refuses first.
 4. **Prove the reaped-session probe** — the 31-minute pause, P1 below. Left
    out of 0.9.0 by Tom's decision; the probe shipped unproven.
-5. **Zulu**, **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
+5. **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
 
 **Not built, deliberately:** the web Search page's A–Z index (shown only under
 Title order; this client has no A–Z index anywhere) — the web client's design
@@ -238,9 +238,11 @@ node-row paste path, which `adb shell input text` cannot emulate.
 2026-09-21 was on a dev build of the 0.8.0 tree. The tagged 0.8.0 was only
 seen to install and start, and 0.9.0 has not been installed anywhere.
 
-**`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat |
-grep ReactNativeJS` shows core's routing, health and registry logs live. It is
-the cheapest instrument this client has.
+**`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat
+-v UTC | grep ReactNativeJS` shows core's routing, health and registry logs
+live. It is the cheapest instrument this client has. **Always read it with
+`-v UTC`** (Tom's Zulu ruling): our log lines carry no timestamp of their
+own, so logcat's is the only one, and it is device-local by default.
 
 
 ### Devices
@@ -643,17 +645,6 @@ tested today because no remux would start.
 2026-09-21, *Avatar* and *Arrival*, bar reading `0:13` after a seek to
 1:44:35), which is exactly what `titlePositionMs` now converts. So the
 remaining remux-only gap is wrong in one known direction, not two.
-
----
-
-## P2 — Zulu
-
-**Tom's ruling, 2026-09-21:** display local *with the zone labelled*; Zulu for
-anything interchanged — logs, bug reports, anything that will be read beside a
-node journal. This client renders server times device-local with no zone
-shown, and is the device most likely to be in a different zone from its node.
-Find every place a server time is rendered or logged and put it on the right
-side of that line. Not started.
 
 ---
 

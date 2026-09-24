@@ -8,6 +8,23 @@ Newest first.
 
 ---
 
+## 2026-09-24 night — Artwork host preference wired; Zulu closed without code
+
+- **`noteArtworkLoaded`** (`44cc97e`). core orders artwork candidates with
+  the last host that served one first, but learns that only from this call,
+  which nothing here made. So an endpoint swap renamed every poster and
+  expo-image re-downloaded bytes it had cached under the old URL. `Artwork`
+  now reports each successful load, never a failure.
+- **Zulu (Tom, 2026-09-21: local with the zone labelled for display, Zulu for
+  anything interchanged).** Checked the whole of `src`: **no server or
+  wall-clock time is rendered anywhere**, only durations, sizes and
+  bitrates, so the display half has nothing to label. The 22 `console.log`
+  lines carry no timestamp of their own, so logcat's is the only one. `adb
+  logcat -v UTC` makes it Zulu, and ACTIVE now says to read it that way. If
+  a time is ever rendered, it gets its zone labelled then.
+
+---
+
 ## 2026-09-24 late — The laws standardised, and the documents made true
 
 **Tom's ruling: every Macha project adopts core's law numbering and order**
