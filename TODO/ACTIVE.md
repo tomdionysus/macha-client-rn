@@ -886,9 +886,13 @@ Do not chase a self-changing node count as a bug.
 
 **The laws standardisation, 2026-09-24** (Tom's ruling, briefed to each
 owner): the server has renumbered to core's order, 136 citations in 33 files
-by meaning, **not yet committed** at the last word, and has written a merged
+by meaning, in **macha `c85ba51`** (on `origin/develop`, checked; its document
+reads 1 control, 2 viewer, 3 loader, 4 foot). It also wrote a merged
 `docs/principles-and-laws.md` that core may adopt. The web client added
-Law 4. The TV added the document (`95a5664`, local, unpushed). Core drops its
+Law 4. The TV added the document (`95a5664`, local, unpushed). **Open with
+Tom, from the web client:** its Law 2 citation for "a degraded state must be
+visible" belongs to a principle, not the viewer law; left as written under
+"don't reattribute" until he rules. Core drops its
 "numbering disagrees" blockquote once the server's commit lands. If core
 adopts the server's merged text, this repo's copy should follow; its header
 names the commit it came from (`65d1594`).
