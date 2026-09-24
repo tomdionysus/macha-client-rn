@@ -360,6 +360,18 @@ option on `chooseAmongFiles`, and asked all three clients.
   capability.
 - Asked core to include the container and duration per version.
 
+**Relayed by the web client, 2026-09-25, as Tom's ruling for all three
+clients (not yet confirmed with Tom here):** "We should have different
+buttons for 'play' on media depending on available quality, which trigger
+specific files or transcode options. The generic play button stays, and
+means 'make the decision for me'." "TV and phone should do the same." On the
+phone, that means: the generic Play is `chooseFile`'s decision. Beside it
+goes one button per quality, each playing a specific file, or a capped
+transcode where no file exists at that quality. The same list goes in the
+Playback sheet during play. A viewer's pick is never overridden by a
+fallback. It needs core's `playbackVersions` with transcode options, and a
+play taking `{ mediaId }` or `{ mediaId, transcodeCeiling }`.
+
 Waiting on core's consolidation and Tom's decision.
 
 ---
