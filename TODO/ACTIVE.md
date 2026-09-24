@@ -33,7 +33,7 @@ those dates; what is below is what is still open, and where things stand.
 rationalisation and `d5a7273`** (check `git log origin/develop..develop`; push
 is Tom's to authorise, and he has authorised it several times this run by
 saying so). Suite **287 tests across 25 files, typecheck clean** at `d5a7273`,
-re-run green against core `9654e1e` (dist `5b7aaffc1c65`, pushed), which
+re-run green against core `f3cf74c` (dist `cd4e4e631e2c`, pushed). `9654e1e`
 hedges cached-token validation across nodes (1 s per dead node, not 8) and
 keeps a cached session when no node answers rather than re-minting — relevant
 to the 30-day P1 and the unexplained sign-out of 2026-09-16. Working tree clean but for `.claude/settings.json`,
@@ -75,6 +75,12 @@ probe (`61ce107`, `a11e150`), and the viewer-text move with Tom's music
 ruling (`0746aa3`), and the failure wording and offline fallback
 (`d5a7273`). At the last look it had dropped off ADB (asleep); still absent
 from `adb devices` on 2026-09-24 evening.
+
+**Another unpublished core dependency:** `isUnreachable` relies on core
+`f3cf74c` making `unreachableEndpointFailure` read
+`MachaClusterRouteError.unreachable`. Our own check was dropped once core had
+it. Against 0.18.0 the offline fallback would be dead again, and the
+route-shaped tests in `media.test.ts` would say so.
 
 **`ramaroja` is offline for the foreseeable future** — Tom, relayed by core
 2026-09-24 as said to it directly. The A85 has it configured beside
@@ -319,9 +325,7 @@ separately by `classifyProbe` and then **fails over**, where core says
 fail over is defensible given expo-video; provenance is the one to settle —
 with session ids now carrying their node it fires only for an id this
 resolver never issued, and failing over then charges a healthy node. **Ask
-Tom.** Core is also checking `unreachableEndpointFailure` against
-`MachaClusterRouteError.unreachable`; if it starts reading it, the explicit
-check in our `isUnreachable` becomes redundant, not wrong.
+Tom.**
 
 ---
 

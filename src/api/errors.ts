@@ -1,5 +1,4 @@
 import {
-  MachaClusterRouteError,
   MachaConnectionError,
   playbackFailureCode,
   playbackFailureStatus,
@@ -104,11 +103,12 @@ export function isAuthRefusal(error: unknown): boolean {
  * problem.
  *
  * **Fields, not identity.** A walk that exhausts the cluster throws core's
- * `MachaClusterRouteError`, which states `unreachable` itself and is not a
- * `MachaConnectionError`; a pinned or mutation failure is a
- * `MachaEndpointError` of kind `transport`. Until 2026-09-24 `MediaApi` tested
- * `instanceof MachaConnectionError`, which only the bare class passes, so the
- * offline fallback fired in its tests and never in the app.
+ * `MachaClusterRouteError`, which is not a `MachaConnectionError`; a pinned or
+ * mutation failure is a `MachaEndpointError` of kind `transport`. Until
+ * 2026-09-24 `MediaApi` tested `instanceof MachaConnectionError`, which only
+ * the bare class passes, so the offline fallback fired in its tests and never
+ * in the app. Core's `unreachableEndpointFailure` reads the route error's own
+ * `unreachable` field since core `f3cf74c`, raised from here.
  *
  * Claimed only when no layer stated a status **or** a code:
  * `endpointFailure` files a 401 or 403 under `transport` too, and calling a
@@ -116,7 +116,6 @@ export function isAuthRefusal(error: unknown): boolean {
  */
 export function isUnreachable(error: unknown): boolean {
   if (playbackFailureStatus(error) !== undefined || playbackFailureCode(error) !== undefined) return false;
-  if (error instanceof MachaClusterRouteError) return error.unreachable;
   return unreachableEndpointFailure(error);
 }
 
