@@ -335,6 +335,35 @@ reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 
+## P2 — Versions and a quality ceiling: design being agreed, nothing built
+
+**Tom, to core directly, 2026-09-25:** one way for a viewer to choose
+between versions of a title (his example: *Knives Out* as 1080p H.264 and as
+2K H.265), with core doing the selection. It has two parts: a version choice
+on the media and player screens, and a quality preference in Settings
+(720p / 1080p / 2K / 4K). Core proposed `playbackVersions(files,
+capabilities, preference)`, a per-device `maxHeight` store, and a preference
+option on `chooseAmongFiles`, and asked all three clients.
+
+**The phone's answers, sent 2026-09-25** (choices are Tom's):
+- **Both screens, player first.** The Playback sheet's existing "Version"
+  section labels versions by a shortened media id; `playbackVersions` gives
+  it real labels. The detail screen gets a picker only when there is more
+  than one version.
+- **Downloads should name a version too**; today the server picks.
+- **Per device, with separate Wi-Fi and mobile-data ceilings** on phones,
+  the mobile one lower by default. NetInfo gives the connection type.
+- **No default from measured bandwidth**: our throughput evidence is from
+  browsing only, and sparse.
+- **Show every version**, greyed with a reason only when it cannot play at
+  all. Never hide one for being transcoded, and screen size is never a
+  capability.
+- Asked core to include the container and duration per version.
+
+Waiting on core's consolidation and Tom's decision.
+
+---
+
 ## P2 — Name the file on the session: built; downloads and a named mode still name none
 
 **Built 2026-09-25** on core's `chooseAmongFiles` (`a5f14fb`, exported at
