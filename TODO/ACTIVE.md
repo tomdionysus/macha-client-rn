@@ -63,9 +63,11 @@ the published package; **a `file:` dependency must never reach `main`**, and
 a typecheck or recording a build. Core's own session rebuilds its `dist`; do
 not rebuild it from here while that session is live.
 
-### Server 0.57.1 — the released 0.9.0 cannot play against it
+### Server 0.58.0 — the released 0.9.0 cannot play against it
 
-**Server 0.57.1 is live on fi-1 and gbni-1 (core, 2026-09-25).** The node
+**Server 0.58.0 is live on fi-1 and gbni-1 (core, 2026-09-25).** It was first
+announced as 0.57.1 and renumbered by Tom because it breaks old clients; the
+contract is the same, and 0.57.1 was never tagged. The node
 chooses nothing: a create must send `media_id`, never `item_id`. **Core
 0.19.0, which 0.9.0 pins, gets `item_id_not_accepted` on every create**, so
 the tagged 0.9.0 cannot start playback against these nodes. Nothing has 0.9.0
