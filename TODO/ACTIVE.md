@@ -385,6 +385,14 @@ Playback sheet during play. A viewer's pick is never overridden by a
 fallback. It needs core's `playbackVersions` with transcode options, and a
 play taking `{ mediaId }` or `{ mediaId, transcodeCeiling }`.
 
+**Wi-Fi and mobile-data ceilings: Tom's ruling, relayed by the web client
+2026-09-25 (not yet confirmed here):** "Yes but with context to the user as
+to why, and an override option in settings." So there are two ceilings, the
+mobile one lower. When the mobile ceiling limits what plays, the viewer is
+told it is because they are on mobile data. Both can be set in Settings.
+The phone supplies the connection kind (NetInfo `type`); core is asked for
+a reason code for "capped because on mobile data" so the words stay ours.
+
 Waiting on core's consolidation and Tom's decision.
 
 ---
