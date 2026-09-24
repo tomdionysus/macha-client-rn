@@ -1,6 +1,6 @@
 # Macha Client (React Native)
 
-*v0.8.0*
+*v0.9.0*
 
 A phone client for [Macha](../macha) — a C++ media server for large, mostly
 immutable video and music libraries. It browses a node's catalogue, negotiates
