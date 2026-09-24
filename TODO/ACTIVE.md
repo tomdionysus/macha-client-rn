@@ -63,6 +63,28 @@ the published package; **a `file:` dependency must never reach `main`**, and
 a typecheck or recording a build. Core's own session rebuilds its `dist`; do
 not rebuild it from here while that session is live.
 
+### Server 0.57.1 — the released 0.9.0 cannot play against it
+
+**Server 0.57.1 is live on fi-1 and gbni-1 (core, 2026-09-25).** The node
+chooses nothing: a create must send `media_id`, never `item_id`. **Core
+0.19.0, which 0.9.0 pins, gets `item_id_not_accepted` on every create**, so
+the tagged 0.9.0 cannot start playback against these nodes. Nothing has 0.9.0
+installed, but **the next release must pin a core that includes `0bce895`**.
+`develop` typechecks and passes 306 tests against `0bce895` (dist
+`152aa737177c`).
+
+Also from `0bce895`: the session no longer carries `item_id`,
+`options.media_ids` or `can_switch_media`, and core maps them to `[]` and
+`false`. **So the Playback sheet's "Version" section never shows now**; the
+per-quality design replaces it. Core names a stream where a file has
+several, and answers `choice_required` / `choice_not_available` once per
+kind (logged `stream-unchosen-defaulted`).
+
+**Core asked for, on the A85 against fi-1 / gbni-1:** a multi-file item in
+auto and under a mode the viewer picked; a file with several audio tracks,
+in remux and in transcode; failover between nodes mid-play. Send core any
+error envelope verbatim, with its code.
+
 ### What is on the phone
 
 **Nothing has 0.9.0 yet.** Build `assembleRelease` from `main` with the
