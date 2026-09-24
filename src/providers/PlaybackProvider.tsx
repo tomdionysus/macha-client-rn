@@ -26,10 +26,13 @@ import {
   audioCopyable,
   buildOrder,
   classifyCreateRefusal,
+  classifyProbe,
   createFailureMessage,
+  errorSettleMs,
   errorBlamesEndpoint,
   generationLocalMs,
   positionedUpdate,
+  recoveryAfterProbe,
   restoredVolume,
   seekRefusalMessage,
   seekRequiresReposition,
@@ -37,6 +40,7 @@ import {
   selfSupersededGeneration,
   supersededErrorCheck,
   type PendingSupersede,
+  type ProbeOutcome,
   spendsFailoverBudget,
   statedUpdate,
   titlePositionMs,
@@ -255,6 +259,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * refuse genuine ends, and auto-advance is the thing being protected.
    */
   const progressedRef = useRef(false);
+  /** Where the last regeneration was asked for; see `recoveryAfterProbe`. */
+  const lastRegenerationPositionRef = useRef<number | undefined>(undefined);
   /**
    * How far the player has buffered, as its own ref.
    *
@@ -368,6 +374,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }
       countedPlayRef.current = undefined;
       positionRef.current = 0;
+      // A new item starts its regeneration bound afresh, as core's does.
+      lastRegenerationPositionRef.current = undefined;
       // Before the `replace(null)` below, whose `playToEnd` must not count.
       progressedRef.current = false;
       lastCheckpointRef.current = 0;
@@ -844,6 +852,44 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * Returns whether a replacement was actually installed, so the caller can
    * fall back to telling the viewer when there is nowhere left to go.
    */
+  /**
+   * A fresh session on the node that reaped this one, at the current position.
+   *
+   * Spends no failover budget and charges no node — the node answered honestly.
+   * Returns whether a replacement was installed (or the attempt was superseded,
+   * which is nobody's failure); `false` means fail over instead.
+   */
+  const regenerateSource = useCallback(
+    async (session: PlaybackSession, media: MediaSummary): Promise<boolean> => {
+      failoverInFlightRef.current = true;
+      setBusy(true);
+      const myGeneration = ++generationRef.current;
+      const resumeMs = positionRef.current;
+      lastRegenerationPositionRef.current = resumeMs;
+      console.log('[macha] [playback] regenerate-attempt', { on: session.endpoint?.baseUrl, resumeMs });
+      try {
+        const next = await playbackApi.regenerate(session, media, resumeMs);
+        console.log('[macha] [playback] regenerate-result', { on: next.endpoint?.baseUrl, sessionId: next.sessionId });
+        if (generationRef.current !== myGeneration) return true;
+        sessionRef.current = next;
+        applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
+        if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
+        player.play();
+        setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
+        return true;
+      } catch (error) {
+        // Includes the node having left the registry
+        // (`REGENERATION_ENDPOINT_GONE_CODE`), where failing over is right.
+        console.log('[macha] [playback] regenerate-failed', { code: playbackFailureCode(error), error: String(error) });
+        return generationRef.current !== myGeneration;
+      } finally {
+        failoverInFlightRef.current = false;
+        if (generationRef.current === myGeneration) setBusy(false);
+      }
+    },
+    [mediaApi, player, playbackApi],
+  );
+
   const failoverSource = useCallback(async (): Promise<boolean> => {
     // The failed player keeps reporting the error for as long as it is on
     // screen, and admitting a replacement is not instant — so without this every
@@ -877,6 +923,33 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       if (superseded) reportIfStillFailed(generationRef.current);
       return true;
     }
+    // **Trust the error only if it persists** — Tom, 2026-09-24, option A;
+    // see `errorSettleMs`. One at a time while waiting, like the failover
+    // itself: the failed player repeats its error for as long as it is up.
+    failoverInFlightRef.current = true;
+    const erroredGeneration = generationRef.current;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, errorSettleMs(session)));
+    } finally {
+      failoverInFlightRef.current = false;
+    }
+    if (generationRef.current !== erroredGeneration || sessionRef.current !== session) return true;
+    if (player.status !== 'error') {
+      console.log('[macha] [playback] player-error-cleared', { settleMs: errorSettleMs(session) });
+      return true;
+    }
+    // Ask the node that issued the session whether it still holds it. It
+    // records nothing against the node either way, so asking is free.
+    let outcome: ProbeOutcome;
+    try {
+      outcome = classifyProbe({ alive: await playbackApi.sessionAlive(session) });
+    } catch (error) {
+      outcome = classifyProbe({ error });
+    }
+    if (generationRef.current !== erroredGeneration || sessionRef.current !== session) return true;
+    const recovery = recoveryAfterProbe(outcome, positionRef.current, lastRegenerationPositionRef.current);
+    console.log('[macha] [playback] session-probe', { outcome, recovery, positionMs: positionRef.current });
+    if (recovery === 'regenerate' && (await regenerateSource(session, media))) return true;
     // Playback that has been fine for a while earns a fresh budget: the limit
     // is there to stop a broken title cycling nodes, not to ration recovery
     // across a whole film.
@@ -962,7 +1035,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // it. See the note beside the `setBusy(true)` above.
       if (generationRef.current === myGeneration) setBusy(false);
     }
-  }, [mediaApi, player, playbackApi, reportIfStillFailed]);
+  }, [mediaApi, player, playbackApi, regenerateSource, reportIfStillFailed]);
 
   // Held in a ref so the player's listeners never have to resubscribe when the
   // services object is rebuilt.

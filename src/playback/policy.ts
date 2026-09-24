@@ -7,6 +7,7 @@ import {
   playbackFailureStatus,
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
+  SESSION_PROVENANCE_UNKNOWN_CODE,
   containerIsPlayable,
   technicalProfileFromSession,
   videoStreamObjection,
@@ -731,6 +732,73 @@ export function selfSupersededGeneration(
   if (!pending) return false;
   if (pending.settledAtMs === undefined) return true;
   return nowMs - pending.settledAtMs < seekDeadlineMs(session);
+}
+
+/**
+ * How long a player error is given to clear before anything acts on it.
+ *
+ * **Tom's call, 2026-09-24 (option A): an error is trusted only if it
+ * persists.** expo-video does not say which source an error came from, and a
+ * dying source keeps reporting after it has been replaced — so an error acted
+ * on at once could probe the *new* session, or throw away a replacement built a
+ * second earlier. Waited out, an error from a replaced source leaves the new one
+ * playing and is dropped; a failure of the current source is still there. The
+ * window is the node's own, the one the seek and supersede guards use, not a
+ * second constant. The cost is up to that long before a genuine recovery starts.
+ */
+export function errorSettleMs(session: PlaybackSession | undefined): number {
+  return seekDeadlineMs(session);
+}
+
+/** What `sessionAlive` said about the session a failing player was reading. */
+export type ProbeOutcome = 'alive' | 'gone' | 'unknown-provenance' | 'unreachable';
+
+/**
+ * Read the owning node's answer to "do you still hold this session?".
+ *
+ * `false` is the node answering correctly that it reaped the session — the
+ * case this whole probe exists for. A throw is two different things, told apart
+ * by core's code rather than its wording (`SESSION_PROVENANCE_UNKNOWN_CODE`,
+ * added by core on this client's ask): an id core cannot place at all, or a
+ * probe that could not be answered. Since `0.18.0` core recovers the node from
+ * the id, so a session that was merely released answers `false` rather than
+ * throwing — which is why the error has to be attributed to the current
+ * generation *before* the probe, not after.
+ */
+export function classifyProbe(result: { alive: boolean } | { error: unknown }): ProbeOutcome {
+  if ('alive' in result) return result.alive ? 'alive' : 'gone';
+  return playbackFailureCode(result.error) === SESSION_PROVENANCE_UNKNOWN_CODE ? 'unknown-provenance' : 'unreachable';
+}
+
+/**
+ * Regenerate on the same node, or fail over.
+ *
+ * **`gone` regenerates**, on the node that held the session and without
+ * charging it: every other node would answer `404` for a session it never had,
+ * and core releases before recreating because that node's one transcode slot is
+ * held by the session being replaced. **Bounded exactly as core bounds it** —
+ * `session-regeneration-made-no-progress`: a regeneration asked for at the
+ * same position, rounded to the millisecond, as the previous one changed
+ * nothing, so the next step fails over instead of looping on a node that keeps
+ * answering the same way.
+ *
+ * **`alive` fails over, and that is a choice, not a side effect.** Core stops
+ * there: a live session answering `404` is a fragment past the end of a live
+ * plan, and replacing the node fixes nothing. This client cannot tell that case
+ * apart — expo-video hides the status — so a live session under a failing
+ * player keeps the old behaviour. **Anything unanswerable fails over too**:
+ * ordinary evidence, handled as before.
+ */
+export function recoveryAfterProbe(
+  outcome: ProbeOutcome,
+  positionMs: number,
+  lastRegenerationPositionMs: number | undefined,
+): 'regenerate' | 'failover' {
+  if (outcome !== 'gone') return 'failover';
+  if (lastRegenerationPositionMs !== undefined && Math.round(lastRegenerationPositionMs) === Math.round(positionMs)) {
+    return 'failover';
+  }
+  return 'regenerate';
 }
 
 /** What to do about a player error the supersede guard declined to fail over on. */

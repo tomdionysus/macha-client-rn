@@ -134,6 +134,42 @@ export class ClusterPlaybackApi {
       });
   }
 
+  /**
+   * Whether the node that issued this session still holds it. Pinned to that
+   * node, no walk, and **nothing recorded against it either way** — core's
+   * rule, so that asking cannot cost the node anything.
+   */
+  sessionAlive(session: PlaybackSession): Promise<boolean> {
+    return this.resolver.sessionAlive(session.sessionId);
+  }
+
+  /**
+   * A fresh session on the **same** node, for one that node reaped.
+   *
+   * Core closes the old session first and waits for it, because the node's one
+   * transcode slot is held by the session being replaced; no endpoint is
+   * charged. The transform is restated as on `failover`, for the same reason.
+   * Throws with `REGENERATION_ENDPOINT_GONE_CODE` when the node has left the
+   * registry, and the caller then fails over.
+   */
+  regenerate(session: PlaybackSession, media: MediaSummary, seekMs: number): Promise<PlaybackSession> {
+    return this.resolver
+      .regenerate(
+        session,
+        media,
+        deviceCapabilities(),
+        seekMs,
+        transformFor(
+          session.preferences.mode,
+          audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
+        ),
+      )
+      .then((next) => {
+        this.ledger?.forget(session.sessionId);
+        return this.held(next);
+      });
+  }
+
   update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {
     return this.resolver.update(session.sessionId, update, signal);
   }
