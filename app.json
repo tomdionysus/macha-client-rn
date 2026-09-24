@@ -80,7 +80,13 @@
           }
         }
       ],
-      "./plugins/withMachaNotificationIcon"
+      "./plugins/withMachaNotificationIcon",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

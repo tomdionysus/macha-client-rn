@@ -391,9 +391,25 @@ default above is what runs.
 
 ---
 
-## P1 — The security item, and the rest of the port
+## P1 — The security item, and the rest of the port — built, not on a device
 
-**Status: scoped, not started. Corrected 2026-09-20:** every symbol below is
+**Built 2026-09-24/25 on `develop`:** the token is in `expo-secure-store`
+(`src/state/secureStorage.ts`, core's `secureStorage`), with the config
+plugin's `configureAndroidBackup` set explicitly. The plaintext copies are
+deleted from AsyncStorage under `macha.session.v1` and the pre-0.10.0
+`macha-session`. `signOut()` is core's alone. A release `assembleRelease`
+built clean (26 min, 2026-09-25) with the backup rules linked into the
+manifest. **Still to do on the A85:** a fresh install needs **one login**,
+since the token is deleted rather than moved. Then check that login survives
+a force-stop (from the Keystore now) and that logout then login leaves a
+login that survives a restart.
+
+**Side effect, recorded rather than worked around:** the module's backup
+rules back up `sharedpref` only, minus SecureStore. AsyncStorage is a
+database, so Continue Watching, the queue and playlists also leave Android
+Auto Backup. Before this, everything was backed up, token included.
+
+**Corrected 2026-09-20:** every symbol below is
 present in the installed core — checked by grepping `dist` in 0.12.0, 0.14.0
 and `develop` — so an earlier note here that `probeNow()` was "recorded but
 not built" was stale from at least 0.12.0.
@@ -408,8 +424,11 @@ it is the argument for sequencing this sooner rather than later.
 **Checked against the Expo 57 docs rather than assumed:** `expo-secure-store`
 exposes **synchronous `getItem`/`setItem`**, so it satisfies core's
 `StorageLike` directly — no hydrate-at-startup cache, unlike `ClientStore`.
-`removeItem` wraps `deleteItemAsync` fire-and-forget, the pattern
-`ClientStore.enqueue` already uses, so the adapter is about five lines. Its
+~~`removeItem` wraps `deleteItemAsync` fire-and-forget, the pattern
+`ClientStore.enqueue` already uses, so the adapter is about five lines.~~
+**Wrong, and a test proved it:** a logout's async delete can land after the
+login that followed it and erase the new token. `removeItem` overwrites with
+`''` synchronously instead, and `getItem` reads `''` as absent. Its
 config plugin also exposes **`configureAndroidBackup`**, which closes the
 backup half of the exposure deliberately rather than incidentally.
 
@@ -421,15 +440,13 @@ waiting.
 
 The mechanical hour:
 
-- `secureStorage` via `expo-secure-store` in `configureMachaHost` — the reason
-  to do this at all.
-- `signOut()` — core revokes itself and throws on failure, which is what this
-  client hand-rolled in `MachaProvider`. Delete our composition, keep the
-  rethrow.
+- ~~`secureStorage` via `expo-secure-store`~~ — **done**, above.
+- ~~`signOut()`~~ — **done**. Ours also called `users.logout()` first, so it
+  revoked the same session twice.
 - ~~`probeNow()`~~ — **done 2026-09-24**. It also stops a radio change from
   restarting polling while the app is in the background, which the old
   `stop()`/`start()` did.
-- `noteArtworkLoaded` — see the P2 below.
+- ~~`noteArtworkLoaded`~~ — **done 2026-09-24** (`44cc97e`).
 
 **Settled and not to be reopened:** core's `isMachaStorageKey` must **not**
 replace `owned()` in `state/storage.ts`, whatever core's docs say — it is
@@ -743,20 +760,6 @@ Both raised, both declined at the time, both still true.
   and the router will not walk on a 4xx. Usually right, because sessions and
   roles are replicated — but during a rolling upgrade an older build's session
   carries a role vocabulary the newer one refuses.
-
----
-
-## P2 — Wire `MediaApi.noteArtworkLoaded` when artwork is next touched
-
-`Artwork.tsx` walks candidate URLs in order and moves on only when one actually
-fails. `noteArtworkLoaded(url)` — **called on success only** — keeps an artwork
-URL byte-identical across an endpoint swap, which otherwise renames every
-poster and re-downloads bytes the device already holds.
-
-Related and already true: **key any artwork cache on `ref.id`, never on
-`ref.url`.** `id` is the SHA-256 of the artwork bytes, identical on every node;
-the signed `url` is re-signed per catalogue read. Server 0.40.0 quantizes `exp`
-into a TTL bucket, so the URL is stable for up to 24 hours anyway.
 
 ---
 

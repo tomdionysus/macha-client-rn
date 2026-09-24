@@ -40,6 +40,7 @@ import { MusicLibraryStore } from '../state/musicLibrary';
 import { PlaylistStore } from '@machafoundation/core';
 
 import { clientStore } from '../state/storage';
+import { secureStorage } from '../state/secureStorage';
 import { reclaimOrphans, SessionLedger } from '../playback/sessionLedger';
 
 // Core reaches for storage, a clock and an id generator through its host seam
@@ -57,9 +58,19 @@ import { reclaimOrphans, SessionLedger } from '../playback/sessionLedger';
 // backup; `expo-secure-store` is the fix and is not yet a dependency.
 configureMachaHost({
   storage: clientStore,
+  // The session token goes here rather than into `storage`, which is
+  // plaintext AsyncStorage. See `state/secureStorage.ts`.
+  secureStorage,
   now: Date.now,
   uuid: () => Crypto.randomUUID(),
 });
+
+// Before 2026-09-24 the token lived in AsyncStorage for up to 30 days, under
+// this key and, before core 0.10.0, `macha-session`. Both are deleted rather
+// than moved: Macha has not shipped, so the cost is one login on a test phone,
+// and a copy would be one more path that handles the secret.
+clientStore.removeItem('macha.session.v1');
+clientStore.removeItem('macha-session');
 
 // One per process, deliberately module-scoped: the playback services are
 // rebuilt on every connection generation, and the ledger's once-only orphan
@@ -541,19 +552,17 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    // Revoke first, because after the token is dropped there is nothing left
-    // to revoke with: dropping a token locally is not a logout, and the
-    // session stays valid on every node until it expires.
-    let revocation: unknown;
+    // Core's `signOut` does the whole job: it forgets the token locally,
+    // unconditionally, and then revokes it on the cluster, throwing if the
+    // revoke fails, because a session that was not revoked stays valid on
+    // every node until it expires. This used to call `users.logout()` first
+    // as well, which revoked the same session twice.
     try {
-      await services.users.logout();
-    } catch (error) {
-      revocation = error;
+      await sessions.signOut();
+    } finally {
+      refreshAccount();
     }
-    await sessions.signOut();
-    refreshAccount();
-    if (revocation) throw revocation;
-  }, [refreshAccount, services, sessions]);
+  }, [refreshAccount, sessions]);
 
   const value = useMemo<MachaContextValue>(
     () => ({ ...services, hydrated, endpoints, configure, generation, account, access, problems, refreshAccount, signIn, signOut }),

@@ -23,6 +23,7 @@ export default defineConfig({
         replacement: new URL('./src/test/async-storage.ts', import.meta.url).pathname,
       },
       { find: 'expo-crypto', replacement: new URL('./src/test/expo-crypto.ts', import.meta.url).pathname },
+      { find: 'expo-secure-store', replacement: new URL('./src/test/expo-secure-store.ts', import.meta.url).pathname },
       // The codec probe is a device fact, and there is no device here.
       {
         find: /^.*modules\/macha-codecs\/src\/MachaCodecsModule$/,
