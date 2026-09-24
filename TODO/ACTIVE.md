@@ -33,8 +33,10 @@ those dates; what is below is what is still open, and where things stand.
 rationalisation and `d5a7273`** (check `git log origin/develop..develop`; push
 is Tom's to authorise, and he has authorised it several times this run by
 saying so). Suite **287 tests across 25 files, typecheck clean** at `d5a7273`,
-against the linked core at `b47773d` (dist `2e40b5cd306e`) — core's commit is
-local only, GitHub SSH being unreachable from its session. Working tree clean but for `.claude/settings.json`,
+re-run green against core `9654e1e` (dist `5b7aaffc1c65`, pushed), which
+hedges cached-token validation across nodes (1 s per dead node, not 8) and
+keeps a cached session when no node answers rather than re-minting — relevant
+to the 30-day P1 and the unexplained sign-out of 2026-09-16. Working tree clean but for `.claude/settings.json`,
 `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
 
 **Check `tsc`'s exit code, not a grep of its output.** Its errors are
@@ -313,8 +315,13 @@ except in two places. `alive` fails over where core stops — deliberate and
 commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
 tell the cases apart. **`session_provenance_unknown`** is classified
 separately by `classifyProbe` and then **fails over**, where core says
-**stop**; nothing records that as a choice. Ask Tom before changing it:
-stopping ends playback on a node that could not say whose session it was.
+**stop**; nothing records that as a choice. Core, 2026-09-24: `alive` →
+fail over is defensible given expo-video; provenance is the one to settle —
+with session ids now carrying their node it fires only for an id this
+resolver never issued, and failing over then charges a healthy node. **Ask
+Tom.** Core is also checking `unreachableEndpointFailure` against
+`MachaClusterRouteError.unreachable`; if it starts reading it, the explicit
+check in our `isUnreachable` becomes redundant, not wrong.
 
 ---
 
