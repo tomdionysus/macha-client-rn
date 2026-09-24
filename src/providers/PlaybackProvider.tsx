@@ -25,6 +25,7 @@ import {
   accountSessionLimitMessage,
   audioCopyable,
   buildOrder,
+  chooseFile,
   classifyCreateRefusal,
   classifyProbe,
   createFailureMessage,
@@ -461,7 +462,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { instruction, durationMs: knownDurationMs } = await chooseInstruction(
+        const { instruction, durationMs: knownDurationMs, mediaId: chosenMediaId } = await chooseInstruction(
           mediaApi,
           playbackApi,
           media,
@@ -470,7 +471,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           // that true at the type level rather than by convention.
           options.preferences?.mode === 'choose' ? undefined : options.preferences?.mode,
         );
-        const session = await createSession(playbackApi, media, instruction, seekMs, options.preferences);
+        const session = await createSession(playbackApi, media, instruction, seekMs, {
+          ...options.preferences,
+          // The file the chooser picked, sent as the session's `media_id`.
+          // Core restates it on every replacement generation.
+          ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
+        });
         if (generationRef.current !== myGeneration) {
           // A late lease belonging to a superseded generation is never activated.
           await releaseSession(session);
@@ -1545,7 +1551,7 @@ async function chooseInstruction(
   playbackApi: ClusterPlaybackApi,
   media: MediaSummary,
   requested: PlaybackMode | undefined,
-): Promise<{ instruction: PlaybackInstruction; durationMs: number }> {
+): Promise<{ instruction: PlaybackInstruction; durationMs: number; mediaId?: string }> {
   const mediaId = media.mediaIds[0];
 
   if (requested) {
@@ -1575,16 +1581,12 @@ async function chooseInstruction(
   const capabilities = deviceCapabilities();
   const overrides = devicePlaybackOverrides();
 
-  const facts = await playbackFacts(playbackApi, media, mediaId);
-  if (facts) {
-    return {
-      instruction: choosePlaybackInstruction(facts.profile, capabilities, {
-        overrides,
-        operations: facts.operations,
-      }),
-      durationMs: facts.profile.durationMs,
-    };
-  }
+  // Every file of the item, and the one that plays best, named on the
+  // session. When the viewer names the mode (above), no file is named, as in
+  // core's coordinator.
+  const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
+  const chosen = files ? chooseFile(files, media.mediaIds, capabilities, overrides) : undefined;
+  if (chosen) return chosen;
 
   const profile = mediaId ? await mediaApi.mediaProfile(mediaId).catch(() => undefined) : undefined;
   if (!profile) {
@@ -1599,6 +1601,9 @@ async function chooseInstruction(
   return {
     instruction: choosePlaybackInstruction(catalogued, capabilities, { overrides }),
     durationMs: catalogued.durationMs,
+    // Judged from the first file's catalogue profile, so it names that file
+    // only when it is the item's only one, as core does with no facts.
+    ...(media.mediaIds.length === 1 ? { mediaId } : {}),
   };
 }
 

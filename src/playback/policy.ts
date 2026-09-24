@@ -1,5 +1,6 @@
 import { deviceCapabilities } from './capabilities';
 import {
+  chooseAmongFiles,
   isAccountSessionLimit,
   isSubtitleOnlyPlaybackUpdate,
   playbackFailureCode,
@@ -13,6 +14,8 @@ import {
   videoStreamObjection,
   type PlaybackCapabilities,
   type PlaybackDecisionReason,
+  type PlaybackInstruction,
+  type PlaybackMediaFacts,
   type PlaybackMode,
   type PlaybackPolicyOverrides,
   type PlaybackSession,
@@ -879,4 +882,28 @@ export function errorBlamesEndpoint(
   // same guard that stops a lost seek freezing the position stops it excusing
   // an endpoint forever.
   return nowMs - pendingSeek.atMs >= seekDeadlineMs(session);
+}
+
+/**
+ * Which of an item's files to play, and how.
+ *
+ * **The client chooses among an item's files and names the one it will play**
+ * (Tom, 2026-09-24, in the shared laws text since core `284e52e`). Given only
+ * the item, the server plays its own first choice, so a client that judged
+ * one file and named none could be playing a different one.
+ *
+ * The ranking is core's `chooseAmongFiles`, the same function core's
+ * coordinator uses: direct, then remux, then transcode, ties to stored
+ * order, an only file naming itself. Nothing is re-ranked here. The duration
+ * is the chosen file's, since two files of one item need not match.
+ */
+export function chooseFile(
+  files: readonly PlaybackMediaFacts[],
+  mediaIds: readonly string[],
+  capabilities: PlaybackCapabilities,
+  overrides?: PlaybackPolicyOverrides,
+): { instruction: PlaybackInstruction; durationMs: number; mediaId?: string } | undefined {
+  const choice = chooseAmongFiles(files, capabilities, { overrides }, mediaIds);
+  if (!choice) return undefined;
+  return { instruction: choice.instruction, durationMs: files[choice.index]!.profile.durationMs, mediaId: choice.mediaId };
 }
