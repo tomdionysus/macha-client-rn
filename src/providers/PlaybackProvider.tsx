@@ -380,6 +380,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       progressedRef.current = false;
       lastCheckpointRef.current = 0;
       knownDurationRef.current = 0;
+      // The new item's own figure, as the state below has it. Left alone this
+      // carried the previous item's duration until the source reported one,
+      // paired with the new `mediaRef`: S01E04's play-to-end on the A85
+      // (2026-09-23) logged S01E03's 2732334.
+      durationRef.current = media.durationMs ?? 0;
 
       // **`busy` is owned from here to the `finally` below, with nothing
       // outside it.** It used to be set here while the `try` began forty
