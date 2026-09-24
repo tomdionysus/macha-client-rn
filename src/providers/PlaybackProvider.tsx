@@ -10,7 +10,6 @@ import {
   restatePreferencesClearedByMode,
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
-  type PlaybackMediaFacts,
   type StreamInstruction,
 } from '@machafoundation/core';
 import {
@@ -27,6 +26,7 @@ import {
   buildOrder,
   chooseFile,
   classifyCreateRefusal,
+  fileToPlay,
   classifyProbe,
   createFailureMessage,
   errorSettleMs,
@@ -1553,11 +1553,17 @@ async function chooseInstruction(
   requested: PlaybackMode | undefined,
 ): Promise<{ instruction: PlaybackInstruction; durationMs: number; mediaId?: string }> {
   const mediaId = media.mediaIds[0];
+  const capabilities = deviceCapabilities();
+  const overrides = devicePlaybackOverrides();
 
   if (requested) {
     // The viewer named the mode, so no facts are needed to choose one — but
     // the runtime still is, and asking for it must not fail the playback.
-    const stated = await playbackFacts(playbackApi, media, mediaId);
+    // Which file is still ours to pick (`fileToPlay`), and the runtime and
+    // audio codec are read from that file.
+    const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
+    const chosenMediaId = fileToPlay(files, media.mediaIds, capabilities, overrides);
+    const stated = files?.find((entry) => entry.mediaId === chosenMediaId) ?? files?.[0];
     return {
       instruction: {
         // The viewer named the mode, not the audio codec: a remux of a title
@@ -1575,15 +1581,12 @@ async function chooseInstruction(
         assumed: [],
       },
       durationMs: stated?.profile.durationMs ?? 0,
+      ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
     };
   }
 
-  const capabilities = deviceCapabilities();
-  const overrides = devicePlaybackOverrides();
-
   // Every file of the item, and the one that plays best, named on the
-  // session. When the viewer names the mode (above), no file is named, as in
-  // core's coordinator.
+  // session.
   const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
   const chosen = files ? chooseFile(files, media.mediaIds, capabilities, overrides) : undefined;
   if (chosen) return chosen;
@@ -1605,25 +1608,6 @@ async function chooseInstruction(
     // only when it is the item's only one, as core does with no facts.
     ...(media.mediaIds.length === 1 ? { mediaId } : {}),
   };
-}
-
-/**
- * The facts for the media this item will actually resolve to, or undefined
- * when no node can answer.
- *
- * Asked by item rather than by media id so the answer describes the same
- * source session creation will pick. Failure is not fatal: an older node has
- * no facts endpoint, and the caller still has the catalogue profile to fall
- * back on.
- */
-async function playbackFacts(
-  playbackApi: ClusterPlaybackApi,
-  media: MediaSummary,
-  mediaId: string | undefined,
-): Promise<PlaybackMediaFacts | undefined> {
-  const facts = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
-  if (!facts || facts.length === 0) return undefined;
-  return facts.find((entry) => entry.mediaId === mediaId) ?? facts[0];
 }
 
 /**

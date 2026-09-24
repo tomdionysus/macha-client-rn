@@ -3,6 +3,8 @@ import { downloadFailureMessage } from '../api/failureMessages';
 import type { ClusterPlaybackApi, PlaybackSession } from '../api/playback';
 import type { MediaApi } from '../api/media';
 import type { EndpointRegistry, PlaybackInstruction } from '@machafoundation/core';
+import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
+import { fileToPlay } from '../playback/policy';
 import { type TransferObservation, throughputSample } from './throughputSample';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
@@ -241,7 +243,15 @@ export class DownloadManager {
         // consulted and none was defaulted behind our back.
         assumed: [],
       };
-      session = await this.playbackApi.create(record.media, instruction, 0);
+      // Which file is ours to name, and the server is to refuse a create that
+      // names none on a multi-file item. The one playback would pick: under
+      // Direct, a file this device plays as it is, where there is one.
+      const files =
+        record.media.mediaIds.length > 1
+          ? await this.playbackApi.facts({ itemId: record.media.id }).catch(() => undefined)
+          : undefined;
+      const fileId = fileToPlay(files, record.media.mediaIds, deviceCapabilities(), devicePlaybackOverrides());
+      session = await this.playbackApi.create(record.media, instruction, 0, fileId ? { mediaId: fileId } : undefined);
       const fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
       // Built from the progress callbacks so the measurement covers the body

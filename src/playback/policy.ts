@@ -907,3 +907,26 @@ export function chooseFile(
   if (!choice) return undefined;
   return { instruction: choice.instruction, durationMs: files[choice.index]!.profile.durationMs, mediaId: choice.mediaId };
 }
+
+/**
+ * Which file to play when the mode was decided elsewhere: the viewer named
+ * it, or a download wants the original bytes.
+ *
+ * Something still has to pick the file (Tom, 2026-09-25: "on direct play,
+ * something still has to pick which media to direct play"), and the server
+ * is to refuse a create that names none on a multi-file item. So this is the
+ * file `chooseFile` would play: the one needing least conversion, which under
+ * Direct is one this device plays directly where the item has one. It
+ * mirrors core's coordinator (`580473f`). An only file names itself without
+ * facts. With several files and no facts, nothing is named, and core's
+ * resolver falls back to stored order and logs `media-unchosen-defaulted`.
+ */
+export function fileToPlay(
+  files: readonly PlaybackMediaFacts[] | undefined,
+  mediaIds: readonly string[],
+  capabilities: PlaybackCapabilities,
+  overrides?: PlaybackPolicyOverrides,
+): string | undefined {
+  if (mediaIds.length <= 1) return mediaIds[0];
+  return files ? chooseFile(files, mediaIds, capabilities, overrides)?.mediaId : undefined;
+}

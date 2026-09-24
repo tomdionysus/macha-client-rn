@@ -389,19 +389,21 @@ Waiting on core's consolidation and Tom's decision.
 
 ---
 
-## P2 — Name the file on the session: built; downloads and a named mode still name none
+## Done — every create names a file (2026-09-25), not yet on a device
 
-**Built 2026-09-25** on core's `chooseAmongFiles` (`a5f14fb`, exported at
-our request so there is one ranking). `chooseInstruction` asks for every
-file's facts, `chooseFile` in `policy.ts` picks through core, and the create
-sends `mediaId`. Core restates it on every replacement generation. Three
-tests, red first. Not on a device.
-
-**Still naming no file:** a mode the viewer chose (as core does), the
-catalogue-profile fallback on a multi-file item (as core does), and
-**downloads**, which ask for the original and let the server pick which file.
-That is the version question core raised with all three clients on
-2026-09-25 (versions and a quality ceiling); settle it there.
+**Tom, to core directly, 2026-09-25:** core and every client must cope with
+the server removing all choosing of media. The server proposes a `400` for a
+create that names no `media_id` on a multi-file item. Here:
+- The chooser's pick names its file (`f6ae991`, `chooseFile`).
+- A mode the viewer named now names a file too: the one the chooser would
+  play (`fileToPlay`), as core's coordinator does since `580473f`. Under
+  Direct, that is a file this device plays directly, where the item has one.
+- Downloads name the same file.
+- Failover and regeneration pass no `mediaId`, so core restates the served
+  file (`ClusterPlaybackResolver.ts:132`).
+- What's left is the catalogue fallback with several files and no facts;
+  core's resolver then names the first file and logs
+  `media-unchosen-defaulted`. That is visible in logcat if it ever happens.
 
 ---
 

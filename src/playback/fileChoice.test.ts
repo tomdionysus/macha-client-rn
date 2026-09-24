@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaTechnicalProfile, PlaybackCapabilities, PlaybackMediaFacts } from '@machafoundation/core';
-import { chooseFile } from './policy';
+import { chooseFile, fileToPlay } from './policy';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -50,5 +50,26 @@ describe('chooseFile', () => {
 
   it('has nothing to choose from an empty list', () => {
     expect(chooseFile([], [], phone)).toBeUndefined();
+  });
+});
+
+/**
+ * Which file, when something other than the chooser decided the mode: the
+ * viewer named one, or a download wants the original. Something still has to
+ * pick the file (Tom, 2026-09-25), and the server is to refuse a create on a
+ * multi-file item that names none.
+ */
+describe('fileToPlay', () => {
+  it('names the file the chooser would play, on an item with several', () => {
+    const files = [file('mkv', 'matroska,webm', 1_000), file('mp4', 'mov,mp4,m4a,3gp,3g2,mj2', 2_000)];
+    expect(fileToPlay(files, ['mkv', 'mp4'], phone)).toBe('mp4');
+  });
+
+  it('names an only file without needing facts', () => {
+    expect(fileToPlay(undefined, ['only'], phone)).toBe('only');
+  });
+
+  it('names nothing when it has several files and no facts to choose by', () => {
+    expect(fileToPlay(undefined, ['a', 'b'], phone)).toBeUndefined();
   });
 });
