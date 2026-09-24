@@ -335,6 +335,27 @@ reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 
+## P1 — Choose among an item's files, and name the file on the session
+
+**Tom's ruling (relayed to core by the web client and the server, and now in
+the shared laws text at core `284e52e`):** "in Macha it's the client that
+makes the decision on what to play." Given only `item_id`, the server plays
+the first directly-playable file in stored order. **This client does not
+name a file**: `playbackFacts` judges `mediaIds[0]`, or else the first
+file's facts, so on a multi-file item the file judged and the file played
+can differ. Core's coordinator now chooses per file (direct, remux,
+transcode, ties to stored order) and sends `preferences.mediaId`, and its
+resolver restates the served file on every replacement generation.
+
+**Waiting on core** to export that ranking as a pure function (asked
+2026-09-25) so this client does not grow a second copy. Then:
+`chooseInstruction` takes every file's facts, picks through core's function,
+and `createSession` passes `{ ...preferences, mediaId }`. When the viewer
+chose the mode, name nothing, as core does. The server may later refuse a
+create that names no file on a multi-file item; that is not approved yet.
+
+---
+
 ## P1 — media3's bytecode says a segment 500 is retried; our device said it is fatal
 
 **Unresolved contradiction, found 2026-09-20 while answering a question from

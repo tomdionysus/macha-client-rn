@@ -1,7 +1,7 @@
 # Macha principles and laws
 
 **The shared text, as every Macha project states it.** Taken from core's
-`docs/principles-and-laws.md` (macha-core-npm `89df8b3`) on Tom's ruling of
+`docs/principles-and-laws.md` (macha-core-npm `284e52e`) on Tom's ruling of
 2026-09-24 that all projects adopt core's law numbering and order. The laws
 and principles are core's words unchanged. The one change is where core names
 its own playback classes: this states what owns that here instead.
@@ -30,7 +30,9 @@ title is, what its streams are and what operations it can perform. Choosing
 between Direct Play, remux and transcode is the client's, made from its own
 measured capabilities — and it is made in `@machafoundation/core` rather than in any one
 client, so every client decides the same way from the same facts. The server
-obeys the result; it does not pick on the client's behalf.
+obeys the result; it does not pick on the client's behalf. Choosing among an
+item's files is part of the same negotiation: the client matches each file's
+facts to its own capabilities and names the file it will play.
 
 The catalogue wire model mirrors the server contract. The client must not infer
 cluster truth, invent a parallel server model, transcode media, or treat a local
