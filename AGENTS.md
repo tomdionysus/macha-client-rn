@@ -1,3 +1,11 @@
+# Principles and laws
+
+[`docs/principles-and-laws.md`](docs/principles-and-laws.md) holds the laws
+every Macha project shares, numbered the same in every repo since 2026-09-24
+(Tom's ruling, on core's numbering): **1 control, 2 viewer, 3 loader, 4 do
+not shoot thyself in the foot**. Cite them by that number. Its client review
+gates apply to any material change here.
+
 # Branches and releases
 
 Tom's convention across every Macha repo, set 2026-09-13.
@@ -51,7 +59,7 @@ component tests here would mostly assert what the JSX already says, and the
 behaviour worth protecting is not in the views.
 
 **Not jest-expo, despite it being what the Expo docs prescribe.** Its React
-Native resolver cannot load `@macha/core` through the `file:` link: the barrel
+Native resolver cannot load `@machafoundation/core` through the `file:` link: the barrel
 import resolves into a mix of the package's `src` and `dist`, and core's ESM
 `./host.js` specifiers then fail whatever `moduleNameMapper` you write. Vitest
 handles the ESM natively and matches what core and the web client already use.
@@ -63,6 +71,10 @@ mocked per file — they are environment facts, not collaborators. A module that
 needs more than those stubs offer is a module whose logic wants separating from
 its runtime; `src/playback/policy.ts` was extracted from the provider for
 exactly that reason.
+
+**There is no linter.** `npm run lint` is `expo lint`, which, finding no
+ESLint, installs one into `package.json` and the lockfile without asking.
+It did so on 2026-09-24. Typecheck and tests are the gate.
 
 **Write a test to prove a specific fix, then check it fails against the code
 before the fix.** Every test here that protects something real was written that
@@ -94,5 +106,7 @@ load-bearing correction this project has had came from someone opening the file;
 every wrong one came from a plausible mechanism that fitted the symptom and was
 never checked.
 
-`TODO/COMPLETED.md` records the ones caught so far, including the retired
-headers this client still generates a UUID for.
+`TODO/COMPLETED.md` records the ones caught so far. One caught on 2026-09-24:
+`isAuthRefusal` and the offline fallback tested error classes nothing in the
+app throws, and passed their tests only because the tests threw those
+classes.

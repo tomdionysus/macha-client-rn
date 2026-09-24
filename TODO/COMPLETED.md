@@ -8,6 +8,47 @@ Newest first.
 
 ---
 
+## 2026-09-24 late — The laws standardised, and the documents made true
+
+**Tom's ruling: every Macha project adopts core's law numbering and order**
+(1 control, 2 viewer, 3 loader, 4 do not shoot thyself in the foot), with
+every citation fixed, the changelog included. His words: "DON'T
+reattribute. The concepts haven't changed."
+
+- **This repo had no laws document and cited no law**, by search of `src`,
+  `modules`, the docs and the TODO. `docs/principles-and-laws.md` is now
+  core's text at `65d1594`, word for word, less the numbering-disagreement
+  blockquote. The ownership paragraph is the one exception: core's names its
+  `PlaybackRuntime` and coordinator, which this client does not use, so it
+  names `PlaybackProvider` instead, as checked in `_layout.tsx` and the
+  provider. AGENTS.md points to it.
+- **The other repos were briefed, not edited**, because each had a live
+  session and the server had 35 uncommitted files. The server renumbered 136
+  citations in 33 files by meaning and wrote a merged document; it also
+  found the old "95:5" belonged to viewer against loader, not control. The
+  web client added Law 4, and no number there changed. The TV added the
+  document, keeping core's class names because it does use them; no number
+  changed. Core drops its blockquote once the server commits.
+- **The README was checked claim by claim against the code.** Wrong were:
+  node failover "mid-playback" (it does not work on mobile, Tom 2026-09-21);
+  "availability is never derived locally" (Direct and Remux are greyed out
+  from the codec probe); "only decoders both platforms guarantee, no HDR
+  claim" (measured by the probe since 0.8.0); a library "local filter" (none
+  exists); "four clients" (three, and a library); the TV "on a local module
+  wrapping Media3" (it has expo-video and a module, and uses core's
+  runtime). The hand-kept endpoint list was replaced by what is true: core
+  makes every API request. Also corrected: artwork does send `Authorization`,
+  on core's per-node fallback URLs. Also added: the layout's missing
+  directories (`account`, `downloads`, `scan`, `hooks`, `modules`, `docs`).
+- **AGENTS.md** had the old package name `@macha/core`. It also said this
+  client "still generates a UUID" for the retired viewer-session header,
+  which was deleted that day. It now says there is no linter.
+- **ACTIVE** was rationalised around 0.9.0: what is on the phone, the open
+  list, peers by name, the release procedure as run three times, and the
+  stale 0.6.0/0.8.0/0.18.0 lines.
+
+---
+
 ## 2026-09-24 evening — 0.9.0 released, on core 0.19.0
 
 `main` = `dc60ece`, tag `0.9.0` (annotated), pushed. Tom: "Go for it, core

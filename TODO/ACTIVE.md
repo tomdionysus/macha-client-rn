@@ -14,10 +14,10 @@ source or a device, it says so; where it was taken on trust, it says that too.
 Several entries below exist only because somebody opened the file instead of
 repeating what they were told.
 
-Last rationalised 2026-09-24 afternoon, for a session starting cold after a
-`/clear`; Open item 3 done that evening in `d5a7273`, and four smaller items
-closed after it (COMPLETED, 2026-09-24 evening). Everything done on 2026-09-23 and 2026-09-24 is in COMPLETED under
-those dates; what is below is what is still open, and where things stand.
+Last rationalised 2026-09-24 late, after the 0.9.0 release and the laws
+standardisation, against the code and the repos as they are. Everything done
+is in COMPLETED under its date; what is below is what is still open and where
+things stand.
 
 ---
 
@@ -40,7 +40,11 @@ tag for the release. Working tree clean but for `.claude/settings.json`,
 
 **Never run `npm run lint`.** `expo lint` installs ESLint into
 `package.json` and the lockfile unasked, and did so on 2026-09-24 (reverted
-before the release).
+before the release). AGENTS.md says so too.
+
+**The laws are `docs/principles-and-laws.md`**: core's text and numbering
+(1 control, 2 viewer, 3 loader, 4 foot), adopted across every Macha project on
+Tom's ruling of 2026-09-24. This repo cites none by number yet.
 
 **Check `tsc`'s exit code, not a grep of its output.** Its errors are
 coloured, and `grep "error TS"` does not match through the escape codes — on
@@ -63,22 +67,16 @@ not rebuild it from here while that session is live.
 
 **Nothing has 0.9.0 yet.** Build `assembleRelease` from `main` with the
 registry copy installed and install it (Releasing, step 6) when the A85 is
-back on ADB. Until then: **the A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
-11:01:02, core `460ad1a`, dist `3edcfc76d7a3`. Still `versionCode 800` — **the
-package manager cannot tell it from 0.8.0**; identify it by
-`lastUpdateTime`. **Everything after `22935ca` is built on `develop` and not on
-the phone**: the sheet's landscape insets (`f293cf2`), the reaped-session
-probe (`61ce107`, `a11e150`), and the viewer-text move with Tom's music
-ruling (`0746aa3`), the failure wording and offline fallback
-(`d5a7273`), the connect screen's core gate (`592b904`) and the duration fix
-(`38ee145`). At the last look it had dropped off ADB (asleep); still absent
-from `adb devices` on 2026-09-24 evening.
+back on ADB. It has been off ADB since the morning of 2026-09-24, and was
+still absent at the release.
 
-**Another unpublished core dependency:** `isUnreachable` relies on core
-`f3cf74c` making `unreachableEndpointFailure` read
-`MachaClusterRouteError.unreachable`. Our own check was dropped once core had
-it. Against 0.18.0 the offline fallback would be dead again, and the
-route-shaped tests in `media.test.ts` would say so.
+**The A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
+11:01:02, core `460ad1a`, dist `3edcfc76d7a3`, labelled `versionCode 800` —
+**the package manager cannot tell it from 0.8.0**; identify it by
+`lastUpdateTime`. Everything in 0.9.0 after `22935ca` has never been on a
+device: the landscape insets, the reaped-session probe, the viewer-text move,
+the failure wording and offline fallback, the connect screen's core gate, the
+duration fix and `probeNow`.
 
 **`ramaroja` is offline for the foreseeable future** — Tom, relayed by core
 2026-09-24 as said to it directly. The A85 has it configured beside
@@ -111,50 +109,38 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
 23:32. **Do not attempt a PIN.** Ask Tom to unlock it, and treat anything
 "observed" while it was locked as not observed.
 
-### What shipped in 0.8.0, in one line each
+### What shipped in 0.9.0
 
-- **The codec claim is measured, not asserted.** `modules/macha-codecs` asks
-  `MediaCodecList`; `videoCodecs`, `audioCodecs`, `videoBitDepth`, `hdr` and
-  `dolbyVision` all derive from it, and the HLS delivery lists are the decode
-  lists. Two films that played silently now have sound.
-- **The bar no longer resets to zero** on a transformed generation.
-- **A mode switch we caused no longer triggers a failover** it cannot win.
-- **A refused mode switch reaches the viewer**, in a sentence rather than
-  core's nested envelopes.
-- **Remux asks for a transform the device can play**, and renames the mode
-  when it cannot copy the audio. **Audio only** — it copied ten-bit HEVC
-  the A85 cannot decode; fixed on `develop` 2026-09-23, not in 0.8.0.
-- **A session granted no roles is told to sign in**, not to find an
-  administrator.
-- **`busy` is no longer stranded**, which had disabled Play until restart.
-
-All seven were seen working on the A85 on 2026-09-21 — **on the dev build of
-this tree, not on the tagged 0.8.0**, which nobody has yet seen past the lock
-screen. The evidence for each is in COMPLETED under that date.
+The release commit `dc60ece` lists it, and COMPLETED has each item under
+2026-09-21 to 2026-09-24. In short: failures in the viewer's words, the
+offline fallback working in the app, a reaped session regenerated on its own
+node, sessions a killed process left open closed at the next launch, core's
+sort and search vocabulary, every label written here, Direct and Remux greyed
+out with a reason, Remux copying only audio, and the connect screen on core's
+gate. **None of it has been seen on the tagged build.** 0.8.0's items were
+seen on a dev build of that tree on 2026-09-21; COMPLETED has the evidence.
 
 ### Open, in the order worth taking them
 
-1. **Put `develop` on the A85 and look.** Nothing since `22935ca` has been seen
-   on hardware. Check: album cards read title / artist / year; track search
-   cards read album (year) / artist / "Track 9", both links working; music and
-   playlist rows read album then artist; episode cards still "Season 1
-   Episode 6"; the sort pill still "Sort By Title"; the Playback sheet clear of
-   the navigation bar **in landscape**. Core rebuilds `dist` often — record
-   the core SHA and `dist:hash` with the install.
-2. **Prove the reaped-session probe.** P1 below — a 31-minute pause on the
-   A85. Built on Tom's option A; unproven.
-3. **Look at the new failure wording on the phone** (`d5a7273`). The
-   cheapest check: a refresh with the cluster unreachable should now show
-   the **downloads** rather than an error — the offline fallback could not
-   fire before (COMPLETED, 2026-09-24 evening). Then the home refresh line,
-   a wrong password ("That username or password was not accepted."), and an
-   unnamed playlist reading "Untitled playlist". The connect screen is best
-   tried on the Galaxy, which has no endpoints: a wrong port should now say
-   "did not identify itself as a Macha node" and save on a second tap.
-4. **The rest of the smoke test.** Unrun on hardware: a **quality change**, the
+1. **Put 0.9.0 on the A85 and look** (Releasing, step 6). Check: album cards
+   read title / artist / year; track search cards read album (year) / artist
+   / "Track 9", both links working; music and playlist rows read album then
+   artist; episode cards "Season 1 Episode 6"; the sort pill "Sort By Title";
+   the Playback sheet clear of the navigation bar **in landscape**; remove
+   `ramaroja`.
+2. **The new failure wording and the offline fallback.** The cheapest check:
+   a refresh with the cluster unreachable should show the **downloads**, not
+   an error. Then the home refresh line, a wrong password ("That username or
+   password was not accepted."), and an unnamed playlist reading "Untitled
+   playlist". The connect screen is best tried on the Galaxy, which has no
+   endpoints: a wrong port should say "did not identify itself as a Macha
+   node" and save on a second tap.
+3. **The rest of the smoke test.** Unrun on hardware: a **quality change**, the
    create-failure copy, the player-failure copy, Remux's container branch of
    `directUnavailableReason`, the offline search path. **The account cap still
    cannot be tested** — the node limit refuses first.
+4. **Prove the reaped-session probe** — the 31-minute pause, P1 below. Left
+   out of 0.9.0 by Tom's decision; the probe shipped unproven.
 5. **Zulu**, **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** — P2 below.
 
 **Not built, deliberately:** the web Search page's A–Z index (shown only under
@@ -175,17 +161,19 @@ cost on the way.** "One `pm clear` and a login" is a complete instruction that
 says nothing about 539 MB of downloads. Whoever relays is the last person who
 can attach the price.
 
-### Peer sessions, 2026-09-24
+### Peer sessions
 
-**`Macha Client Core`** (`uds:/tmp/cc-socks/40630.sock` this run) and **`Macha
-Client`**, the web client (`uds:/tmp/cc-socks/23042.sock`), both message this
-session. **Relayed rulings are confirmed with Tom before building** — two hops
-is where a claim stops being checked. Rulings core says Tom gave it
-*directly* have been accepted, and one (the music lines) was still asked about
-because it changed work already done. Reply to a message by copying its
-`from` address.
+Sessions are addressed **by name** (`ListAgents` lists them): **`Macha
+Client Core`**, **`Macha Server`**, **`Macha Client`** (the web client) and
+**`Macha Android TV RN Client`**. Socket paths change every run; reply to a
+message by copying its `from` address. **Relayed rulings are confirmed with
+Tom before building** — two hops is where a claim stops being checked.
+Rulings core says Tom gave it *directly* have been accepted, and one (the
+music lines) was still asked about because it changed work already done.
+**Do not edit another session's repo while it is live**: send the brief and
+let the owner do it by meaning (the laws renumbering, 2026-09-24).
 
-### Releasing — run end to end twice now, and none of it optional
+### Releasing — run end to end three times now, and none of it optional
 
 0. **Leaving the link needs the ranged install; returning needs nothing
    special.** `npm install @machafoundation/core@^x.y.z` replaces the symlink
@@ -194,8 +182,8 @@ because it changed work already done. Reply to a message by copying its
    deleting `node_modules/@machafoundation` first — npm restores the link from
    the lockfile entry. Coming back, `package.json` to `file:../macha-ts` and a
    plain `npm install` restores the link and
-   `{"resolved": "../macha-ts", "link": true}`. Measured for 0.7.0 and again
-   for 0.8.0, npm 11.9.0 / node 24.14.0. **Read `resolved` in the lockfile,
+   `{"resolved": "../macha-ts", "link": true}`. Measured for 0.7.0, 0.8.0 and
+   0.9.0, npm 11.9.0 / node 24.14.0. **Read `resolved` in the lockfile,
    never `package.json` and never the version string.** The television
    session's competing account concerns the delete-then-plain-install case;
    that case has not been re-run and their answer has not arrived.
@@ -204,7 +192,7 @@ because it changed work already done. Reply to a message by copying its
    and one publish was announced complete after failing `EOTP`.
 2. `npm install @machafoundation/core@^x.y.z`. Either on `main` after a
    fast-forward from `develop` (0.8.0), or on `develop` with `main`
-   fast-forwarded to it afterwards (0.7.0). **Either way `develop` must end up
+   fast-forwarded to it afterwards (0.7.0, 0.9.0). **Either way `develop` must end up
    containing the release commit.**
 3. `test -L node_modules/@machafoundation/core` must **fail**, and the lockfile
    `resolved` must be a registry URL. Those two cannot lie.
@@ -213,9 +201,14 @@ because it changed work already done. Reply to a message by copying its
    commit**; `npm install` to sync the
    lockfile's own version; `npx expo prebuild --platform android`; `npm run
    version:check`; typecheck; tests; a real `expo export`.
+   **Then prove it standalone:** clone the tag into a scratch directory with
+   no `../macha-ts` beside it, `npm ci`, typecheck, tests (first done for
+   0.9.0).
 5. Commit; `git tag -a x.y.z`; push `main` and the tag; `version:check` once
    more with the tag in place. Then back on `develop`: `file:../macha-ts`,
    plain `npm install`, `test -L` must **succeed**, suite green, commit.
+   `version:check` refuses the link while `HEAD` is still the tagged commit.
+   That is by design, and it passes once the relink is committed.
 6. `assembleRelease` from `main` with the registry copy installed. Gate the
    install on `ro.product.model` **and** `ro.serialno` in the same invocation
    as `adb -s <A85> install -r`, and confirm `dumpsys package
@@ -225,7 +218,8 @@ because it changed work already done. Reply to a message by copying its
 link an APK carries whatever `../macha-ts/dist` held when Gradle ran: record
 the core SHA and `npm run dist:hash` beside any device measurement. A release
 build from `main` carries the registry tarball, whose integrity hash is in the
-lockfile — a better identity, and COMPLETED's 0.8.0 entry records it.
+lockfile — a better identity. COMPLETED's 0.8.0 and 0.9.0 entries record
+theirs.
 
 ### What is verified on hardware, which is the useful half of knowing
 
@@ -238,9 +232,9 @@ by a person:** the QR scanner. **Never run on hardware at all:** the gate's
 `no-session` branch, which needs `allow_anonymous` off to reach, and the
 node-row paste path, which `adb shell input text` cannot emulate.
 
-**None of it has been re-verified on 0.8.0.** Everything measured on
-2026-09-21 was on the dev build of the same tree; the tagged build has only been
-seen to install and start.
+**None of it has been re-verified on a tagged build.** Everything measured on
+2026-09-21 was on a dev build of the 0.8.0 tree. The tagged 0.8.0 was only
+seen to install and start, and 0.9.0 has not been installed anywhere.
 
 **`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat |
 grep ReactNativeJS` shows core's routing, health and registry logs live. It is
@@ -255,15 +249,15 @@ after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has a **dev build
   of `22935ca`** labelled `versionCode 800` since 2026-09-24 11:01 (*What is
-  on the phone*).
-  2026-09-23, `:35737` and `:41931` on 2026-09-21: the port rotates, so
+  on the phone*). Wireless ADB ports seen: `:35737` and `:41931` on
+  2026-09-21, and others since. The port rotates, so
   rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
   succeeds. It drops when the phone sleeps — a screenshot of a sleeping phone
   is solid black; check `dumpsys power` for `mWakefulness` and send
   `KEYCODE_WAKEUP` before believing a blank capture. **It has a secure lock
   screen** that no ADB command here clears. It has **both** a remote TLS
-  cluster (`https://macnessa.macha.network`, `ramaroja`) and a **LAN node at
+  cluster (`https://macnessa.macha.network`, and `ramaroja`, now offline) and a **LAN node at
   `10.35.1.50`** configured; on the last smoke test playback went to the LAN
   node while the catalogue came from `macnessa`. The LAN is `10.35.1.x`.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
@@ -285,7 +279,8 @@ and abort if it is not `foundation.macha.client`.
 ## P1 — A reaped session is charged to the node that answered honestly — built, unproven
 
 **Built 2026-09-24 in `61ce107` (+ the `player-error-settling` log line in
-`a11e150`) on Tom's option A; not yet run on hardware.** The design history —
+`a11e150`) on Tom's option A; shipped in 0.9.0 unproven, the 31-minute run
+left out of the release by Tom's decision.** The design history —
 core's corrected sequence, the attribution question, the divergence on a live
 session — is in COMPLETED under 2026-09-24, *The reaped-session probe*.
 
@@ -494,17 +489,16 @@ Nothing here can be done from this machine alone. The Galaxy is the better
 device for the camera and the paste — clean install, no endpoints, opens on the
 connect screen.
 
-- **Unlock the A85 and look at 0.8.0.** The tagged build was installed
-  2026-09-21 23:31 and launched; the process is alive and `MainActivity` is the
-  focused app, but the phone is behind a secure lock screen that no ADB command
-  here clears, so nobody has seen it render. Until someone has, "the A85 has
-  0.8.0" means installed, not working.
+- **Unlock the A85 for the 0.9.0 install.** It has a secure lock screen
+  that no ADB command here clears (*Driving the phone*), so a person has to
+  unlock it before anything installed can be seen to render.
 - **The camera.** Never used. The permission prompt, a real code read at a real
   distance, and the second refusal — where the prompt becomes a link to
   Settings rather than another request.
 - **Pasting a list of addresses into a node row.** `editRow`'s split path is
   unit-tested only; `adb shell input text` cannot emulate a clipboard paste.
-- **The 31-minute pause** for the reaped-session P1 above, once it is wired.
+- **The 31-minute pause** for the reaped-session P1 above. It is wired, and
+  it shipped in 0.9.0 unproven.
 - **The two open segment-hold measurements** in the native-player-error-opacity
   note (COMPLETED, 2026-09-08): whether a cold session on either engine ever
   receives a 500 before its own read timeout, and the prefetch arithmetic. Both
@@ -591,8 +585,8 @@ invocation**, capturing to `/sdcard` between steps and pulling afterwards.
 Also lock rotation first: the app forces landscape in fullscreen and portrait
 coordinates then land somewhere else entirely.
 
-**None of this is verified against the current tree.** The A85 runs 0.6.0,
-which predates the seek-window work in 0.7.0 and everything since.
+**None of this is verified against the current tree.** It was driven on 0.6.0,
+before the seek-window work in 0.7.0 and everything since.
 
 ---
 
@@ -890,6 +884,15 @@ Do not chase a self-changing node count as a bug.
 
 ## Waiting on other sessions
 
+**The laws standardisation, 2026-09-24** (Tom's ruling, briefed to each
+owner): the server has renumbered to core's order, 136 citations in 33 files
+by meaning, **not yet committed** at the last word, and has written a merged
+`docs/principles-and-laws.md` that core may adopt. The web client added
+Law 4. The TV added the document (`95a5664`, local, unpushed). Core drops its
+"numbering disagrees" blockquote once the server's commit lands. If core
+adopts the server's merged text, this repo's copy should follow; its header
+names the commit it came from (`65d1594`).
+
 **Optional, from core `b47773d`:** `seedEndpoints({ configured, environment?,
 remembered? })` is the shared form of what `MachaProvider.tsx` does with
 `applyAdvertisement`. Ours is already the right shape, so adopting it removes
@@ -942,7 +945,8 @@ here. Details in the server's `CHANGELOG.md` under 0.56.0.
   was wrong (see COMPLETED). The Android TV client is the first that can
   promote a standby and will report what actually happens. **Do not re-file
   without that result.**
-- **Core `0.18.0` is on npm** (2026-09-21T19:31Z) and 0.8.0 pins it. `0.15.0`
+- **Core `0.19.0` is on npm** (2026-09-24T17:42Z) and 0.9.0 pins it. Before
+  it, `0.18.0` (2026-09-21T19:31Z) was pinned by 0.8.0. `0.15.0`
   and `0.16.0` were superseded and will never be published; `0.17.0` was
   tagged and overtaken. Everything they carried — the walk fix, the bounded
   recovery, the encoder-speed reading, the three accessors, and the breaking
@@ -1015,7 +1019,9 @@ session says which way it goes.
 
 Recorded so they are not re-raised.
 
-- **The tree compiles against published core 0.18.0 and against the link at
+- **0.9.0 compiles and passes 290 tests against published core 0.19.0**,
+  including from a fresh clone with no `../macha-ts` (2026-09-24). **The
+  tree compiled against published core 0.18.0 and against the link at
   `a3b40ca`** with no edits — both on 2026-09-21 during the release — and
   against 0.14.0 and core's then-`develop` on 2026-09-20 by pointing `tsc` at
   each `dist` in turn.

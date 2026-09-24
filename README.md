@@ -19,20 +19,21 @@ matching Macha — see [`LICENSE`](LICENSE).
 
 ## Where this sits in the project
 
-Macha has four clients, and they share their brains rather than their views:
+Macha has three clients and one shared library, and the clients share their
+brains rather than their views:
 
 | | |
 |---|---|
 | **`@machafoundation/core`** (`../macha-ts`) | The shared TypeScript library: cluster routing, session lifecycle, playback decoding and negotiation, the model layer, per-device stores. On `develop` it is linked with `file:../macha-ts`, so **core's working tree is this client's code** — a rebuild picks up uncommitted changes, and `dist/` is what actually resolves. A release on `main` pins the published package instead; see `AGENTS.md`. |
 | **This repo** | The phone. |
-| **Android TV client** | The television, on a local Expo module wrapping Media3 directly. |
+| **Android TV client** (`../macha-client-rn-tv`) | The television. A separate React Native codebase: nothing measured on it transfers to this one. |
 | **Web/TV client** (`../macha-client`) | Browser, Samsung Tizen and TCL sets. Also owns administration. |
 
 Anything not phone-specific belongs in core, not here. The convergence work is
 mostly done: `src/api/` is now thin adapters over core, and four local modules
 were deleted outright when core grew their equivalents.
 
-**One difference matters when reading core's release notes.** The other three
+**One difference matters when reading core's release notes.** The other
 clients drive playback through core's `PlaybackCoordinator`; this one calls
 `ClusterPlaybackResolver` directly and owns its player lifecycle in
 `PlaybackProvider`. So a fix made *inside* the coordinator does not reach this
@@ -43,7 +44,8 @@ check before assuming.
 
 - **Thumb-first navigation.** Primary sections in a docked bottom bar; every
   control at least 44 pt tall.
-- **Portrait everywhere except the picture.** The player alone unlocks rotation.
+- **Portrait everywhere except the picture.** The player alone leaves portrait,
+  and its fullscreen toggle locks landscape.
 - **A docked mini player.** Leaving the full-screen player keeps playback running
   and hands it to a bar above the navigation — the same owned session, not a
   second one.
@@ -58,14 +60,19 @@ check before assuming.
 
 ## What it does
 
-Connection gate (one node address; the cluster is discovered from it) · Home
-rails · film, series → season → episode and artist → album → track navigation ·
-library grids with local filter and catalogue search · Continue Watching and a
-play queue, both per-device · named music playlists · offline downloads ·
-playback-session negotiation with Direct/remux/transcode and in-session mode,
-quality, audio, subtitle and representation switching · full-screen player with
-buffered-range seek bar, fullscreen toggle and picture-in-picture · node failover
-mid-playback · cluster status.
+Connection gate (one or more node addresses, typed or scanned from a QR code;
+the rest of the cluster is discovered) · optional login · Home rails · film,
+series → season → episode and artist → album → track navigation · library grids
+ordered by core's sort choices · catalogue search by core's terms and categories ·
+Continue Watching and a play queue, both per-device · named music playlists ·
+offline downloads · playback-session negotiation with Direct/Remux/transcode and
+in-session mode, quality, audio, subtitle and version switching · full-screen
+player with buffered-range seek bar, fullscreen toggle and picture-in-picture ·
+a reaped session regenerated on its own node · cluster status.
+
+**Node failover mid-playback does not work on this client** (Tom, 2026-09-21).
+The code for it is there; the recovery it attempts does not succeed on a phone.
+See `TODO/ACTIVE.md`.
 
 Continue Watching, the play queue, playlists and downloads are local device
 state. They are never sent to Macha.
@@ -86,36 +93,48 @@ enabled, and Xcode or Android Studio. **Expo Go cannot run this app** —
 exact versioned Expo docs (SDK 57) before writing code; the APIs have changed.
 
 On first launch, enter any node address — `192.168.1.20:7438`, `macha.local`, or
-a full URL. A bare host is assumed to be plain HTTP on port 7438. The client then
-mints an anonymous session; there is no token to type in, on any Macha client.
+a full URL — or scan a code. A bare host is assumed to be plain HTTP on port
+7438. The client then mints an anonymous session; there is no token to type in,
+on any Macha client. Logging in, from Settings or the account marker on Home,
+is optional.
 
 ## Layout
 
 ```text
 src/
-  api/          Thin adapters over @machafoundation/core. Nothing above this parses Macha JSON.
-                errors, http, session, catalogue, media, playback, status,
-                offlineLibrary
+  api/          Thin adapters over @machafoundation/core, plus the viewer wording
+                for failures (failureMessages). This client parses no Macha JSON.
+  account/      Media access: what the session's roles let this viewer do
+  downloads/    DownloadManager: offline copies, one session lease at a time
   state/        Per-device persistence over AsyncStorage, hydrated once at startup
-  playback/     Device capability profile, seek/transform policy, audio engine
-  providers/    MachaProvider (services) and PlaybackProvider (the runtime)
-  ui/           Theme, primitives, composite views
+  playback/     Capability profile and codec probe, playback policy, audio engine
+  providers/    MachaProvider (services) and PlaybackProvider (the playback owner)
+  scan/         QR endpoint codes
+  hooks/, ui/   Hooks; theme, primitives, composite views, every viewer label
   app/          expo-router routes
+modules/
+  macha-codecs/ Local Expo module: asks Android's MediaCodecList what it decodes
+docs/           principles-and-laws.md — the laws every Macha project shares
 TODO/           ACTIVE.md and COMPLETED.md — see below
 ```
 
-### Endpoints used
+### What talks to Macha
 
-```text
-POST   /api/v1/session
-GET    /api/v1/catalogue/status | items | items/{id} | search | artwork/{sha256}
-GET    /api/v1/catalogue/media/{media_id}/profile
-POST   /api/v1/playback/sessions          PATCH|DELETE .../{id}
-GET    /api/v1/playback/media             (playback facts)
-GET    /api/v1/status | /api/v1/status/nodes/{id}
-```
+Every API request goes through core: session, users, catalogue, playback
+sessions, status and the liveness check. The list of routes is core's to keep,
+not this file's. This client's own requests are only the ones core cannot make:
+the native player fetching a session's `source.url`, the image loader fetching
+artwork URLs, and `DownloadManager` saving media and artwork to the device.
+Every one of those URLs comes from core. Media URLs carry no header, and
+cannot: neither the native player nor the downloader can set one. Artwork
+sends the session's `Authorization` only on the per-node fallback URLs core
+marks `requiresAuthorization`. Signed capability URLs need nothing.
 
 ## Invariants worth knowing before changing playback
+
+The laws that order everything below are in
+[`docs/principles-and-laws.md`](docs/principles-and-laws.md), shared by every
+Macha project and numbered the same in all of them.
 
 - **Configured URLs are bootstrap seeds, not a membership list.** Any node can
   answer any request; a failure on one is retried on the next rather than shown
@@ -126,21 +145,25 @@ GET    /api/v1/status | /api/v1/status/nodes/{id}
 - **Transitions are generation-ordered.** A session whose POST completes after its
   generation was superseded is deleted rather than activated — a node never holds
   two transcode entitlements for one viewer.
-- **Availability is never derived locally.** The node's advertised options drive
-  the playback controls. Direct is the one exception: always offered as an
-  explicit override.
-- **Capabilities are honest and narrow.** Only decoders both platforms guarantee,
-  no HDR claim, no decoder resolution limit (screen size is not one), and HLS
-  codec lists narrower than the direct lists because ExoPlayer's HLS path is.
+- **Availability comes from the node and the device, never a guess.** The
+  node's advertised options drive the playback controls. Direct and Remux stay
+  in the menu, greyed out with a reason, when this device cannot decode what
+  they would copy.
+- **Capabilities are measured, not asserted, where they can be.** On Android,
+  `modules/macha-codecs` asks `MediaCodecList`, and the video and audio codecs,
+  bit depth, HDR and Dolby Vision all come from that. Containers and the iOS
+  and web branches are still asserted; `TODO/ACTIVE.md` lists what is left.
 - **Stream and artwork URLs are short-lived capability URLs** and are fetched
   without credentials unless the source says otherwise.
-- **Segment traffic never passes through `src/api/http.ts`.** The native players
-  fetch segments themselves, so a segment's HTTP status cannot reach endpoint
-  health — and `PlayerError` carries no status, code or cause.
+- **Segment traffic never passes through JavaScript.** The native player
+  fetches segments itself, so a segment's HTTP status cannot reach endpoint
+  health, and expo-video's `PlayerError` is `{ message }` alone: media3's
+  `errorCode` is dropped inside expo-video.
 
 ## Working here
 
-`AGENTS.md` has the rules that are easy to get wrong: why the test suite is
+`AGENTS.md` has the rules that are easy to get wrong: branches and releases,
+linked core on `develop` and published core on `main`, why the test suite is
 vitest rather than jest-expo, and the requirement to prove a test fails before
 the fix it protects.
 
