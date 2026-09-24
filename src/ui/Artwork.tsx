@@ -63,6 +63,8 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
       transition={160}
       cachePolicy="memory-disk"
       onError={() => setAttempt((current) => current + 1)}
+      // Success only, so core's host preference follows bytes that arrived.
+      onLoad={() => media.noteArtworkLoaded(source.url)}
     />
   );
 }

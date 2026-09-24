@@ -111,6 +111,19 @@ export class MediaApi {
     return this.live.artworkUrls(ref);
   }
 
+  /**
+   * Tells core an artwork URL loaded, so later candidates prefer its host.
+   *
+   * Core cannot see this success itself: `expo-image` fetches and caches on
+   * its own, keyed on the whole URL. Without this, a pre-emptive endpoint swap
+   * reorders the candidates, renames every poster and re-downloads bytes the
+   * device already holds. Success only; a failed candidate must not move the
+   * preference.
+   */
+  noteArtworkLoaded(url: string): void {
+    this.live.noteArtworkLoaded(url);
+  }
+
   home(signal?: AbortSignal): Promise<LibraryHome> {
     return this.serve(() => this.live.home(signal), (library) => library.home());
   }
