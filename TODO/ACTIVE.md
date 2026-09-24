@@ -547,8 +547,30 @@ project keeps retracting. Two routes that do not match wording:
    fixed on `develop`. That makes a runtime fallback a second line, not the
    first.
 
-**Ask Tom** whether he wants it on the phone, given (2) already covers the
-cases seen so far. Relayed rulings are confirmed before building.
+**Core's answer, 2026-09-24.** Core's coordinator classifies nothing; the
+adapter does. The web maps `MediaError.code` (3 → `media`, 4 →
+`unsupported`), a structured code. The television is in our position, and
+its AVI failure reached core as `unknown`. Core prefers (2), and warns that
+(1) masks node and network faults. **Its narrowing fits a branch we already
+have:** fall back only when `sessionAlive` says the session is alive. The
+reaped-session probe already asks that, and its `alive` outcome currently
+fails over. "Alive, a copy mode the viewer did not choose, first time" →
+transcode would slot into `recoveryAfterProbe`.
+
+**A third route, found by opening the file** (expo-video 57.0.4,
+`android/.../records/PlaybackError.kt`). The record JS receives is built
+*from* media3's `PlaybackException` and keeps only `localizedMessage`.
+**`exception.errorCode` is in hand there and discarded.** One `@Field var
+code: Int?` set from it would give JS the 4001–4005 decoder family, and
+`2004` (`ERROR_CODE_IO_BAD_HTTP_STATUS`, though not the status itself).
+That's a patch to expo-video (patch-package, or upstream), not a native
+module, plus a prebuild and cold Gradle build. It would also help the media3
+P1 read what the player actually went terminal on.
+
+**Ask Tom** whether he wants the fallback on the phone at all, given (2)
+already covers the cases seen so far, and if so, whether by the probe's
+`alive` branch or by the `errorCode` patch. Relayed rulings are confirmed
+before building.
 
 ---
 
