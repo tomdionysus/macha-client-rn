@@ -6,6 +6,13 @@ every Macha project shares, numbered the same in every repo since 2026-09-24
 not shoot thyself in the foot**. Cite them by that number. Its client review
 gates apply to any material change here.
 
+**A citation must be accurate to the canonical text** (Tom, 2026-09-24): cite
+the law whose own words make the point. If the point comes from a principle,
+cite the principle by name instead. The web client once cited "Law 2" for
+"degraded states must be visible", which is the principle *Work is bounded
+and event-driven*. Who said or added something, and when, is never
+rewritten.
+
 # Branches and releases
 
 Tom's convention across every Macha repo, set 2026-09-13.

@@ -889,10 +889,11 @@ owner): the server has renumbered to core's order, 136 citations in 33 files
 by meaning, in **macha `c85ba51`** (on `origin/develop`, checked; its document
 reads 1 control, 2 viewer, 3 loader, 4 foot). It also wrote a merged
 `docs/principles-and-laws.md` that core may adopt. The web client added
-Law 4. The TV added the document (`95a5664`, local, unpushed). **Open with
-Tom, from the web client:** its Law 2 citation for "a degraded state must be
-visible" belongs to a principle, not the viewer law; left as written under
-"don't reattribute" until he rules. Core removed its
+Law 4. The TV added the document (`95a5664`, local, unpushed). **Tom ruled on
+the web client's misattributed Law 2** ("a degraded state must be visible" is
+the principle *Work is bounded and event-driven*): "All attributions must be
+accurate to the canonical lawset we just merged." Every owner was briefed to
+check citations for meaning, not just number; this repo cites none. Core removed its
 "numbering disagrees" note in `89df8b3`, and this repo's copy matches core's
 text there apart from its header and ownership paragraph. If core adopts the
 server's merged text, this repo's copy should follow; its header names the
