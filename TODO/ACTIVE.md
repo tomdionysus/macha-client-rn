@@ -25,66 +25,34 @@ those dates; what is below is what is still open, and where things stand.
 
 **Read this section before anything.**
 
-### Release in preparation — Tom, 2026-09-24 evening
-
-**Tom: "We're going to do a release, so clear up what is in flight and
-stabilise."** Scope: everything on `develop`. The 31-minute pause test is
-explicitly **out**, and the probe ships unproven on hardware. State at
-`1d0c7b5`:
-
-- **Blocked on a core publish.** npm still has **0.18.0**, and core's
-  `package.json` still says `0.18.0` at `d8600cb`. `develop` needs core
-  `f3cf74c` or later at minimum (`unreachableEndpointFailure` reading the
-  route error, without which the offline fallback is dead again), plus
-  everything listed under *Core* below. Then run the *Releasing* procedure
-  in full.
-- **Working tree not clean, and not by design.** `npm run lint` (`expo
-  lint`) at 18:09 installed ESLint on its own: `eslint` and
-  `eslint-config-expo` in `package.json`, a rewritten lockfile, and
-  `eslint.config.js`. Nothing is committed. Reverting it and running `npm
-  install` was refused by the harness as destructive, so it is Tom's to run.
-  **Do not run `npm run lint` again** until ESLint is a deliberate
-  dependency. Until the revert, `node_modules` does not match the lockfile
-  and no check run against it counts.
-- **On-phone checks before tagging** (Open items 1, 3, 4), all waiting on the
-  A85 coming back to ADB: install `develop`, then look at the viewer text,
-  the offline fallback, the connect screen, and removing ramaroja.
-
 ### Where the code is
 
-**`main` is at `7932542`, tagged `0.8.0`, pushed, unchanged since.**
-`git log develop..main` is empty and must stay so.
+**`main` is at `dc60ece`, tagged `0.9.0` (annotated), pushed 2026-09-24
+evening**, pinning published core **`^0.19.0`**. A fresh clone of the tag,
+with no `../macha-ts` beside it, runs `npm ci`, typechecks clean and passes
+290 tests. `git log develop..main` is empty and must stay so.
 
-**`develop` is well past `main`, and pushed through `287e79b` on Tom's word
-(2026-09-24 evening)** — check `git log origin/develop..develop` for anything
-after. Suite **290 tests across 25 files, typecheck clean, `expo export`
-builds** at `287e79b`, against the linked core at `6fd7747` (dist
-`b1a7c8dd8ee5`). Core `9654e1e` in that range hedges cached-token validation
-across nodes (1 s per dead node, not 8) and keeps a cached session when no
-node answers rather than re-minting — relevant to the 30-day P1 and the
-unexplained sign-out of 2026-09-16. Working tree clean but for
-`.claude/settings.json`, `CLAUDE.local.md` and `basemind.toml`, none of which
-are this work.
+**`develop` is `27bf0d3`, the release commit plus the relink to
+`file:../macha-ts`**, with the link confirmed (`test -L`, lockfile
+`{"resolved": "../macha-ts", "link": true}`). Core is frozen at its 0.19.0
+tag for the release. Working tree clean but for `.claude/settings.json`,
+`CLAUDE.local.md` and `basemind.toml`, none of which are this work.
+
+**Never run `npm run lint`.** `expo lint` installs ESLint into
+`package.json` and the lockfile unasked, and did so on 2026-09-24 (reverted
+before the release).
 
 **Check `tsc`'s exit code, not a grep of its output.** Its errors are
 coloured, and `grep "error TS"` does not match through the escape codes — on
 2026-09-24 that read zero errors where there were twenty. `npx tsc --noEmit
 -p . >/dev/null; echo $?`, or pipe to `head` and read it.
 
-### Core — `develop` cannot be released until core publishes
+### Core — linked on `develop`, published on `main`
 
 `package.json` pins `file:../macha-ts` on `develop`; a release on `main` pins
 the published package; **a `file:` dependency must never reach `main`**, and
-`version:check` refuses one there mechanically. Published core is still
-**`0.18.0`**. **`develop` now depends on a great deal of unpublished core**:
-the sort vocabulary (`LIBRARY_SORTS`, `SEARCH_SORTS`, `orderMedia`), search
-categories and terms (`SEARCH_CATEGORIES`, `isSearchable`, `searchTerms`,
-`searchCategoryOf`), the regenerate codes (`SESSION_PROVENANCE_UNKNOWN_CODE`,
-`REGENERATION_ENDPOINT_GONE_CODE`), and **core's removal of all viewer text**
-(`MediaSummary.subtitle`, the label helpers, sort and category labels — all
-gone on core `develop` from `826e38a`). **The next release waits on a core
-publish — Tom's call** — and then the full registry procedure under
-*Releasing*, not a lockfile edit.
+`version:check` refuses one there mechanically. Published core is
+**`0.19.0`** (2026-09-24T17:42Z, gitHead `4e1746a`), which 0.9.0 pins.
 
 **Core moves several times a day.** `git -C ../macha-ts log --oneline -1`, `git
 -C ../macha-ts status --short`, and `npm run dist:hash` in core before trusting
@@ -93,7 +61,9 @@ not rebuild it from here while that session is live.
 
 ### What is on the phone
 
-**The A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
+**Nothing has 0.9.0 yet.** Build `assembleRelease` from `main` with the
+registry copy installed and install it (Releasing, step 6) when the A85 is
+back on ADB. Until then: **the A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
 11:01:02, core `460ad1a`, dist `3edcfc76d7a3`. Still `versionCode 800` — **the
 package manager cannot tell it from 0.8.0**; identify it by
 `lastUpdateTime`. **Everything after `22935ca` is built on `develop` and not on

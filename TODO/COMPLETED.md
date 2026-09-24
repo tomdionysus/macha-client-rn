@@ -8,6 +8,40 @@ Newest first.
 
 ---
 
+## 2026-09-24 evening — 0.9.0 released, on core 0.19.0
+
+`main` = `dc60ece`, tag `0.9.0` (annotated), pushed. Tom: "Go for it, core
+0.19.0".
+
+- **Core 0.19.0 confirmed on npm** with our own `npm view` (published
+  17:42Z) before pinning. Core said gitHead `4e1746a` is its tag and the
+  candidate verified here (dist `fd176b93dc4a`). The published dist contains
+  `f3cf74c` (checked for `MachaClusterRouteError` in `endpointFailure.js`).
+- `npm install @machafoundation/core@^0.19.0`: not a link, lockfile
+  `resolved` is the registry tarball, integrity
+  `sha512-PFgyL9hzP/f/D9vAHsvjPA3FR/U0RkwDny4liGd5m8ra9eTqOtGGNxRtrt0aNxjVvOTqw/FnVWMoRxatbba0hw==`,
+  and no `macha-ts` left in the lockfile.
+- Version 0.9.0 / `versionCode 900` in `package.json`, `app.json` and the
+  README, in the release commit. Prebuild wrote them to `build.gradle`.
+  `version:check` consistent, before and after tagging. Typecheck clean, 290
+  tests, `expo export` builds, all against the registry copy.
+- **Proved standalone:** a fresh clone of the tag from GitHub, with no
+  `../macha-ts`, ran `npm ci`, typechecked clean and passed 290 tests.
+- Back on `develop` (`27bf0d3`): `file:../macha-ts`, plain `npm install`,
+  link confirmed, 290 tests, `version:check` consistent once `HEAD` left the
+  tagged commit. It refuses the link on the tagged commit itself, as
+  designed.
+- **Before it:** the stray ESLint install from `npm run lint` was reverted
+  on Tom's go-ahead. It had only added 240 packages, changed and removed
+  none (compared lockfile against lockfile), so the checks run while it
+  sat there stood.
+
+**Not done:** no `assembleRelease` and no install anywhere, since the A85 is
+off ADB. **The 31-minute pause test is out of this release by Tom's
+decision**, so the reaped-session probe ships unproven on hardware.
+
+---
+
 ## 2026-09-24 evening — Failure wording off core's log text; the offline fallback that could not fire
 
 `d5a7273`, then `38ee145`, `592b904`, `287e79b`. Suite **290 across 25 files**, typecheck clean against core
