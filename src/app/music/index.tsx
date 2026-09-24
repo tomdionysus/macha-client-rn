@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { trackSubtitle } from '@machafoundation/core';
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { newestCatalogueFirst } from '../../api/media';
@@ -291,7 +292,7 @@ function TrackRow({
             {track.title}
           </Text>
           <Text numberOfLines={1} style={styles.trackSubtitle}>
-            {[track.musicContext?.artist?.title, track.musicContext?.album.title].filter(Boolean).join(' · ')}
+            {trackSubtitle(track)}
             {playCount > 0 ? `  ·  ${playCount} play${playCount === 1 ? '' : 's'}` : ''}
           </Text>
         </View>

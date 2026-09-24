@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { episodeLabel } from '@machafoundation/core';
+import { albumLabel, episodeLabel, trackNumberLabel } from '@machafoundation/core';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { Artwork } from './Artwork';
 import { CloseIcon, PlayIcon } from './Icons';
@@ -42,6 +42,8 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
   const router = useRouter();
   const cardShape = shape ?? shapeFor(item.kind);
   const episode = episodeLinks(item);
+  const track = item.kind === 'track' ? item.musicContext : undefined;
+  const trackNumber = item.kind === 'track' ? trackNumberLabel(item) : undefined;
   const height = width / ASPECT[cardShape];
   const artwork =
     cardShape === 'still'
@@ -98,6 +100,29 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
               onPress={() => navigateTo(router, hrefFor('season', episode.seasonId))}
               style={styles.subtitle}>
               {episode.label}
+            </Text>
+          ) : null}
+        </>
+      ) : track ? (
+        <>
+          {/* Core's `trackSubtitle` wording — "Artist - Album (year)" — with
+              each half a link, as on the web (Tom, 2026-09-24). */}
+          <Text numberOfLines={1} style={styles.subtitle}>
+            {track.artist ? (
+              <>
+                <Text accessibilityRole="link" onPress={() => navigateTo(router, hrefFor('artist', track.artist!.id))}>
+                  {track.artist.title}
+                </Text>
+                {' - '}
+              </>
+            ) : null}
+            <Text accessibilityRole="link" onPress={() => navigateTo(router, hrefFor('album', track.album.id))}>
+              {albumLabel(track)}
+            </Text>
+          </Text>
+          {trackNumber ? (
+            <Text numberOfLines={1} style={styles.subtitle}>
+              {trackNumber}
             </Text>
           ) : null}
         </>

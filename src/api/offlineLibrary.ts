@@ -1,4 +1,10 @@
-import { compareIndexedTitles } from '@machafoundation/core';
+import {
+  compareIndexedTitles,
+  isSearchable,
+  searchCategoryOf,
+  searchTerms,
+  type SearchCategoryKey,
+} from '@machafoundation/core';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import { offlineMedia } from '../state/downloads';
 import type { AlbumDetails, ArtistDetails, LibraryHome, MediaDetails, MediaSummary, SeasonDetails, ShowDetails } from '../types';
@@ -114,15 +120,9 @@ export class OfflineLibrary {
     return { movies: this.movies(), shows: this.shows(), albums: this.albums() };
   }
 
-  search(query: string): MediaSummary[] {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return [];
+  search(query: string, categories?: readonly SearchCategoryKey[]): MediaSummary[] {
     const haystack = [...this.movies(), ...this.shows(), ...this.albums(), ...this.artists(), ...this.tracks(), ...this.episodes()];
-    return haystack.filter((item) =>
-      [item.title, item.musicContext?.album.title, item.musicContext?.artist?.title, item.playbackContext?.series.title]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(needle)),
-    );
+    return searchOffline(haystack, query, categories);
   }
 
   /** Detail for anything reachable offline, assembled from what is stored. */
@@ -189,4 +189,35 @@ export class OfflineLibrary {
 
     return direct;
   }
+}
+
+/**
+ * Search over what is downloaded, on the same terms as the live search.
+ *
+ * Tom's rulings, relayed by core and confirmed here 2026-09-24: "the", "a" and
+ * "an" are never searched on, at least `MIN_SEARCH_TERM_LENGTH` characters must
+ * be left, and the category toggles narrow the result — an empty list means
+ * nothing, absent means everything. Core applies all three inside
+ * `MachaMediaApi.search`; this is the offline path, which applied none, so the
+ * same query answered differently in airplane mode. The rules are core's
+ * functions, used as they are.
+ */
+export function searchOffline(
+  haystack: readonly MediaSummary[],
+  query: string,
+  categories?: readonly SearchCategoryKey[],
+): MediaSummary[] {
+  if (!isSearchable(query)) return [];
+  if (categories && categories.length === 0) return [];
+  const needle = searchTerms(query).toLowerCase();
+  const allowed = categories ? new Set(categories) : undefined;
+  return haystack.filter((item) => {
+    if (allowed) {
+      const category = searchCategoryOf(item.kind);
+      if (!category || !allowed.has(category)) return false;
+    }
+    return [item.title, item.musicContext?.album.title, item.musicContext?.artist?.title, item.playbackContext?.series.title]
+      .filter(Boolean)
+      .some((field) => field!.toLowerCase().includes(needle));
+  });
 }

@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
-import type { Playlist } from '@machafoundation/core';
+import { trackSubtitle, type Playlist } from '@machafoundation/core';
 import { Artwork } from '../../../ui/Artwork';
 import { ChevronDownIcon, CloseIcon, PlayIcon, ShuffleIcon, TrashIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';
@@ -100,7 +100,7 @@ export default function PlaylistScreen() {
                     {item.title}
                   </Text>
                   <Text numberOfLines={1} style={styles.subtitle}>
-                    {[item.musicContext?.artist?.title, item.musicContext?.album.title].filter(Boolean).join(' · ')}
+                    {trackSubtitle(item)}
                   </Text>
                 </View>
               </Pressable>

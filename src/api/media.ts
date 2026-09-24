@@ -1,4 +1,4 @@
-import { MachaMediaApi, MachaConnectionError, SessionNotStartedError, type ArtworkSource } from '@machafoundation/core';
+import { MachaMediaApi, MachaConnectionError, SessionNotStartedError, type ArtworkSource, type SearchCategoryKey } from '@machafoundation/core';
 import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
@@ -135,8 +135,12 @@ export class MediaApi {
     return this.serve(() => this.live.tracks(signal), (library) => library.tracks());
   }
 
-  search(query: string, signal?: AbortSignal): Promise<MediaSummary[]> {
-    return this.serve(() => this.live.search(query, signal), (library) => library.search(query));
+  /** `categories` narrows by kind: absent is everything, empty is nothing. Core's rule, on both paths. */
+  search(query: string, signal?: AbortSignal, categories?: readonly SearchCategoryKey[]): Promise<MediaSummary[]> {
+    return this.serve(
+      () => this.live.search(query, signal, categories ? { categories } : undefined),
+      (library) => library.search(query, categories),
+    );
   }
 
   /** The season's ordered episodes, used to build a play queue from a single episode. */
