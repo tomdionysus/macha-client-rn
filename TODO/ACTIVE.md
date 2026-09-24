@@ -361,7 +361,20 @@ option on `chooseAmongFiles`, and asked all three clients.
 - Asked core to include the container and duration per version.
 
 **Relayed by the web client, 2026-09-25, as Tom's ruling for all three
-clients (not yet confirmed with Tom here):** "We should have different
+clients; confirmed by Tom here the same day, with a rule for which qualities
+appear:** "there's no point upscaling a 480p to 2K. The options should only
+appear when the formats are available, and 'cap down' - so a 4K movie can be
+4K, 2K, 1080p, 720p but a 1080p can only be 1080p or 720p - the maximum
+resolution is defined by the available files and their profiles, it's always
+possible to transcode down unless a specific file exists to direct, but
+upscaling isn't offered." So each step at or below the best file's
+resolution appears. A step with its own file plays that file; one without
+transcodes down from a better file. Nothing above the best file is offered.
+**Open points put to core:** judge a file's step by width as well as height
+(a 1080p film at 1920x800 must not read as 720p); and an item below 720p gets
+no quality buttons, only Play.
+
+The relayed wording: "We should have different
 buttons for 'play' on media depending on available quality, which trigger
 specific files or transcode options. The generic play button stays, and
 means 'make the decision for me'." "TV and phone should do the same." On the
