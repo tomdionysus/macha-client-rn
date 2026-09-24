@@ -127,7 +127,9 @@ seen on a dev build of that tree on 2026-09-21; COMPLETED has the evidence.
    / "Track 9", both links working; music and playlist rows read album then
    artist; episode cards "Season 1 Episode 6"; the sort pill "Sort By Title";
    the Playback sheet clear of the navigation bar **in landscape**; remove
-   `ramaroja`.
+   `ramaroja`. On `develop` since 0.9.0: **the music player** shows the
+   artist, album (year) and track number below the artwork (Tom via core,
+   2026-09-24). Check a track with all four, and one with no year.
 2. **The new failure wording and the offline fallback.** The cheapest check:
    a refresh with the cluster unreachable should show the **downloads**, not
    an error. Then the home refresh line, a wrong password ("That username or

@@ -17,6 +17,7 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
 } from './Icons';
+import { albumLabel, trackNumberLabel } from './labels';
 import { QueueSheet } from './QueueSheet';
 import { SeekBar } from './SeekBar';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
@@ -64,6 +65,11 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
   const artwork = media.artwork?.poster ?? media.artwork?.thumbnail ?? media.musicContext?.artwork;
   const artist = media.musicContext?.artist?.title;
   const album = media.musicContext?.album.title;
+  // Tom, 2026-09-24: artist, album, year and track below the artwork. Each line
+  // shows only what the item carries: a track stored before `musicContext`
+  // existed has no album or artist until it is re-added.
+  const albumLine = media.musicContext ? albumLabel(media.musicContext.album) : undefined;
+  const trackLine = trackNumberLabel(media);
   const RepeatGlyph = repeat === 'one' ? RepeatOneIcon : RepeatIcon;
 
   return (
@@ -105,6 +111,12 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
                 {artist}
               </Text>
             ) : null}
+            {albumLine ? (
+              <Text numberOfLines={1} style={styles.album}>
+                {albumLine}
+              </Text>
+            ) : null}
+            {trackLine ? <Text style={styles.track}>{trackLine}</Text> : null}
           </View>
           <Pressable
             accessibilityRole="button"
@@ -237,6 +249,16 @@ const styles = StyleSheet.create({
   artist: {
     ...typography.body,
     color: colors.textDim,
+    marginTop: space.xs,
+  },
+  album: {
+    ...typography.body,
+    color: colors.textFaint,
+    marginTop: 2,
+  },
+  track: {
+    ...typography.caption,
+    color: colors.textFaint,
     marginTop: space.xs,
   },
   seek: {
