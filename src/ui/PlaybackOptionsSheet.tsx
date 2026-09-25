@@ -3,6 +3,8 @@ import { Text } from 'react-native';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
+import { ceilingExplanation, offersVersions, playingStep, qualityLabel } from '../playback/quality';
+import type { VersionStep } from '@machafoundation/core';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { PlaybackMode } from '../types';
 import { Sheet, SheetOption, SheetSection } from './Sheet';
@@ -32,7 +34,7 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
  * the viewer sees what exists and why it is not available to them.
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
-  const { session, applyUpdate, busy } = usePlayback();
+  const { session, applyUpdate, playVersion, versions, busy } = usePlayback();
   const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
   const directBlocked = session ? directUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
 
@@ -60,6 +62,18 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
     void applyUpdate(update);
     onClose();
   };
+
+  const pick = (step: VersionStep) => {
+    void playVersion(step);
+    onClose();
+  };
+
+  // The item's qualities replace the node's height list where there are
+  // any: the same list as the detail screen's buttons (Tom, 2026-09-25),
+  // and two lists of heights would contradict each other. The node's list
+  // stays for an item whose facts never arrived.
+  const shownVersions = offersVersions(versions) ? versions : undefined;
+  const playing = shownVersions ? playingStep(shownVersions.steps, session) : undefined;
 
   return (
     <Sheet visible={visible} title="Playback" onClose={onClose}>
@@ -92,7 +106,25 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
         })}
       </SheetSection>
 
-      {options.canChangeQuality && options.qualityHeights.length > 0 ? (
+      {shownVersions ? (
+        <SheetSection title="Quality">
+          {shownVersions.steps.map((step) => (
+            <SheetOption
+              key={`${step.quality}-${step.mediaId ?? ''}`}
+              label={qualityLabel(step.quality)}
+              detail={stepDetail(step)}
+              selected={playing === step}
+              disabled={busy}
+              onPress={() => pick(step)}
+            />
+          ))}
+          {shownVersions.limitedBy && !playing ? (
+            <Text style={{ ...typography.caption, color: colors.textFaint, marginBottom: space.md }}>
+              {ceilingExplanation(shownVersions.limitedBy)}
+            </Text>
+          ) : null}
+        </SheetSection>
+      ) : options.canChangeQuality && options.qualityHeights.length > 0 ? (
         <SheetSection title="Quality">
           <SheetOption
             label="Original"
@@ -152,20 +184,6 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
         ) : null}
       </SheetSection>
 
-      {options.canSwitchMedia && options.mediaIds.length > 1 ? (
-        <SheetSection title="Version">
-          {options.mediaIds.map((mediaId) => (
-            <SheetOption
-              key={mediaId}
-              label={shortMediaId(mediaId)}
-              selected={session.mediaId === mediaId}
-              disabled={busy}
-              onPress={() => change({ mediaId })}
-            />
-          ))}
-        </SheetSection>
-      ) : null}
-
       <SheetSection title={endpointLabel(session) ?? 'Source'}>
         <Text style={{ ...typography.caption, color: colors.textFaint, lineHeight: 18 }}>
           {[
@@ -212,10 +230,10 @@ function streamLabel(stream: PlaybackStreamInfo): string {
   return stream.default ? `${parts.join(' · ')} (default)` : parts.join(' · ') || `Track ${stream.index}`;
 }
 
-/** A `macha:` identity is a hash; the tail is the only part that distinguishes versions on screen. */
-function shortMediaId(mediaId: string): string {
-  const body = mediaId.replace(/^macha:/, '');
-  return body.length > 16 ? `…${body.slice(-12)}` : body;
+/** How a quality would be played: its own file and how, or a transcode down. */
+function stepDetail(step: VersionStep): string {
+  if (step.source === 'transcode') return 'Transcoded down from a larger file';
+  return `Its own file · ${MODE_LABELS[step.instruction.mode]}`;
 }
 
 /**

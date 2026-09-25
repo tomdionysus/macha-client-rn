@@ -35,7 +35,7 @@ things stand.
 3. `test -L node_modules/@machafoundation/core` must succeed on `develop`.
 4. Core moves several times a day: `git -C ../macha-ts log --oneline -1` and
    `(cd ../macha-ts && npm run -s dist:hash)`, then `npx tsc --noEmit -p .
-   >/dev/null; echo $?` and `npx vitest run`. **306 tests** at the last look.
+   >/dev/null; echo $?` and `npx vitest run`. **317 tests** at the last look.
 5. `adb mdns services`. If the A85 is advertising, *Driving the phone* first,
    then Open item 1.
 6. `ListAgents` shows the live peers (*Peer sessions*). Core sends news; act
@@ -51,8 +51,8 @@ and nothing has it installed. `git log develop..main` is empty and must stay
 so.
 
 **`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **306 tests** against core `a50ef64`
-(dist `69c2e81e1bc1`). What it adds since 0.9.0 is under *On develop since
+`file:../macha-ts`. Typecheck clean and **317 tests** against core `aa843ed`
+(dist `f3d607a30ddd`). What it adds since 0.9.0 is under *On develop since
 0.9.0*. **None of it has been on a device.**
 
 **Never run `npm run lint`.** `expo lint` installs ESLint into
@@ -76,7 +76,8 @@ everything since**, at least:
 - `de86392`;
 - `a50ef64` (`preparePlaybackPatch`);
 - `a5f14fb` (`chooseAmongFiles`);
-- `f3cf74c` (the unreachable route error).
+- `f3cf74c` (the unreachable route error);
+- `aa843ed` (`playbackVersions`, `qualityCeiling`: the per-quality buttons).
 
 Core's own session rebuilds its `dist`; do not rebuild it from here.
 
@@ -153,6 +154,9 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
   `chooseAmongFiles`.
 - **Every PATCH is prepared for 0.58.0** (`b93f907`, core's
   `preparePlaybackPatch`).
+- **Per-quality Play buttons and quality ceilings** (P2 below): on the
+  detail screen, in the Playback sheet and in Settings. Automatic play is
+  now capped at the display, and every create names its streams.
 - **The sign-in token is in the Keystore** (`dd0205f`, `expo-secure-store`).
   The plaintext copies are deleted, and logout is core's alone. A release
   Gradle build ran clean.
@@ -190,8 +194,8 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
    limit refuses first.
 3. **The next release**, once core publishes (see *Core*). Run *Releasing*
    in full, including the fresh-clone proof.
-4. **Per-quality Play buttons** (P2 below), once core's API lands. The design
-   is settled.
+4. **Per-quality Play buttons: built 2026-09-25, check on the A85** (P2
+   below). Downloads naming a version is still open.
 5. **Prove the reaped-session probe**: the 31-minute pause (P1 below), left
    out of 0.9.0 by Tom.
 6. **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** (P2 below). Both need the
@@ -390,7 +394,7 @@ reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 
-## P2 — Per-quality Play buttons and quality ceilings — design settled, waiting on core's API
+## P2 — Per-quality Play buttons and quality ceilings — built, check on a device
 
 **Tom's design, settled 2026-09-25** (consolidated by core for all three
 clients; the rulings and the phone's answers are in COMPLETED 2026-09-25):
@@ -417,9 +421,49 @@ clients; the rulings and the phone's answers are in COMPLETED 2026-09-25):
 - **Downloads should name a version too.** Today they name the file playback
   would pick.
 
-**Waiting on core's API** (`qualityClass`, `playbackVersions` with the
-steps, a play taking a viewer's version, a per-device quality preference).
-Core sends it with the commit. Nothing is built here.
+**Built 2026-09-25 against core `aa843ed`; never on a device.** Core's
+source was read before building, not its message alone. Everything this
+client repeats of the coordinator is in `src/playback/quality.ts`, since this
+client drives the resolver directly:
+- **Automatic play** is `playbackVersions(...).automatic` under
+  `deviceQualityCeiling()`, read at each start. The display is `Dimensions`
+  `screen` in physical pixels, stated landscape: a portrait 1080x2400 read as
+  it stands would be a 2160p display. The connection is NetInfo's `type`,
+  set from `MachaProvider`'s listener.
+- **Every automatic or picked create now names its streams**
+  (`streamsToName` on the chosen file). It named only the file before, so a
+  multi-audio file in Remux or Transcode was refused `choice_required` and
+  core's resolver took the node's first candidate.
+- **A pick** starts through `StartOptions.version` and switches mid-play
+  through `playVersion`. The PATCH skips `statedUpdate`, whose transform is
+  judged from the file playing now. It always states the cap, `null` for a
+  file step: `restatePreferencesClearedByMode` would otherwise carry an old
+  cap into a transcode file step. A retry replays the pick; a Mode or height
+  change from the sheet clears it.
+- **The sheet's Quality section is the steps** where there are any. The
+  node's own height list shows only for an item whose facts never arrived,
+  so there are not two lists of heights. The "Version" section is gone.
+- **Settings** has *Playback quality*, On Wi-Fi and On mobile data, stored
+  in `macha.quality-ceiling` on this device.
+
+**Needs Tom:**
+- **The mobile-data default is core's 720p, not a ruling.** Core said so
+  itself.
+- **What the display cap does on the A85.** Its panel is probably 2400x1080,
+  which core classes as **1440p** by width. A title whose only file is
+  2160p then transcodes by default rather than playing Direct, because no
+  file is at or under the ceiling. That follows the ruling, but it costs the
+  node on titles that used to Direct Play.
+
+**Still open:** downloads naming a version (they still take `fileToPlay`'s
+file), and all of it on the A85: a multi-file item, a 2160p-only title, a
+switch between files mid-play, the mobile-data explanation, and a retry
+after a failed pick.
+
+**Told core** that `PlaybackCoordinator.playVersion` looks to keep an old
+cap on a transcode file step, since `update` restates the session's
+`maxHeight` into a transcode that names none (`PlaybackCoordinator.ts`
+around line 2197). This is read from source, not seen.
 
 ---
 

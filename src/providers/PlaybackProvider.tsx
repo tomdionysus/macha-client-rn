@@ -10,8 +10,12 @@ import {
   restatePreferencesClearedByMode,
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
+  type PlaybackMediaFacts,
+  type PlaybackVersions,
   type StreamInstruction,
+  type VersionStep,
 } from '@machafoundation/core';
+import { automaticStart, deviceQualityCeiling, versionStart, versionUpdate } from '../playback/quality';
 import {
   ensureAudioEngine,
   loadAudioTrack,
@@ -24,7 +28,6 @@ import {
   accountSessionLimitMessage,
   audioCopyable,
   buildOrder,
-  chooseFile,
   classifyCreateRefusal,
   fileToPlay,
   classifyProbe,
@@ -72,12 +75,20 @@ export interface PlaybackState {
   queueIndex: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  /**
+   * The qualities the playing item offers, and why automatic play took less
+   * than its best where a ceiling did; see `playback/quality.ts`. Absent off
+   * the disk, and where the node gave no facts.
+   */
+  versions?: PlaybackVersions;
 }
 
 export interface StartOptions {
   /** Where to begin. Omitted means "resume from the remembered position". */
   seekMs?: number;
   preferences?: PlaybackPreferencesUpdate;
+  /** A quality the viewer picked. Never capped, and nothing re-ranks its file. */
+  version?: VersionStep;
 }
 
 interface PlaybackContextValue extends PlaybackState {
@@ -102,6 +113,8 @@ interface PlaybackContextValue extends PlaybackState {
   moveInQueue(from: number, to: number): void;
   /** A source-generation change: mode, quality, audio, subtitles, or media representation. */
   applyUpdate(update: PlaybackUpdate): Promise<void>;
+  /** Switch the playing item to one of `versions.steps`, as the viewer's choice. */
+  playVersion(step: VersionStep): Promise<void>;
   stop(): Promise<void>;
   retry(): Promise<void>;
 }
@@ -293,6 +306,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const failoverAttemptsRef = useRef(0);
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
+  /**
+   * The quality the viewer picked for this item, so a retry replays their
+   * choice rather than automatic play; and the item's file facts, so a
+   * switch to another file can name that file's streams.
+   */
+  const versionRef = useRef<VersionStep | undefined>(undefined);
+  const filesRef = useRef<readonly PlaybackMediaFacts[] | undefined>(undefined);
 
   useEffect(() => () => player.release(), [player]);
 
@@ -374,6 +394,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         orderRef.current = buildOrder(items.length, shuffleRef.current, index);
       }
       countedPlayRef.current = undefined;
+      versionRef.current = options.version;
+      filesRef.current = undefined;
       positionRef.current = 0;
       // A new item starts its regeneration bound afresh, as core's does.
       lastRegenerationPositionRef.current = undefined;
@@ -408,6 +430,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           error: undefined,
           queue: [...items],
           queueIndex: index,
+          versions: undefined,
         }));
 
         // The old lease is released before a replacement is requested, so a node
@@ -462,7 +485,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { instruction, durationMs: knownDurationMs, mediaId: chosenMediaId } = await chooseInstruction(
+        const {
+          instruction,
+          durationMs: knownDurationMs,
+          mediaId: chosenMediaId,
+          preferences: chosenPreferences,
+          versions,
+          files,
+        } = await chooseInstruction(
           mediaApi,
           playbackApi,
           media,
@@ -470,9 +500,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           // client always decides, so it never sets one — narrowing here keeps
           // that true at the type level rather than by convention.
           options.preferences?.mode === 'choose' ? undefined : options.preferences?.mode,
+          options.preferences,
+          options.version,
         );
+        if (generationRef.current !== myGeneration) return;
+        filesRef.current = files;
+        if (versions) setState((current) => ({ ...current, versions }));
         const session = await createSession(playbackApi, media, instruction, seekMs, {
           ...options.preferences,
+          // A height cap and the streams named, for the file chosen.
+          ...chosenPreferences,
           // The file the chooser picked, sent as the session's `media_id`.
           // Core restates it on every replacement generation.
           ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
@@ -1056,11 +1093,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     failoverRef.current = failoverSource;
   }, [failoverSource]);
 
-  const applyUpdate = useCallback(
-    async (update: PlaybackUpdate) => {
+  /**
+   * `stated` is true for an update whose transform is already whole: a
+   * picked quality carries core's instruction for its file, which
+   * `statedUpdate` would replace with one judged from the file playing now,
+   * and whose cap it would restate.
+   */
+  const sendUpdate = useCallback(
+    async (update: PlaybackUpdate, stated: boolean): Promise<boolean> => {
       const session = sessionRef.current;
       const media = mediaRef.current;
-      if (!session || !media) return;
+      if (!session || !media) return false;
       const myGeneration = ++generationRef.current;
       const resumeMs = positionRef.current;
       setBusy(true);
@@ -1070,8 +1113,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // node's, and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
-        const next = await playbackApi.update(session, statedUpdate(positionedUpdate(update, session, resumeMs), session));
-        if (generationRef.current !== myGeneration) return;
+        const positioned = positionedUpdate(update, session, resumeMs);
+        const next = await playbackApi.update(session, stated ? positioned : statedUpdate(positioned, session));
+        if (generationRef.current !== myGeneration) return false;
         sessionRef.current = next;
         const sourceUnchanged = next.source.url === session.source.url;
         if (!sourceUnchanged) {
@@ -1089,11 +1133,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           durationMs,
           buffering: !sourceUnchanged,
         }));
+        return true;
       } catch (error) {
-        if (generationRef.current !== myGeneration) return;
+        if (generationRef.current !== myGeneration) return false;
         // The existing source is still playing; say that rather than core's
         // "request failed", which reads as a dead player to someone watching.
         setState((current) => ({ ...current, buffering: false, error: updateRefusalMessage(error) }));
+        return false;
       } finally {
         // Settled, success or failure: the tail is then bounded by the node's
         // own deadline rather than left open.
@@ -1105,10 +1151,40 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [mediaApi, player, playbackApi],
   );
 
+  const applyUpdate = useCallback(
+    async (update: PlaybackUpdate) => {
+      // A mode or a cap from the sheet's other controls is no longer the
+      // quality the viewer picked, and a retry must not put it back.
+      const preferences = update.preferences;
+      if (preferences?.mode !== undefined || preferences?.maxHeight !== undefined) versionRef.current = undefined;
+      await sendUpdate(update, false);
+    },
+    [sendUpdate],
+  );
+
+  const playVersion = useCallback(
+    async (step: VersionStep) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      console.log('[macha] [playback] version-chosen', {
+        quality: step.quality,
+        source: step.source,
+        file: step.mediaId,
+        switching: step.mediaId !== undefined && step.mediaId !== session.mediaId,
+      });
+      // Remembered only once it plays, so a refused switch leaves a retry on
+      // what was actually playing.
+      if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) versionRef.current = step;
+    },
+    [sendUpdate],
+  );
+
   const retry = useCallback(async () => {
     const { items, index } = queueRef.current;
     if (items.length === 0) return;
-    await load(items, index, { seekMs: positionRef.current });
+    // The viewer's pick of quality survives a retry, as core's runtime keeps
+    // the file a picked version named; automatic play is chosen afresh.
+    await load(items, index, { seekMs: positionRef.current, version: versionRef.current });
   }, [load]);
 
   // Platform player events are the authority for transport state; React never
@@ -1399,6 +1475,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       removeFromQueue,
       moveInQueue,
       applyUpdate,
+      playVersion,
       stop,
       retry,
     }),
@@ -1421,6 +1498,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       removeFromQueue,
       moveInQueue,
       applyUpdate,
+      playVersion,
       stop,
       retry,
     ],
@@ -1551,17 +1629,37 @@ async function chooseInstruction(
   playbackApi: ClusterPlaybackApi,
   media: MediaSummary,
   requested: PlaybackMode | undefined,
-): Promise<{ instruction: PlaybackInstruction; durationMs: number; mediaId?: string }> {
+  preferences: PlaybackPreferencesUpdate | undefined,
+  version: VersionStep | undefined,
+): Promise<{
+  instruction: PlaybackInstruction;
+  durationMs: number;
+  mediaId?: string;
+  /** A height cap and the streams named, where a version or automatic play chose them. */
+  preferences?: PlaybackPreferencesUpdate;
+  versions?: PlaybackVersions;
+  files?: readonly PlaybackMediaFacts[];
+}> {
   const mediaId = media.mediaIds[0];
   const capabilities = deviceCapabilities();
   const overrides = devicePlaybackOverrides();
+  // Every file of the item. Asked for on every path: the qualities offered
+  // during play are drawn from them, whichever one is playing.
+  const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
+
+  if (version) {
+    // A quality the viewer picked: core's instruction for its file, never
+    // capped by the ceiling and never re-ranked. Without facts it still
+    // names its file and mode; there are just no streams to name.
+    const start = versionStart(version, files ?? [], media.mediaIds, capabilities, overrides, preferences);
+    return { ...start, ...(files ? { files } : { versions: undefined }) };
+  }
 
   if (requested) {
     // The viewer named the mode, so no facts are needed to choose one — but
     // the runtime still is, and asking for it must not fail the playback.
     // Which file is still ours to pick (`fileToPlay`), and the runtime and
     // audio codec are read from that file.
-    const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
     const chosenMediaId = fileToPlay(files, media.mediaIds, capabilities, overrides);
     const stated = files?.find((entry) => entry.mediaId === chosenMediaId) ?? files?.[0];
     return {
@@ -1582,14 +1680,26 @@ async function chooseInstruction(
       },
       durationMs: stated?.profile.durationMs ?? 0,
       ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
+      ...(files ? { files } : {}),
     };
   }
 
-  // Every file of the item, and the one that plays best, named on the
-  // session.
-  const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
-  const chosen = files ? chooseFile(files, media.mediaIds, capabilities, overrides) : undefined;
-  if (chosen) return chosen;
+  // Automatic play: the best file at or below this device's ceiling, named
+  // on the session with its streams. The ceiling is read now, so a phone
+  // that moved onto mobile data since the detail screen drew is capped by it.
+  const chosen = files
+    ? automaticStart(files, media.mediaIds, capabilities, overrides, deviceQualityCeiling(), preferences)
+    : undefined;
+  if (chosen) {
+    if (chosen.versions.limitedBy) {
+      console.log('[macha] [playback] quality-limited', {
+        quality: chosen.versions.automatic?.quality,
+        ceiling: chosen.versions.limitedBy.quality,
+        reason: chosen.versions.limitedBy.reason,
+      });
+    }
+    return { ...chosen, files };
+  }
 
   const profile = mediaId ? await mediaApi.mediaProfile(mediaId).catch(() => undefined) : undefined;
   if (!profile) {

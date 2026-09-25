@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { connectionKindOf, setConnectionKind } from '../playback/quality';
 import { ClusterCatalogueApi } from '../api/catalogue';
 import {
   ClusterEndpointRouter,
@@ -379,6 +380,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   useEffect(
     () =>
       NetInfo.addEventListener((state) => {
+        // Mobile data has its own ceiling on automatic play; see `playback/quality.ts`.
+        setConnectionKind(connectionKindOf(state.type));
         const down = state.isConnected === false;
         setNetworkDown(down);
         if (down) return;

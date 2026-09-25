@@ -11,6 +11,15 @@ import { useDownloads } from '../hooks/useDownloads';
 import { formatBytes, pluralize } from '../ui/format';
 import { Screen } from '../ui/Screen';
 import { Divider, ListRow, Tag } from '../ui/controls';
+import { Sheet, SheetOption } from '../ui/Sheet';
+import {
+  DEFAULT_CELLULAR_CEILING,
+  QUALITY_CLASSES,
+  qualityClass,
+  type QualityClass,
+  type QualityPreference,
+} from '@machafoundation/core';
+import { displayPixels, qualityLabel, readQualityPreference, writeQualityPreference } from '../playback/quality';
 import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
@@ -165,6 +174,8 @@ export default function SettingsScreen() {
         )}
       </Section>
 
+      <QualitySettings />
+
       <Section title="Offline">
         <ListRow
           title="Downloads"
@@ -200,6 +211,75 @@ export default function SettingsScreen() {
   );
 }
 
+/**
+ * The ceilings on automatic play, kept on this device (Tom, 2026-09-25).
+ * Unset, Wi-Fi plays up to the screen's own resolution and mobile data up to
+ * core's default. A quality picked on a detail screen or in the player is
+ * never capped by either.
+ */
+function QualitySettings() {
+  const [preference, setPreference] = useState<QualityPreference>(() => readQualityPreference());
+  const [editing, setEditing] = useState<keyof QualityPreference | undefined>(undefined);
+  const display = displayPixels();
+  const screen = display ? qualityClass(display.width, display.height) : undefined;
+  const defaults: Record<keyof QualityPreference, string> = {
+    wifi: screen ? `Up to this screen, ${qualityLabel(screen)}` : 'No limit',
+    cellular: `Up to ${qualityLabel(DEFAULT_CELLULAR_CEILING)}`,
+  };
+  const describe = (kind: keyof QualityPreference) => {
+    const set = preference[kind];
+    return set === undefined ? defaults[kind] : `Up to ${qualityLabel(set)}`;
+  };
+  const choose = (kind: keyof QualityPreference, quality: QualityClass | undefined) => {
+    setPreference(writeQualityPreference({ ...preference, [kind]: quality }));
+    setEditing(undefined);
+  };
+
+  return (
+    <Section title="Playback quality">
+      <ListRow
+        title="On Wi-Fi"
+        detail={describe('wifi')}
+        trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
+        onPress={() => setEditing('wifi')}
+      />
+      <Divider />
+      <ListRow
+        title="On mobile data"
+        detail={describe('cellular')}
+        trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
+        onPress={() => setEditing('cellular')}
+      />
+      <Text style={styles.note}>
+        What Play chooses by itself. Picking a quality on a title or in the player is never limited.
+      </Text>
+      <Sheet
+        visible={editing !== undefined}
+        title={editing === 'cellular' ? 'On mobile data' : 'On Wi-Fi'}
+        onClose={() => setEditing(undefined)}>
+        {editing ? (
+          <>
+            <SheetOption
+              label="Default"
+              detail={defaults[editing]}
+              selected={preference[editing] === undefined}
+              onPress={() => choose(editing, undefined)}
+            />
+            {QUALITY_CLASSES.map((quality) => (
+              <SheetOption
+                key={quality}
+                label={`Up to ${qualityLabel(quality)}`}
+                selected={preference[editing] === quality}
+                onPress={() => choose(editing, quality)}
+              />
+            ))}
+          </>
+        ) : null}
+      </Sheet>
+    </Section>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
@@ -230,6 +310,12 @@ const styles = StyleSheet.create({
   error: {
     ...typography.caption,
     color: colors.danger,
+    marginTop: space.sm,
+  },
+  note: {
+    ...typography.caption,
+    color: colors.textFaint,
+    paddingHorizontal: space.lg,
     marginTop: space.sm,
   },
   pending: {
