@@ -107,6 +107,12 @@ shows**; the per-quality buttons replace it (P2 below). The 0.56.0 top-level
 
 **Send core any error envelope verbatim, with its code.**
 
+**Server 0.59.0** (tag `1f37a41`) is live on fi-1 and gbni-1 from
+11:30Z 2026-09-25, per core; not checked here. Scheduling only: replica
+repair keeps a 95:5 share while viewers or the loader are busy, rather than
+stopping. Nothing changes on the wire, and nothing is owed here. **It is
+what the A85 smoke test runs against.**
+
 **Server 0.58.3** (tag `834d9f2`) is live on fi-1 and gbni-1 as of
 2026-09-25, per core; this client has not checked the health endpoint. It is
 an ingest fix only: two files of one job were planned onto one destination,
