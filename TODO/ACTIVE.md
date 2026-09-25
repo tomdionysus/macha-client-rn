@@ -35,7 +35,7 @@ things stand.
 3. `test -L node_modules/@machafoundation/core` must succeed on `develop`.
 4. Core moves several times a day: `git -C ../macha-ts log --oneline -1` and
    `(cd ../macha-ts && npm run -s dist:hash)`, then `npx tsc --noEmit -p .
-   >/dev/null; echo $?` and `npx vitest run`. **321 tests** at the last look.
+   >/dev/null; echo $?` and `npx vitest run`. **320 tests** at the last look.
 5. `adb mdns services`. If the A85 is advertising, *Driving the phone* first,
    then Open item 1.
 6. `ListAgents` shows the live peers (*Peer sessions*). Core sends news; act
@@ -51,8 +51,8 @@ and nothing has it installed. `git log develop..main` is empty and must stay
 so.
 
 **`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **321 tests** against core `3a5dc56`
-(dist `fe65432ce8e9`). Core's `dc47bf6` left a failing test; build on
+`file:../macha-ts`. Typecheck clean and **320 tests** against core `d93c9d8`
+(dist `379d5e152bd5`). Core's `dc47bf6` left a failing test; build on
 neither it alone nor anything before `3a5dc56` for the display class. What it adds since 0.9.0 is under *On develop since
 0.9.0*. **None of it has been on a device.**
 
