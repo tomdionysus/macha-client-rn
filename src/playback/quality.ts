@@ -1,5 +1,5 @@
 import {
-  QUALITY_CLASSES,
+  QualityPreferenceStore,
   playbackVersions,
   qualityCeiling,
   streamsToName,
@@ -15,11 +15,10 @@ import {
   type PlaybackVersions,
   type QualityCeiling,
   type QualityClass,
-  type QualityPreference,
   type VersionStep,
 } from '@machafoundation/core';
 import { Dimensions } from 'react-native';
-import { readValidatedJson, writeJson } from '../state/storage';
+import { clientStore } from '../state/storage';
 
 /**
  * Per-quality play and the ceilings on automatic play (Tom, 2026-09-25; the
@@ -32,30 +31,11 @@ import { readValidatedJson, writeJson } from '../state/storage';
  * described it for a resolver-direct host.
  */
 
-const PREFERENCE_KEY = 'macha.quality-ceiling';
-
-function isQualityClass(value: unknown): value is QualityClass {
-  return typeof value === 'number' && (QUALITY_CLASSES as readonly number[]).includes(value);
-}
-
-function isQualityPreference(value: unknown): value is QualityPreference {
-  if (!value || typeof value !== 'object') return false;
-  const { wifi, cellular } = value as Record<string, unknown>;
-  return (wifi === undefined || isQualityClass(wifi)) && (cellular === undefined || isQualityClass(cellular));
-}
-
-/** The viewer's ceilings on this device. Core keeps none; each device has its own. */
-export function readQualityPreference(): QualityPreference {
-  return readValidatedJson(PREFERENCE_KEY, isQualityPreference) ?? {};
-}
-
-export function writeQualityPreference(preference: QualityPreference): QualityPreference {
-  const kept: QualityPreference = {
-    ...(preference.wifi !== undefined ? { wifi: preference.wifi } : {}),
-    ...(preference.cellular !== undefined ? { cellular: preference.cellular } : {}),
-  };
-  return writeJson(PREFERENCE_KEY, kept);
-}
+/**
+ * The viewer's ceilings on this device. Core keeps none of them; the store
+ * and its key are core's so that every client keeps the setting alike.
+ */
+export const qualityPreferences = new QualityPreferenceStore(clientStore);
 
 /**
  * NetInfo's connection type as core's three kinds. Ethernet is Wi-Fi's
@@ -96,7 +76,7 @@ export function displayPixels(): { width: number; height: number } | undefined {
 export function deviceQualityCeiling(): QualityCeiling | undefined {
   return qualityCeiling({
     display: displayPixels(),
-    preference: readQualityPreference(),
+    preference: qualityPreferences.get(),
     connection: currentConnectionKind(),
   });
 }

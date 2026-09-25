@@ -51,8 +51,8 @@ and nothing has it installed. `git log develop..main` is empty and must stay
 so.
 
 **`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **317 tests** against core `aa843ed`
-(dist `f3d607a30ddd`). What it adds since 0.9.0 is under *On develop since
+`file:../macha-ts`. Typecheck clean and **317 tests** against core `edef8bf`
+(dist `eead478b3386`). What it adds since 0.9.0 is under *On develop since
 0.9.0*. **None of it has been on a device.**
 
 **Never run `npm run lint`.** `expo lint` installs ESLint into
@@ -77,7 +77,8 @@ everything since**, at least:
 - `a50ef64` (`preparePlaybackPatch`);
 - `a5f14fb` (`chooseAmongFiles`);
 - `f3cf74c` (the unreachable route error);
-- `aa843ed` (`playbackVersions`, `qualityCeiling`: the per-quality buttons).
+- `aa843ed` and `edef8bf` (`playbackVersions`, `qualityCeiling`,
+  `QualityPreferenceStore`: the per-quality buttons).
 
 Core's own session rebuilds its `dist`; do not rebuild it from here.
 
@@ -444,7 +445,9 @@ client drives the resolver directly:
   node's own height list shows only for an item whose facts never arrived,
   so there are not two lists of heights. The "Version" section is gone.
 - **Settings** has *Playback quality*, On Wi-Fi and On mobile data, stored
-  in `macha.quality-ceiling` on this device.
+  on this device through core's `QualityPreferenceStore`, at core's key
+  `macha.qualityPreference.v1`, which all three clients share (core
+  `edef8bf`).
 
 **Needs Tom:**
 - **The mobile-data default is core's 720p, not a ruling.** Core said so
@@ -460,10 +463,9 @@ file), and all of it on the A85: a multi-file item, a 2160p-only title, a
 switch between files mid-play, the mobile-data explanation, and a retry
 after a failed pick.
 
-**Told core** that `PlaybackCoordinator.playVersion` looks to keep an old
-cap on a transcode file step, since `update` restates the session's
-`maxHeight` into a transcode that names none (`PlaybackCoordinator.ts`
-around line 2197). This is read from source, not seen.
+**Core fixed `playVersion`'s stale cap in `edef8bf`**, after the phone
+reported it from source. It now sends `maxHeight: step.maxHeight ?? null`,
+as the phone's PATCH already did, with core's test failing without it.
 
 ---
 

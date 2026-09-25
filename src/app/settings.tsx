@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useSyncExternalStore } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useAccount, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
@@ -19,7 +19,7 @@ import {
   type QualityClass,
   type QualityPreference,
 } from '@machafoundation/core';
-import { displayPixels, qualityLabel, readQualityPreference, writeQualityPreference } from '../playback/quality';
+import { displayPixels, qualityLabel, qualityPreferences } from '../playback/quality';
 import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
@@ -218,7 +218,7 @@ export default function SettingsScreen() {
  * never capped by either.
  */
 function QualitySettings() {
-  const [preference, setPreference] = useState<QualityPreference>(() => readQualityPreference());
+  const preference = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot);
   const [editing, setEditing] = useState<keyof QualityPreference | undefined>(undefined);
   const display = displayPixels();
   const screen = display ? qualityClass(display.width, display.height) : undefined;
@@ -231,7 +231,7 @@ function QualitySettings() {
     return set === undefined ? defaults[kind] : `Up to ${qualityLabel(set)}`;
   };
   const choose = (kind: keyof QualityPreference, quality: QualityClass | undefined) => {
-    setPreference(writeQualityPreference({ ...preference, [kind]: quality }));
+    qualityPreferences.set(kind, quality);
     setEditing(undefined);
   };
 
