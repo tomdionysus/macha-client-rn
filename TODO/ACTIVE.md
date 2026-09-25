@@ -468,6 +468,13 @@ offers everything, including what the phone cannot play. Built:
 - A 2160p-only title on the A85 therefore plays automatically as a 1080p
   transcode, and offers 1080p and 720p buttons.
 
+**Core means to move the filter and the setting into core**, the setting
+joining `QualityPreferenceStore` in place of `macha.offer-everything`. It is
+confirming the ruling's scope with Tom first: whether the limit is "what
+this device can play", and whether it applies to the web and the TV. Keep
+`561d286` as it is until core sends the API, then switch. Moving the key
+costs nothing while nothing has shipped.
+
 **Needs Tom:** the mobile-data default is core's 720p, not a ruling. Core
 said so itself.
 
