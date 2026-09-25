@@ -491,6 +491,11 @@ onto it:
   the type has any. The stated limit is the smallest of the claimed codecs'
   largest frames. iOS and web state none. The screen is a preference default
   for automatic play again, never a capability.
+- **Automatic play on the A85 stays capped at 720p** (Tom, 2026-09-25,
+  confirming the display ruling once the panel was measured at 720x1612).
+  Play transcodes a 1080p film to 720p on the node; picking 1080p on the
+  title plays the file directly, uncapped. Asked because landscape was
+  thought to make the panel 1080p: it does not, it is 1612x720 either way.
 - **Tom, 2026-09-25: "most people watch their phone landscaped", and tablets
   are in scope.** Both measurements are landscape, and viewer text says
   "this device", not "this phone".
