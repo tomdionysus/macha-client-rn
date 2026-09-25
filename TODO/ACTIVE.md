@@ -107,7 +107,7 @@ shows**; the per-quality buttons replace it (P2 below). The 0.56.0 top-level
 
 **Send core any error envelope verbatim, with its code.**
 
-**Server 0.60.0 is live** (tag `7c1d210`): fi-1 from 12:42Z and gbni-1 from 12:43Z, 2026-09-25, per core; not checked here. **Server 0.61.0** (tag `acd74ef`, torrent jobs only; the phone shows none) followed at 13:35Z / 13:36Z, and is what the A85 smoke test runs against.
+**Server 0.60.0 is live** (tag `7c1d210`): fi-1 from 12:42Z and gbni-1 from 12:43Z, 2026-09-25, per core; not checked here. **Server 0.61.0** (tag `acd74ef`, torrent jobs only; the phone shows none) followed at 13:35Z / 13:36Z, and is what the A85 smoke test ran against. **Server 0.62.3** (tag `f3bf8d7`, covering 0.62.0 to 0.62.2) is live on both nodes from 15:42Z, per core: torrent and repair internals, nothing on the wire.
 A PATCH out of transcode now releases the transcode slot, and a PATCH back
 can be refused 429 `resource_limit` (scope: request). **Checked here, no
 change needed:** `sendUpdate` keeps the old session and what it reports on
