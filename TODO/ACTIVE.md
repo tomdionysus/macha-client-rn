@@ -107,6 +107,18 @@ shows**; the per-quality buttons replace it (P2 below). The 0.56.0 top-level
 
 **Send core any error envelope verbatim, with its code.**
 
+**Server 0.60.0 is announced, not live** (server and core, 2026-09-25).
+A PATCH out of transcode now releases the transcode slot, and a PATCH back
+can be refused 429 `resource_limit` (scope: request). **Checked here, no
+change needed:** `sendUpdate` keeps the old session and what it reports on
+any refusal, never fails over or goes fatal, and the A85 already measured
+that refusal's wording ("…carried on unchanged. (video transcode limit
+reached)", pinned in `supersede.test.ts`). The one fix: a refused mode
+change no longer forgets the viewer's quality pick. The new keepalive close
+route is for browsers; this client closes with the DELETE. **When it is
+live:** on the A85, Direct then back to Transcode with another viewer
+holding the slot.
+
 **Server 0.59.0** (tag `1f37a41`) is live on fi-1 and gbni-1 from
 11:30Z 2026-09-25, per core; not checked here. Scheduling only: replica
 repair keeps a 95:5 share while viewers or the loader are busy, rather than

@@ -1187,10 +1187,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const applyUpdate = useCallback(
     async (update: PlaybackUpdate) => {
       // A mode or a cap from the sheet's other controls is no longer the
-      // quality the viewer picked, and a retry must not put it back.
+      // quality the viewer picked, and a retry must not put it back. Only
+      // once it lands: from server 0.60.0 a switch back into transcode can be
+      // refused (429 `resource_limit`, the slot taken meanwhile), and then
+      // the pick is still what is playing.
       const preferences = update.preferences;
-      if (preferences?.mode !== undefined || preferences?.maxHeight !== undefined) versionRef.current = undefined;
-      await sendUpdate(update, false);
+      const replacesPick = preferences?.mode !== undefined || preferences?.maxHeight !== undefined;
+      if ((await sendUpdate(update, false)) && replacesPick) versionRef.current = undefined;
     },
     [sendUpdate],
   );
