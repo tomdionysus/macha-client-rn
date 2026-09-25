@@ -19,7 +19,7 @@ import {
   type QualityClass,
   type QualityPreference,
 } from '@machafoundation/core';
-import { displayPixels, qualityLabel, qualityPreferences } from '../playback/quality';
+import { displayPixels, offerEverything, qualityLabel, qualityPreferences } from '../playback/quality';
 import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
@@ -219,6 +219,7 @@ export default function SettingsScreen() {
  */
 function QualitySettings() {
   const preference = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot);
+  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
   const [editing, setEditing] = useState<keyof QualityPreference | undefined>(undefined);
   const display = displayPixels();
   const screen = display ? displayQualityClass(display.width, display.height) : undefined;
@@ -253,6 +254,17 @@ function QualitySettings() {
       <Text style={styles.note}>
         What Play chooses by itself. Picking a quality on a title or in the player is never limited.
       </Text>
+      <Divider />
+      <ListRow
+        title="Offer everything"
+        detail={
+          everything
+            ? 'On. Qualities above this screen, and modes this phone may not play, can be picked.'
+            : 'Off. Only qualities and modes this phone can play are offered.'
+        }
+        detailLines={2}
+        onPress={() => offerEverything.set(!everything)}
+      />
       <Sheet
         visible={editing !== undefined}
         title={editing === 'cellular' ? 'On mobile data' : 'On Wi-Fi'}

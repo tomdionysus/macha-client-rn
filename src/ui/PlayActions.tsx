@@ -1,10 +1,18 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { playbackVersions, type VersionStep } from '@machafoundation/core';
 import { useAsync } from '../hooks/useAsync';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
-import { ceilingExplanation, deviceQualityCeiling, offersVersions, qualityLabel } from '../playback/quality';
+import {
+  ceilingExplanation,
+  deviceQualityCeiling,
+  largerOffered,
+  offerEverything,
+  offeredVersions,
+  qualityLabel,
+  screenQualityClass,
+} from '../playback/quality';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary } from '../types';
@@ -26,8 +34,9 @@ interface Props {
  *
  * Beside them, one button per quality the item offers (Tom, 2026-09-25):
  * Play decides, and a quality button is the viewer deciding, never capped.
- * They start where the primary button would. A downloaded item plays off the
- * disk whatever is pressed, so it offers none.
+ * They start where the primary button would. Nothing above this screen is
+ * offered unless the viewer turned on "Offer everything" (`offeredVersions`).
+ * A downloaded item plays off the disk whatever is pressed, so it offers none.
  */
 export function PlayActions({ item, queue }: Props) {
   const { continueWatching, playback, downloads } = useMacha();
@@ -41,15 +50,17 @@ export function PlayActions({ item, queue }: Props) {
     (signal) => (stored ? Promise.resolve(undefined) : playback.facts({ itemId: item.id }, signal)),
     [playback, item.id, stored],
   );
+  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
   const versions = useMemo(() => {
     if (!facts.value) return undefined;
     const ceiling = deviceQualityCeiling();
-    return playbackVersions(facts.value, deviceCapabilities(), {
+    const all = playbackVersions(facts.value, deviceCapabilities(), {
       overrides: devicePlaybackOverrides(),
       mediaIds: item.mediaIds,
       ...(ceiling ? { ceiling } : {}),
     });
-  }, [facts.value, item.mediaIds]);
+    return offeredVersions(all, screenQualityClass(), everything);
+  }, [facts.value, item.mediaIds, everything]);
 
   const play = useCallback(
     (seekMs?: number, version?: VersionStep) => {
@@ -65,7 +76,7 @@ export function PlayActions({ item, queue }: Props) {
     [item, queue, router, start],
   );
 
-  const qualities = offersVersions(versions) ? (
+  const qualities = versions ? (
     <>
       {versions.steps.map((step) => (
         <Button
@@ -76,7 +87,9 @@ export function PlayActions({ item, queue }: Props) {
           disabled={busy}
         />
       ))}
-      {versions.limitedBy ? <Text style={styles.limited}>{ceilingExplanation(versions.limitedBy)}</Text> : null}
+      {versions.limitedBy ? (
+        <Text style={styles.limited}>{ceilingExplanation(versions.limitedBy, largerOffered(versions))}</Text>
+      ) : null}
     </>
   ) : null;
 

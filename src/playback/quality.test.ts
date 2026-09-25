@@ -8,7 +8,7 @@ import {
   type PlaybackMediaFacts,
   type PlaybackSession,
 } from '@machafoundation/core';
-import { automaticStart, connectionKindOf, playingStep, versionStart, versionUpdate } from './quality';
+import { automaticStart, connectionKindOf, offeredVersions, playingStep, versionStart, versionUpdate } from './quality';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -164,5 +164,32 @@ describe('playingStep', () => {
 
   it('marks nothing when another control capped the session', () => {
     expect(playingStep(steps, session({ mediaId: 'fhd', maxHeight: 480 }))).toBeUndefined();
+  });
+});
+
+/**
+ * Tom, 2026-09-25: a phone cannot play 2160p, so it is not offered; a setting
+ * offers everything, the viewer in ultimate control.
+ */
+describe('offeredVersions', () => {
+  const versions = playbackVersions([uhd, fhd], phone, { mediaIds: ['uhd', 'fhd'], ceiling: { quality: 1080, reason: 'ceiling-display' } });
+
+  it('offers nothing above this screen', () => {
+    expect(offeredVersions(versions, 1080, false)?.steps.map((step) => step.quality)).toEqual([1080, 720]);
+  });
+
+  it('offers everything when the viewer asked for it', () => {
+    expect(offeredVersions(versions, 1080, true)?.steps.map((step) => step.quality)).toEqual([2160, 1440, 1080, 720]);
+  });
+
+  it('hides nothing on a screen it cannot read', () => {
+    expect(offeredVersions(versions, undefined, false)?.steps).toHaveLength(4);
+  });
+
+  it('offers no lone button that does what Play does', () => {
+    const only = playbackVersions([fhd], phone, { mediaIds: ['fhd'], ceiling: { quality: 720, reason: 'ceiling-display' } });
+    // A 1080p file on a 720p screen: Play already caps at 720, the one step offered.
+    expect(offeredVersions(only, 720, false)).toBeUndefined();
+    expect(offeredVersions(only, 720, true)?.steps.map((step) => step.quality)).toEqual([1080, 720]);
   });
 });

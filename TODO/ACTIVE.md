@@ -35,7 +35,7 @@ things stand.
 3. `test -L node_modules/@machafoundation/core` must succeed on `develop`.
 4. Core moves several times a day: `git -C ../macha-ts log --oneline -1` and
    `(cd ../macha-ts && npm run -s dist:hash)`, then `npx tsc --noEmit -p .
-   >/dev/null; echo $?` and `npx vitest run`. **317 tests** at the last look.
+   >/dev/null; echo $?` and `npx vitest run`. **321 tests** at the last look.
 5. `adb mdns services`. If the A85 is advertising, *Driving the phone* first,
    then Open item 1.
 6. `ListAgents` shows the live peers (*Peer sessions*). Core sends news; act
@@ -51,7 +51,7 @@ and nothing has it installed. `git log develop..main` is empty and must stay
 so.
 
 **`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **317 tests** against core `3a5dc56`
+`file:../macha-ts`. Typecheck clean and **321 tests** against core `3a5dc56`
 (dist `fe65432ce8e9`). Core's `dc47bf6` left a failing test; build on
 neither it alone nor anything before `3a5dc56` for the display class. What it adds since 0.9.0 is under *On develop since
 0.9.0*. **None of it has been on a device.**
@@ -452,14 +452,24 @@ client drives the resolver directly:
   `macha.qualityPreference.v1`, which all three clients share (core
   `edef8bf`).
 
-**Needs Tom:**
-- **The mobile-data default is core's 720p, not a ruling.** Core said so
-  itself.
-- **What the display cap does on the A85.** Its panel is probably 2400x1080,
-  which core now classes as **1080p**. A title whose only file is 2160p then
-  transcodes by default rather than playing Direct, because no file is at or
-  under the ceiling. That follows the ruling, but it costs the node on titles
-  that used to Direct Play.
+**Tom, 2026-09-25: "sensible defaults but leaving the user in ultimate
+control."** A phone cannot play 2160p, so it is not offered. A setting
+offers everything, including what the phone cannot play. Built:
+- `offeredVersions` hides every step above the screen's class
+  (`displayQualityClass`), on the detail screen and in the sheet. The screen
+  is the measure because it is what this client can read: the codec probe
+  reports codecs and profiles, not decoder sizes. **A decoder-size probe**
+  (`VideoCapabilities.getSupportedHeights`) would be the stricter fact, and
+  it needs a native build.
+- **Settings, Playback quality, "Offer everything"**, stored at
+  `macha.offer-everything` on the device. On, it shows every step and lets
+  the sheet's Remux and Direct be picked even where this device objects. The
+  reason is still shown beside them.
+- A 2160p-only title on the A85 therefore plays automatically as a 1080p
+  transcode, and offers 1080p and 720p buttons.
+
+**Needs Tom:** the mobile-data default is core's 720p, not a ruling. Core
+said so itself.
 
 **Still open:** downloads naming a version (they still take `fileToPlay`'s
 file), and all of it on the A85: a multi-file item, a 2160p-only title, a

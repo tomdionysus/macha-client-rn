@@ -1,5 +1,6 @@
 import {
   QualityPreferenceStore,
+  displayQualityClass,
   playbackVersions,
   qualityCeiling,
   streamsToName,
@@ -18,7 +19,7 @@ import {
   type VersionStep,
 } from '@machafoundation/core';
 import { Dimensions } from 'react-native';
-import { clientStore } from '../state/storage';
+import { clientStore, readValidatedJson, writeJson } from '../state/storage';
 
 /**
  * Per-quality play and the ceilings on automatic play (Tom, 2026-09-25; the
@@ -88,27 +89,95 @@ export function qualityLabel(quality: QualityClass): string {
 
 /**
  * Why automatic play took less than the item's best, for the viewer. The
- * reason codes are core's; the words are ours.
+ * reason codes are core's; the words are ours. `overridable` is whether a
+ * larger quality is on offer to pick instead.
  */
-export function ceilingExplanation(ceiling: QualityCeiling): string {
+export function ceilingExplanation(ceiling: QualityCeiling, overridable: boolean): string {
   const cap = qualityLabel(ceiling.quality);
   switch (ceiling.reason) {
     case 'ceiling-cellular':
-      return `On mobile data, Play is limited to ${cap}. Choose a quality to override it, or change the limit in Settings.`;
+      return overridable
+        ? `On mobile data, Play is limited to ${cap}. Choose a quality to override it, or change the limit in Settings.`
+        : `On mobile data, Play is limited to ${cap}. You can change the limit in Settings.`;
     case 'ceiling-preference':
-      return `Play is limited to ${cap} by your setting. Choose a quality to override it, or change it in Settings.`;
+      return overridable
+        ? `Play is limited to ${cap} by your setting. Choose a quality to override it, or change it in Settings.`
+        : `Play is limited to ${cap} by your setting, which you can change in Settings.`;
     case 'ceiling-display':
-      return `Play picks ${cap} to match this screen. Choose a quality to play a larger one.`;
+      return overridable
+        ? `Play picks ${cap} to match this screen. Choose a quality to play a larger one.`
+        : `Play picks ${cap} to match this screen.`;
   }
 }
 
+const OFFER_EVERYTHING_KEY = 'macha.offer-everything';
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
 /**
- * Whether an item's qualities are worth offering: more than one, or one the
- * ceiling kept automatic play off. A single step that Play already takes is
- * the same button twice.
+ * Whether to offer what this phone may not play (Tom, 2026-09-25: "sensible
+ * defaults but leaving the user in ultimate control"). Off, the qualities
+ * above this screen are not offered, and the Playback sheet's modes this
+ * device cannot decode are listed with the reason but cannot be picked. On,
+ * both can be picked. Kept on this device.
  */
-export function offersVersions(versions: PlaybackVersions | undefined): versions is PlaybackVersions {
-  return !!versions && (versions.steps.length > 1 || (versions.limitedBy !== undefined && versions.steps.length > 0));
+class OfferEverythingStore {
+  private readonly listeners = new Set<() => void>();
+
+  getSnapshot = (): boolean => readValidatedJson(OFFER_EVERYTHING_KEY, isBoolean) ?? false;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  set(value: boolean): void {
+    writeJson(OFFER_EVERYTHING_KEY, value);
+    for (const listener of this.listeners) listener();
+  }
+}
+
+export const offerEverything = new OfferEverythingStore();
+
+/** This screen's class, as core classes a display, or undefined where it cannot be read. */
+export function screenQualityClass(): QualityClass | undefined {
+  const display = displayPixels();
+  return display ? displayQualityClass(display.width, display.height) : undefined;
+}
+
+/**
+ * The qualities to offer the viewer, or undefined when there is no choice
+ * worth a button.
+ *
+ * **Nothing above this screen, unless the viewer asked for everything.** Tom,
+ * 2026-09-25: a phone cannot play 2160p, so it is not offered. The screen is
+ * the measure because it is the one this client can read: the codec probe
+ * reports codecs and profiles, not decoder sizes. A screen that cannot be
+ * read hides nothing.
+ *
+ * Worth offering means more than one quality, or one that is not what Play
+ * would take anyway. A single button that does what Play does is noise.
+ */
+export function offeredVersions(
+  versions: PlaybackVersions | undefined,
+  screen: QualityClass | undefined,
+  everything: boolean,
+): PlaybackVersions | undefined {
+  if (!versions) return undefined;
+  const steps = everything || screen === undefined ? versions.steps : versions.steps.filter((step) => step.quality <= screen);
+  const automatic = versions.automatic?.quality;
+  if (steps.length > 1 || steps.some((step) => step.quality !== automatic)) return { ...versions, steps };
+  return undefined;
+}
+
+/** Whether a quality larger than automatic play's is on offer, so a ceiling can be overridden. */
+export function largerOffered(versions: PlaybackVersions): boolean {
+  const automatic = versions.automatic?.quality ?? 0;
+  return versions.steps.some((step) => step.quality > automatic);
 }
 
 /** What a create asks for: the instruction, its file, and the preferences that go with them. */

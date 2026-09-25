@@ -1,9 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { Text } from 'react-native';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
-import { ceilingExplanation, offersVersions, playingStep, qualityLabel } from '../playback/quality';
+import {
+  ceilingExplanation,
+  largerOffered,
+  offerEverything,
+  offeredVersions,
+  playingStep,
+  qualityLabel,
+  screenQualityClass,
+} from '../playback/quality';
 import type { VersionStep } from '@machafoundation/core';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { PlaybackMode } from '../types';
@@ -31,10 +39,13 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
  * is decided here, from its own decoders: Remux and Direct stay listed but are
  * disabled, with the reason, when they would hand the player something it
  * cannot decode (Tom, 2026-09-23 and 2026-09-24). A mode is never hidden —
- * the viewer sees what exists and why it is not available to them.
+ * the viewer sees what exists and why it is not available to them. With
+ * "Offer everything" on in Settings they can pick it anyway (Tom, 2026-09-25:
+ * sensible defaults, the viewer in ultimate control).
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, playVersion, versions, busy } = usePlayback();
+  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
   const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
   const directBlocked = session ? directUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
 
@@ -72,7 +83,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   // any: the same list as the detail screen's buttons (Tom, 2026-09-25),
   // and two lists of heights would contradict each other. The node's list
   // stays for an item whose facts never arrived.
-  const shownVersions = offersVersions(versions) ? versions : undefined;
+  const shownVersions = offeredVersions(versions, screenQualityClass(), everything);
   const playing = shownVersions ? playingStep(shownVersions.steps, session) : undefined;
 
   return (
@@ -89,6 +100,9 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           // device cannot handle, is a decoder refusal the menu had offered.
           const blocked = mode === 'remux' ? remuxBlocked : mode === 'direct' ? directBlocked : undefined;
           const unavailable = mode !== preferences.mode ? blocked : undefined;
+          // "Offer everything" lets the viewer pick it anyway, the reason still
+          // shown: their call, made knowing why it may not play.
+          const locked = unavailable !== undefined && !everything;
           return (
             <SheetOption
               key={mode}
@@ -99,7 +113,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
                   : (unavailable ?? MODE_DETAIL[mode])
               }
               selected={preferences.mode === mode}
-              disabled={busy || unavailable !== undefined}
+              disabled={busy || locked}
               onPress={() => change({ preferences: { mode } })}
             />
           );
@@ -120,7 +134,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           ))}
           {shownVersions.limitedBy && !playing ? (
             <Text style={{ ...typography.caption, color: colors.textFaint, marginBottom: space.md }}>
-              {ceilingExplanation(shownVersions.limitedBy)}
+              {ceilingExplanation(shownVersions.limitedBy, largerOffered(shownVersions))}
             </Text>
           ) : null}
         </SheetSection>
