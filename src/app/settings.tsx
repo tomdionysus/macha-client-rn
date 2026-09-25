@@ -15,7 +15,7 @@ import { Sheet, SheetOption } from '../ui/Sheet';
 import {
   DEFAULT_CELLULAR_CEILING,
   QUALITY_CLASSES,
-  qualityClass,
+  displayQualityClass,
   type QualityClass,
   type QualityPreference,
 } from '@machafoundation/core';
@@ -221,7 +221,7 @@ function QualitySettings() {
   const preference = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot);
   const [editing, setEditing] = useState<keyof QualityPreference | undefined>(undefined);
   const display = displayPixels();
-  const screen = display ? qualityClass(display.width, display.height) : undefined;
+  const screen = display ? displayQualityClass(display.width, display.height) : undefined;
   const defaults: Record<keyof QualityPreference, string> = {
     wifi: screen ? `Up to this screen, ${qualityLabel(screen)}` : 'No limit',
     cellular: `Up to ${qualityLabel(DEFAULT_CELLULAR_CEILING)}`,

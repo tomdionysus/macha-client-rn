@@ -51,8 +51,9 @@ and nothing has it installed. `git log develop..main` is empty and must stay
 so.
 
 **`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **317 tests** against core `edef8bf`
-(dist `eead478b3386`). What it adds since 0.9.0 is under *On develop since
+`file:../macha-ts`. Typecheck clean and **317 tests** against core `3a5dc56`
+(dist `fe65432ce8e9`). Core's `dc47bf6` left a failing test; build on
+neither it alone nor anything before `3a5dc56` for the display class. What it adds since 0.9.0 is under *On develop since
 0.9.0*. **None of it has been on a device.**
 
 **Never run `npm run lint`.** `expo lint` installs ESLint into
@@ -77,8 +78,9 @@ everything since**, at least:
 - `a50ef64` (`preparePlaybackPatch`);
 - `a5f14fb` (`chooseAmongFiles`);
 - `f3cf74c` (the unreachable route error);
-- `aa843ed` and `edef8bf` (`playbackVersions`, `qualityCeiling`,
-  `QualityPreferenceStore`: the per-quality buttons).
+- `aa843ed`, `edef8bf` and `3a5dc56` (`playbackVersions`,
+  `qualityCeiling`, `QualityPreferenceStore`, `displayQualityClass`: the
+  per-quality buttons).
 
 Core's own session rebuilds its `dist`; do not rebuild it from here.
 
@@ -428,8 +430,9 @@ client repeats of the coordinator is in `src/playback/quality.ts`, since this
 client drives the resolver directly:
 - **Automatic play** is `playbackVersions(...).automatic` under
   `deviceQualityCeiling()`, read at each start. The display is `Dimensions`
-  `screen` in physical pixels, stated landscape: a portrait 1080x2400 read as
-  it stands would be a 2160p display. The connection is NetInfo's `type`,
+  `screen` in physical pixels. Core classes it with `displayQualityClass`
+  (`3a5dc56`): the largest 16:9 picture shown whole, so 2400x1080 is 1080p
+  either way up. The connection is NetInfo's `type`,
   set from `MachaProvider`'s listener.
 - **Every automatic or picked create now names its streams**
   (`streamsToName` on the chosen file). It named only the file before, so a
@@ -453,10 +456,10 @@ client drives the resolver directly:
 - **The mobile-data default is core's 720p, not a ruling.** Core said so
   itself.
 - **What the display cap does on the A85.** Its panel is probably 2400x1080,
-  which core classes as **1440p** by width. A title whose only file is
-  2160p then transcodes by default rather than playing Direct, because no
-  file is at or under the ceiling. That follows the ruling, but it costs the
-  node on titles that used to Direct Play.
+  which core now classes as **1080p**. A title whose only file is 2160p then
+  transcodes by default rather than playing Direct, because no file is at or
+  under the ceiling. That follows the ruling, but it costs the node on titles
+  that used to Direct Play.
 
 **Still open:** downloads naming a version (they still take `fileToPlay`'s
 file), and all of it on the A85: a multi-file item, a 2160p-only title, a

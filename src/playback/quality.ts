@@ -60,10 +60,10 @@ export function currentConnectionKind(): ConnectionKind {
 }
 
 /**
- * The panel in physical pixels, stated landscape. `screen` rather than
- * `window`, because the window loses the system bars and the panel does not;
- * landscape because a picture is, and a portrait 1080x2400 read as it stands
- * would be classed by its 2400 height as a 2160p display.
+ * The panel in physical pixels. `screen` rather than `window`, because the
+ * window loses the system bars and the panel does not. Stated landscape,
+ * though core's `displayQualityClass` no longer needs it (`3a5dc56`): it
+ * classes a screen by the largest 16:9 picture it shows whole, either way up.
  */
 export function displayPixels(): { width: number; height: number } | undefined {
   const { width, height, scale } = Dimensions.get('screen');
