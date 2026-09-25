@@ -292,29 +292,29 @@ export function decodableCodecs(
 }
 
 /**
- * The largest picture this device decodes, as one `maxWidth` / `maxHeight`,
- * and the claimed video codecs that reach it.
+ * The largest picture this device decodes, as `maxWidth` / `maxHeight`, and
+ * each claimed codec whose own decoder stops short of it
+ * (`videoCodecMaxSize`, core `d6fa069`).
  *
  * Tom, 2026-09-25: limit to the device's capabilities for direct play. The
  * decoders are asked (`videoDecoderSizes`, landscape frames at 24 fps) rather
  * than the screen, which on the A85 is 720x1612 while its decoders manage
  * 1080p.
  *
- * **The limit is the largest frame any claimed codec reaches, and a codec
- * that falls short of it is no longer claimed.** Core's capability is one
- * size for every codec. The first version took the smallest instead, and on
- * the A85 (2026-09-25) its AV1 decoder, 720p at 24 fps against 1080p for
- * H.264, HEVC and VP9, capped the whole device at 720p: every 1080p H.264
- * file lost its Direct Play to a codec it does not use. Dropping the short
- * codec keeps every claim true instead. A claimed codec its decoders gave no
- * size for keeps its claim and sets no limit, since absence of a fact is not
- * a fact.
+ * **The overall limit is the largest frame any claimed codec reaches, and a
+ * codec below it is held to its own.** The first version took the smallest
+ * instead, and on the A85 (2026-09-25) its AV1 decoder, 720p at 24 fps
+ * against 1080p for H.264, HEVC and VP9, capped the whole device at 720p.
+ * The second dropped AV1's claim, which lost Direct Play of AV1 at 720p and
+ * below. Core then took a limit per codec, so every claim stays and each is
+ * true at its own size. A claimed codec its decoders gave no size for sets
+ * no limit, since absence of a fact is not a fact.
  */
 export function decoderSizeLimit(
   sizes: Readonly<Record<string, { width: number; height: number }>> | undefined,
   claimedVideo: readonly string[],
-): { codecs: string[]; limit?: { maxWidth: number; maxHeight: number } } {
-  if (!sizes) return { codecs: [...claimedVideo] };
+): { maxWidth: number; maxHeight: number; videoCodecMaxSize?: Record<string, { width: number; height: number }> } | undefined {
+  if (!sizes) return undefined;
   const area = (frame: { width: number; height: number }) => frame.width * frame.height;
   const largestOf = (codec: string) => {
     const frames = (DECODER_MIME_TYPES[codec] ?? []).map((mime) => sizes[mime]).filter((frame) => frame !== undefined);
@@ -325,13 +325,16 @@ export function decoderSizeLimit(
     const frame = largestOf(codec);
     if (frame && (!top || area(frame) > area(top))) top = frame;
   }
-  if (!top) return { codecs: [...claimedVideo] };
+  if (!top) return undefined;
   const reach = top;
+  const perCodec: Record<string, { width: number; height: number }> = {};
+  for (const codec of claimedVideo) {
+    const frame = largestOf(codec);
+    if (frame && area(frame) < area(reach)) perCodec[codec] = { width: frame.width, height: frame.height };
+  }
   return {
-    codecs: claimedVideo.filter((codec) => {
-      const frame = largestOf(codec);
-      return !frame || area(frame) >= area(reach);
-    }),
-    limit: { maxWidth: reach.width, maxHeight: reach.height },
+    maxWidth: reach.width,
+    maxHeight: reach.height,
+    ...(Object.keys(perCodec).length > 0 ? { videoCodecMaxSize: perCodec } : {}),
   };
 }

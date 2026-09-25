@@ -81,10 +81,7 @@ function platformCapabilities(): PlaybackCapabilities {
     const profiles = probedProfiles();
     const decoders = profiles ? Object.keys(profiles) : undefined;
     const narrow = (declared: string[]) => decodableCodecs(declared, decoders);
-    // The decoders' sizes set the limit and drop a codec that cannot reach
-    // it; see `decoderSizeLimit`.
-    const sized = decoderSizeLimit(probedDecoderSizes(), withProbedAdditions(narrow(['h264', 'hevc', 'vp9']), decoders));
-    const claimedVideo = sized.codecs;
+    const claimedVideo = withProbedAdditions(narrow(['h264', 'hevc', 'vp9']), decoders);
     const claimedAudio = narrow(['aac', 'ac3', 'eac3', 'opus', 'vorbis', 'mp3', 'flac']);
     return {
       platform: 'android',
@@ -146,9 +143,10 @@ function platformCapabilities(): PlaybackCapabilities {
       // global answer has to be the minimum. Falls back to the old constant
       // when the device cannot be asked.
       videoBitDepth: probedVideoBitDepth(claimedVideo, profiles) ?? 8,
-      // The largest picture the claimed codecs' decoders manage; see
-      // `decoderSizeLimit`. Absent where the device could not be asked.
-      ...sized.limit,
+      // The largest picture the claimed codecs' decoders manage, and any
+      // codec held to less; see `decoderSizeLimit`. Absent where the device
+      // could not be asked.
+      ...decoderSizeLimit(probedDecoderSizes(), claimedVideo),
     };
   }
 

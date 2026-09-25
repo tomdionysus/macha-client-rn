@@ -27,8 +27,10 @@ the launcher. Logcat in UTC throughout.
   1920x1080 at 24 fps; **AV1 1280x720**; MPEG-4 Part 2 854x480. The first
   cut took the smallest claimed frame, so AV1 capped the whole device at
   720p; seen on *2001* (864p H.264) offering no quality buttons. **Fixed in
-  `60fc6c6`:** the limit is the largest claimed frame, and AV1 stops being
-  claimed on this device. Test red first against the measured numbers.
+  `60fc6c6`:** the limit is the largest claimed frame, and AV1 stopped being
+  claimed on this device. **Then refined** once core took a limit per codec
+  (`d6fa069`): AV1 stays claimed and is held to its own 1280x720
+  (`videoCodecMaxSize`), so AV1 at 720p and below keeps Direct Play.
 - **Automatic play stays at 720p** here, from the measured panel (Tom).
 
 ### Passed
