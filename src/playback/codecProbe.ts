@@ -290,3 +290,33 @@ export function decodableCodecs(
     return candidates.some((mime) => present.has(mime));
   });
 }
+
+/**
+ * The largest picture this device can decode, as one `maxWidth` /
+ * `maxHeight` for every video codec it claims, or undefined where no decoder
+ * said.
+ *
+ * Tom, 2026-09-25: limit to the device's capabilities for direct play. The
+ * decoders are asked (`videoDecoderSizes`, landscape frames at 24 fps) rather
+ * than the screen, which on the A85 is 720x1612 while its decoders manage
+ * 1080p. Core's capability is one size for all codecs, so this is the
+ * **smallest** of the claimed codecs' largest frames: a claim true of every
+ * codec the device says it plays. A claimed codec its decoders gave no size
+ * for is left out, since absence of a fact is not a fact.
+ */
+export function decoderSizeLimit(
+  sizes: Readonly<Record<string, { width: number; height: number }>> | undefined,
+  claimedVideo: readonly string[],
+): { maxWidth: number; maxHeight: number } | undefined {
+  if (!sizes) return undefined;
+  let limit: { maxWidth: number; maxHeight: number } | undefined;
+  for (const codec of claimedVideo) {
+    const frames = (DECODER_MIME_TYPES[codec] ?? []).map((mime) => sizes[mime]).filter((frame) => frame !== undefined);
+    if (frames.length === 0) continue;
+    const largest = frames.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
+    if (!limit || largest.width * largest.height < limit.maxWidth * limit.maxHeight) {
+      limit = { maxWidth: largest.width, maxHeight: largest.height };
+    }
+  }
+  return limit;
+}

@@ -2,6 +2,7 @@ import { Dimensions, Platform } from 'react-native';
 import MachaCodecs from '../../modules/macha-codecs/src/MachaCodecsModule';
 import {
   decodableCodecs,
+  decoderSizeLimit,
   probedDolbyVisionProfiles,
   probedHdrTransfers,
   probedVideoBitDepth,
@@ -20,18 +21,21 @@ import type { PlaybackPolicyOverrides } from '@machafoundation/core';
  * screen — and under the instruction-based API that matters more than it used
  * to, because the server performs what it is told and never second-guesses it.
  *
- * **The screen is stated as the largest picture this device plays**
- * (`maxWidth` / `maxHeight`). Tom, 2026-09-25: "limit to the device
- * capabilities for direct on all clients", with a setting to turn the limit
- * off (`QualityPreference.offerAll`), and "2160p they simply can't play in
- * the phone". It replaces this file's old rule that screen size is never a
- * capability. It is a policy statement, not a measured decoder limit: the
- * codec probe reports codecs and profiles, not sizes. Core's chooser objects
+ * **The largest picture the decoders can decode is stated as `maxWidth` /
+ * `maxHeight`** (Android only; `decoderSizeLimit`). Tom, 2026-09-25: "limit
+ * to the device capabilities for direct on all clients", with a setting to
+ * turn the limit off (`QualityPreference.offerAll`). Core's chooser objects
  * to a larger picture (`video-size-exceeds-client`), and `playbackVersions`
  * offers nothing above it unless the viewer turned the limit off.
+ *
+ * **Not the screen.** That was stated first, the same day, and was wrong: the
+ * A85's panel is 720x1612, so every 1080p file was refused a Direct Play its
+ * decoders manage. The screen is a preference default for automatic play
+ * (`qualityCeiling`'s display), never a capability, which is this file's old
+ * rule restored. iOS and web have no probe and state no limit.
  */
 export function deviceCapabilities(): PlaybackCapabilities {
-  return { ...platformCapabilities(), ...screenLimit() };
+  return platformCapabilities();
 }
 
 /**
@@ -46,11 +50,25 @@ export function displayPixels(): { width: number; height: number } | undefined {
   return long > 0 && short > 0 ? { width: long, height: short } : undefined;
 }
 
-/** A panel that cannot be read states no limit. The web client states none either. */
-function screenLimit(): { maxWidth?: number; maxHeight?: number } {
-  if (Platform.OS === 'web') return {};
-  const display = displayPixels();
-  return display ? { maxWidth: display.width, maxHeight: display.height } : {};
+/**
+ * The decoders' frame sizes, memoised like the profiles, or undefined where
+ * they could not be asked (no native module, a build predating the call, or
+ * a throw), which states no limit.
+ */
+let probedSizes: { sizes: Record<string, { width: number; height: number }> | undefined } | undefined;
+
+function probedDecoderSizes(): Record<string, { width: number; height: number }> | undefined {
+  if (probedSizes) return probedSizes.sizes;
+  let sizes: Record<string, { width: number; height: number }> | undefined;
+  try {
+    const reported = MachaCodecs?.videoDecoderSizes?.();
+    sizes = reported && Object.keys(reported).length > 0 ? reported : undefined;
+  } catch {
+    sizes = undefined;
+  }
+  probedSizes = { sizes };
+  console.log('[macha] [playback] decoder-sizes', sizes ?? 'unknown');
+  return sizes;
 }
 
 function platformCapabilities(): PlaybackCapabilities {
@@ -125,6 +143,9 @@ function platformCapabilities(): PlaybackCapabilities {
       // global answer has to be the minimum. Falls back to the old constant
       // when the device cannot be asked.
       videoBitDepth: probedVideoBitDepth(claimedVideo, profiles) ?? 8,
+      // The largest picture every claimed codec's decoders manage; see
+      // `decoderSizeLimit`. Absent where the device could not be asked.
+      ...decoderSizeLimit(probedDecoderSizes(), claimedVideo),
     };
   }
 

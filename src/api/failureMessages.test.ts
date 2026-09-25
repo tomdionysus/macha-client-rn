@@ -98,6 +98,6 @@ describe('failure messages are keyed on what happened', () => {
 
   // By the time the revoke fails the local sign-out has already happened.
   it('says the phone is signed out when only the revoke failed', () => {
-    expect(signOutFailureMessage(new MachaConnectionError('fetch failed'))).toMatch(/^Logged out on this phone/);
+    expect(signOutFailureMessage(new MachaConnectionError('fetch failed'))).toMatch(/^Logged out on this device/);
   });
 });

@@ -260,8 +260,8 @@ function QualitySettings() {
         title="Offer everything"
         detail={
           preference.offerAll
-            ? 'On. Qualities above this screen, and modes this phone may not play, can be picked.'
-            : 'Off. Only qualities and modes this phone can play are offered.'
+            ? 'On. Qualities and modes this device may not play can be picked.'
+            : 'Off. Only qualities and modes this device can play are offered.'
         }
         detailLines={2}
         onPress={() => qualityPreferences.setOfferAll(!preference.offerAll)}

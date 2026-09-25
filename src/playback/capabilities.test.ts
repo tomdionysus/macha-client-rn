@@ -35,21 +35,21 @@ describe('deviceCapabilities', () => {
   });
 
   /**
-   * Tom, 2026-09-25: limit to the device for direct on all clients; a phone
-   * cannot play 2160p. The screen is the stated limit, in landscape physical
-   * pixels, and a screen that cannot be read states none.
+   * The screen is never the device's limit. It was stated as one on
+   * 2026-09-25 and the A85's 720x1612 panel then refused every 1080p file a
+   * Direct Play its decoders manage. The limit is the decoders' own
+   * (`decoderSizeLimit`), and with no probe there is none.
    */
-  it.each(['ios', 'android'] as const)('states the screen as the largest picture on %s', (os) => {
+  it.each(['ios', 'android'] as const)('states no size limit from the screen on %s', (os) => {
     const saved = Dimensions.screen;
-    Dimensions.screen = { width: 400, height: 900, scale: 2.7, fontScale: 1 };
+    Dimensions.screen = { width: 360, height: 806, scale: 2, fontScale: 1 };
     try {
       const caps = onPlatform(os, deviceCapabilities);
-      expect(caps.maxWidth).toBe(2430);
-      expect(caps.maxHeight).toBe(1080);
+      expect(caps.maxWidth).toBeUndefined();
+      expect(caps.maxHeight).toBeUndefined();
     } finally {
       Dimensions.screen = saved;
     }
-    expect(onPlatform(os, deviceCapabilities).maxHeight).toBeUndefined();
   });
 
   it('claims fragmented-MP4 HLS on both platforms, which is what remux depends on', () => {

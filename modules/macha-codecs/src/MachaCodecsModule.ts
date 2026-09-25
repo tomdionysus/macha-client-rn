@@ -14,6 +14,13 @@ declare class MachaCodecsModule extends NativeModule<{}> {
    * platform could not be asked — distinct from `[]`, an SDR panel.
    */
   displayHdrTypes(): number[] | null;
+
+  /**
+   * The largest standard 16:9 frame each video decoder type decodes at 24 fps,
+   * per lowercased MIME type; hardware decoders where the type has any. A
+   * type none of whose decoders manage 360p is absent.
+   */
+  videoDecoderSizes(): Record<string, { width: number; height: number }>;
 }
 
 /**

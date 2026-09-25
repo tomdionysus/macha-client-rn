@@ -57,7 +57,7 @@ export function QrScanner({ onScan, onCancel, instruction, message }: QrScannerP
         <Text style={styles.promptTitle}>Camera access</Text>
         <Text style={styles.promptBody}>
           {permission.canAskAgain
-            ? 'Scanning a code needs the camera. Nothing is recorded, and no image leaves the phone.'
+            ? 'Scanning a code needs the camera. Nothing is recorded, and no image leaves this device.'
             : 'The camera is switched off for Macha. Turn it back on in Settings to scan a code.'}
         </Text>
         <Button

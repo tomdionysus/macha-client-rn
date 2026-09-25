@@ -95,8 +95,8 @@ export function ceilingExplanation(ceiling: QualityCeiling, overridable: boolean
         : `Play picks ${cap} to match this screen.`;
     case 'ceiling-device':
       return overridable
-        ? `Play picks ${cap}, the largest this phone plays. A larger quality may not play here.`
-        : `Play picks ${cap}, the largest this phone plays. Offer everything in Settings lists larger ones.`;
+        ? `Play picks ${cap}, the largest this device plays. A larger quality may not play here.`
+        : `Play picks ${cap}, the largest this device plays. Offer everything in Settings lists larger ones.`;
   }
 }
 

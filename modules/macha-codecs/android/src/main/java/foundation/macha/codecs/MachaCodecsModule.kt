@@ -1,7 +1,9 @@
 package foundation.macha.codecs
 
 import android.content.Context
+import android.media.MediaCodecInfo
 import android.media.MediaCodecList
+import android.os.Build
 import android.view.Display
 import android.view.WindowManager
 import expo.modules.kotlin.modules.Module
@@ -63,6 +65,42 @@ class MachaCodecsModule : Module() {
         }
       }
       out.mapValues { (_, profiles) -> profiles.toList() }
+    }
+
+    /**
+     * The largest standard 16:9 frame each video decoder type can decode at
+     * 24 fps, as `{ width, height }` per lowercased MIME type.
+     *
+     * Tom, 2026-09-25: limit to the device's capabilities for direct play.
+     * The screen was stated first and was the wrong fact: the A85's panel is
+     * 720x1612, and it decodes 1080p perfectly well. This asks the decoders.
+     *
+     * Hardware decoders only where the type has one (API 29+ can tell):
+     * a software decoder will claim 4K and then play it at a few frames a
+     * second, and media3 prefers the hardware one anyway. A type with only a
+     * software decoder is judged by it, since that is what will play it.
+     * `areSizeAndRateSupported` rather than `isSizeSupported`, because a
+     * decoder can hold a frame size it cannot decode in real time.
+     */
+    Function("videoDecoderSizes") {
+      val frames = listOf(3840 to 2160, 2560 to 1440, 1920 to 1080, 1280 to 720, 1024 to 576, 854 to 480, 640 to 360)
+      val byType = mutableMapOf<String, MutableList<Pair<Boolean, MediaCodecInfo.VideoCapabilities>>>()
+      for (info in MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos) {
+        if (info.isEncoder) continue
+        val hardware = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && info.isHardwareAccelerated
+        for (type in info.supportedTypes) {
+          if (!type.lowercase().startsWith("video/")) continue
+          val video = runCatching { info.getCapabilitiesForType(type).videoCapabilities }.getOrNull() ?: continue
+          byType.getOrPut(type.lowercase()) { mutableListOf() }.add(hardware to video)
+        }
+      }
+      byType.mapNotNull { (type, decoders) ->
+        val preferred = decoders.filter { it.first }.ifEmpty { decoders }
+        val frame = frames.firstOrNull { (width, height) ->
+          preferred.any { (_, video) -> runCatching { video.areSizeAndRateSupported(width, height, 24.0) }.getOrDefault(false) }
+        }
+        frame?.let { (width, height) -> type to mapOf("width" to width, "height" to height) }
+      }.toMap()
     }
 
     /**

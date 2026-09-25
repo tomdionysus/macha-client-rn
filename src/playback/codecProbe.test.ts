@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decoderSizeLimit,
   DECODER_MIME_TYPES,
   decodableCodecs,
   probedDolbyVisionProfiles,
@@ -279,5 +280,40 @@ describe('probedDolbyVisionProfiles', () => {
   it('is undefined when the device could not be asked', () => {
     expect(probedDolbyVisionProfiles(undefined)).toBeUndefined();
     expect(probedDolbyVisionProfiles({})).toBeUndefined();
+  });
+});
+
+/**
+ * Tom, 2026-09-25: limit to the device's capabilities for direct play. The
+ * decoders are the device's capability; the A85's screen (720x1612) is not.
+ */
+describe('decoderSizeLimit', () => {
+  const a85ish = {
+    'video/avc': { width: 1920, height: 1080 },
+    'video/hevc': { width: 1920, height: 1080 },
+    'video/x-vnd.on2.vp9': { width: 3840, height: 2160 },
+  };
+
+  it('states the largest frame every claimed codec decodes', () => {
+    expect(decoderSizeLimit(a85ish, ['h264', 'hevc', 'vp9'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+  });
+
+  it('is bound by the weakest claimed codec, not the strongest', () => {
+    expect(decoderSizeLimit(a85ish, ['vp9'])).toEqual({ maxWidth: 3840, maxHeight: 2160 });
+    expect(decoderSizeLimit(a85ish, ['vp9', 'hevc'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+  });
+
+  it('takes the larger of a codec’s spellings', () => {
+    expect(decoderSizeLimit({ 'audio/eac3': { width: 1, height: 1 }, 'video/av01': { width: 1280, height: 720 } }, ['av1'])).toEqual({
+      maxWidth: 1280,
+      maxHeight: 720,
+    });
+  });
+
+  it('states nothing where the decoders were not asked, or gave no size', () => {
+    expect(decoderSizeLimit(undefined, ['h264'])).toBeUndefined();
+    expect(decoderSizeLimit({}, ['h264'])).toBeUndefined();
+    // A claimed codec with no size is left out rather than read as zero.
+    expect(decoderSizeLimit({ 'video/avc': { width: 1920, height: 1080 } }, ['h264', 'hevc'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
   });
 });

@@ -39,7 +39,7 @@ export function sessionExpiryNotice(state: AccountState, nowMs: number): ExpiryN
   return {
     title: `Your login expires ${inWords(remainingMs)}`,
     detail:
-      'Log in again to keep seeing everything this account can. When it lapses, this phone carries on without an account and may lose the library.',
+      'Log in again to keep seeing everything this account can. When it lapses, this device carries on without an account and may lose the library.',
   };
 }
 
@@ -73,6 +73,6 @@ export function sessionEndedNotice(
   if (now !== 'anonymous' && now !== 'unstated') return undefined;
   return {
     title: 'You have been logged out',
-    detail: `This phone was logged in as ${from.trim()}, and the cluster has replaced that session. Log in again to get back everything that account can see.`,
+    detail: `This device was logged in as ${from.trim()}, and the cluster has replaced that session. Log in again to get back everything that account can see.`,
   };
 }

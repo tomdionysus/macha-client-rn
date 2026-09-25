@@ -480,12 +480,20 @@ in core's session the same day, for all three clients: "limit to the device
 capabilities for direct on all clients - but, all clients should also have a
 setting to disable this."** Core built it in `edfce82`, and this client moved
 onto it:
-- **The phone states its screen as `maxWidth` / `maxHeight`**
-  (`deviceCapabilities`, landscape physical pixels). This retires the old
-  rule that screen size is never a capability. It is a policy statement,
-  not a measured decoder limit: the codec probe reports codecs and profiles,
-  not sizes. **A decoder-size probe** (`VideoCapabilities.getSupportedHeights`)
-  would be the stricter fact, and it needs a native build.
+- ~~**The phone states its screen as `maxWidth` / `maxHeight`**~~ **Wrong,
+  and replaced the same day.** The A85's panel is **720x1612**, not the
+  2400x1080 assumed here, so every 1080p file was refused the Direct Play its
+  decoders manage. Found on the device before the smoke test; Tom chose the
+  decoder limit.
+- **The limit is the decoders'** (`decoderSizeLimit`, Android only): the
+  native `videoDecoderSizes()` asks each video decoder type for the largest
+  standard 16:9 landscape frame it decodes at 24 fps, hardware decoders where
+  the type has any. The stated limit is the smallest of the claimed codecs'
+  largest frames. iOS and web state none. The screen is a preference default
+  for automatic play again, never a capability.
+- **Tom, 2026-09-25: "most people watch their phone landscaped", and tablets
+  are in scope.** Both measurements are landscape, and viewer text says
+  "this device", not "this phone".
 - **Core's chooser objects to a larger picture**
   (`video-size-exceeds-client`). A 2160p file therefore transcodes
   automatically on the A85, and the sheet disables Direct and Remux for it

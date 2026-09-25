@@ -77,7 +77,7 @@ export function signInFailureMessage(error: unknown): string {
  * thing to say.
  */
 export function signOutFailureMessage(error: unknown): string {
-  const lead = 'Logged out on this phone, but the server could not be told, so the old session stays valid until it expires.';
+  const lead = 'Logged out on this device, but the server could not be told, so the old session stays valid until it expires.';
   return isUnreachable(error) ? `${lead} The server could not be reached.` : quoted(lead, error);
 }
 
