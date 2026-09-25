@@ -195,6 +195,14 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
      or password was not accepted."; an unnamed playlist reads "Untitled
      playlist".
    - Remove `ramaroja`.
+   - **Resume keeps its place** (`presentedRef`, 2026-09-25, after core's
+     `d93c9d8`). Before it, an idle expo-video tick of 0 during the session
+     create became the position, was checkpointed into Continue Watching,
+     and was used by a retry or a stop. Check: resume a Direct and a
+     Transcode title from Continue Watching; back out mid-load and see
+     Continue Watching unchanged; a retry after a refused create resumes
+     where it was; a mid-play switch into Direct keeps the position. Not
+     unit-tested: it lives in the provider, which nothing here renders.
    - **On the Galaxy** (no endpoints): a wrong port says "did not identify
      itself as a Macha node" and saves on a second tap.
 2. **The rest of the smoke test.** Unrun on hardware: a quality change, the

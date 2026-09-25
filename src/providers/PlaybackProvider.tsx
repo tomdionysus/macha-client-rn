@@ -312,6 +312,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * switch to another file can name that file's streams.
    */
   const versionRef = useRef<VersionStep | undefined>(undefined);
+  /**
+   * Whether this item's source is on the player yet. Until it is, what the
+   * player reports describes nothing of ours: an idle expo-video player ticks
+   * position 0 every 250 ms with no source at all. Taken as the viewer's
+   * position, one tick while the session was being made became the resume
+   * point, checkpointed into Continue Watching and used by a retry or a
+   * stop. Core's coordinator had the same fault (`d93c9d8`, found by the
+   * television, Tom's "sometimes starts at 0").
+   */
+  const presentedRef = useRef(false);
   const filesRef = useRef<readonly PlaybackMediaFacts[] | undefined>(undefined);
 
   useEffect(() => () => player.release(), [player]);
@@ -396,6 +406,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       countedPlayRef.current = undefined;
       versionRef.current = options.version;
       filesRef.current = undefined;
+      presentedRef.current = false;
       positionRef.current = 0;
       // A new item starts its regeneration bound afresh, as core's does.
       lastRegenerationPositionRef.current = undefined;
@@ -449,12 +460,24 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
         const remembered = continueWatching.positionFor(media.id);
         const seekMs = options.seekMs ?? (remembered > RESUME_FLOOR_MS ? remembered : 0);
+        // The resume point is the position until the player reports one of
+        // this source's, so a stop or a retry before then keeps it.
+        positionRef.current = seekMs;
+        // A start seek is a seek like any other: a freshly presented player
+        // reports 0 for a few frames before it lands, and those frames must
+        // not be checkpointed over the resume point either. Nothing of the
+        // previous item's may still be pending.
+        const startSeek = () => {
+          pendingSeekRef.current = seekMs > 0 ? { targetMs: seekMs, atMs: Date.now() } : undefined;
+        };
+        pendingSeekRef.current = undefined;
 
         // A downloaded original is played straight off the disk: no session, no
         // capability URL, no node. This is the whole point of downloads — in
         // airplane mode there is nothing to negotiate with.
         const stored = downloads.localFor(media);
         if (stored?.localUri) {
+          startSeek();
           if (audio) {
             await loadAudioTrack(audioTrackFor(media, stored.localUri, stored.artworkUri, false), seekMs);
           } else {
@@ -469,6 +492,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
             if (seekMs > 0) player.currentTime = seekMs / 1000;
             player.play();
           }
+          // Only this load's: a newer one may have begun during the await.
+          if (generationRef.current === myGeneration) presentedRef.current = true;
           // Off the disk there is no node to ask, so the player's own reading is
           // the only one available and is left free to supply it.
           knownDurationRef.current = 0;
@@ -520,6 +545,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         sessionRef.current = session;
+        // A transformed generation already begins at the start position; only
+        // Direct seeks into the file.
+        if (session.mode === 'direct') startSeek();
         if (audio) {
           await loadAudioTrack(
             audioTrackFor(media, session.source.url, nowPlayingArtworkUrl(mediaApi, media), isHlsSession(session)),
@@ -532,6 +560,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           if (session.mode === 'direct' && seekMs > 0) player.currentTime = seekMs / 1000;
           player.play();
         }
+        if (generationRef.current === myGeneration) presentedRef.current = true;
         // The session's own figure first — it describes this exact output —
         // and the profile's runtime when it does not give one.
         const durationMs = session.durationMs || knownDurationMs;
@@ -1120,7 +1149,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         const sourceUnchanged = next.source.url === session.source.url;
         if (!sourceUnchanged) {
           applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
-          if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
+          if (next.mode === 'direct' && resumeMs > 0) {
+            // The new source reports 0 before the seek lands, as at a start.
+            pendingSeekRef.current = { targetMs: resumeMs, atMs: Date.now() };
+            player.currentTime = resumeMs / 1000;
+          }
           player.play();
         }
         const durationMs = next.durationMs || knownDurationRef.current;
@@ -1194,6 +1227,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('timeUpdate', ({ currentTime, bufferedPosition }) => {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
+        // Nothing of ours is on the player yet; see `presentedRef`.
+        if (!presentedRef.current) return;
         // The player counts from the start of the *generation*; everything
         // above this line means the title's timeline. Convert once, here, at
         // the point the figure arrives — see `generationOriginMs`. Without it
@@ -1337,6 +1372,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     const subscriptions = [
       TrackPlayer.addEventListener(TrackEvent.PlaybackProgressUpdated, ({ position, duration, buffered }) => {
         if (engineRef.current !== 'audio') return;
+        // Nothing of ours is on the player yet; see `presentedRef`.
+        if (!presentedRef.current) return;
         const positionMs = Math.max(0, Math.round(position * 1000));
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
