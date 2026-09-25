@@ -8,6 +8,86 @@ Newest first.
 
 ---
 
+## 2026-09-25 — Server 0.58.0, the token in the Keystore, the file named, the login notices
+
+All on `develop`, all pushed, **none of it on a device**: the A85 was off
+ADB throughout. Suite **306 across 28 files**, typecheck clean, against core
+`a50ef64` (dist `69c2e81e1bc1`).
+
+### The client names the file (`f6ae991`, `9761b07`)
+
+Tom's ruling, first relayed to core by the web client and the server, and in
+the shared laws text since core `284e52e`: the client, not the server,
+chooses among an item's files. This client used to judge `mediaIds[0]` and
+name nothing, so the server played its own first choice. I asked core to
+export its private ranking rather than copy it, and it did, as
+`chooseAmongFiles` (`a5f14fb`), which its coordinator now shares. `chooseFile`
+and `fileToPlay` in `policy.ts` wrap it: the chooser's pick, the file under a
+mode the viewer names (as core's coordinator does since `580473f`), and
+downloads. Six tests, red first. Failover and regeneration pass no
+`mediaId`, so core restates the served file.
+
+### Server 0.58.0: the node chooses nothing (`b93f907`)
+
+Live on fi-1 and gbni-1. It was announced as 0.57.1 and renumbered by Tom
+because it breaks old clients. A create must send `media_id`, and **0.9.0,
+on core 0.19.0, gets `item_id_not_accepted` on every create**. A PATCH is
+held to a create's choices, so a Direct session switched into Remux or
+Transcode on a multi-audio file was refused `choice_required`. **I first
+told core its coordinator fix reached this client. It does not, because we
+call `resolver.update` directly, and core corrected it.** Core then exported
+`preparePlaybackPatch` (`a50ef64`), which `ClusterPlaybackApi.update` now
+calls on every PATCH. No test here, as it is one call and core tests the
+function.
+
+### The token in the Keystore (`dd0205f`)
+
+`expo-secure-store` ~57.0.4 behind core's `secureStorage`, with
+`configureAndroidBackup` explicit. **The plan recorded in ACTIVE was wrong,
+and a test proved it:** a fire-and-forget `deleteItemAsync` can land after a
+quick re-login and erase the new token. `removeItem` overwrites with `''`
+synchronously instead. Both removal tests failed against the first cut; a
+stub in `src/test` lets a test decide when a delete lands. The plaintext
+copies (`macha.session.v1`, and `macha-session` from before core 0.10.0) are
+deleted, not moved: one login on the A85. `signOut()` is core's alone; ours
+revoked the same session twice. A release Gradle build ran clean in 26
+minutes. **Side effect, with Tom:** the module's backup rules back up
+`sharedpref` only, so AsyncStorage leaves Android Auto Backup.
+
+### The login notices (`bc17c4b`, `0fa031d`)
+
+At 30 days core re-mints with no credentials. The whoami this client already
+reads carries `expires_unix_ms`, so `sessionExpiryNotice` warns a named
+account within 3 days, and `sessionEndedNotice` reads core's
+`lastIdentityChange` to say "You have been logged out" after the fact,
+without claiming "expired". Both appear as a Home banner that opens the login
+screen. They are not a `Problem`, because `clusterMediaUnavailable` would
+switch off Continue Watching. Seven tests, red first.
+
+### Also
+
+- **The music player** (`6aac25a`): artist, album (year) and track below the
+  artwork (Tom via core).
+- **Every law citation accurate to the canonical text** (Tom, 2026-09-24).
+  This repo cites none; the web client and the TV each re-cited one "Law 2"
+  that was really a principle; core fixed one "Law 1".
+
+### The per-quality design, as it was reached
+
+Tom asked core for one way to choose between versions of a title. The phone
+answered core's questions (both screens, player first; downloads name a
+version; per-device Wi-Fi and mobile-data ceilings; no default from measured
+bandwidth; show every version, greyed only when unplayable). Tom then ruled,
+directly here: "there's no point upscaling a 480p to 2K... it's always
+possible to transcode down unless a specific file exists to direct, but
+upscaling isn't offered." The phone raised width-and-height classification
+(a 1080p scope film is about 1920x800). **Tom's final settlement differed
+from the phone's suggestions in two places**: below 720p the file's own class
+is shown, and with no setting automatic play caps at the display's class.
+The settled design is in ACTIVE.
+
+---
+
 ## 2026-09-24 night — Artwork host preference wired; Zulu closed without code
 
 - **`noteArtworkLoaded`** (`44cc97e`). core orders artwork candidates with
