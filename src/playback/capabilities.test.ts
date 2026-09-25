@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { Platform } from 'react-native';
+import { Dimensions as NativeDimensions, Platform } from 'react-native';
 import { deviceCapabilities } from './capabilities';
+
+/** The stub's panel, which a test sets as it sets `Platform.OS`; see `src/test/react-native.ts`. */
+const Dimensions = NativeDimensions as unknown as {
+  screen: { width: number; height: number; scale: number; fontScale: number };
+};
 
 const onPlatform = <T,>(os: 'ios' | 'android', run: () => T): T => {
   const previous = Platform.OS;
@@ -29,11 +34,22 @@ describe('deviceCapabilities', () => {
     for (const codec of caps.hlsAudioCodecs ?? []) expect(caps.audioCodecs).toContain(codec);
   });
 
-  it.each(['ios', 'android'] as const)('advertises no decoder resolution limit on %s', (os) => {
-    // Screen size is not a decoder limit: a modern phone decodes 4K and scales
-    // it down. Declaring one would force a transcode for no reason.
-    const caps = onPlatform(os, deviceCapabilities) as { maxHeight?: number };
-    expect(caps.maxHeight).toBeUndefined();
+  /**
+   * Tom, 2026-09-25: limit to the device for direct on all clients; a phone
+   * cannot play 2160p. The screen is the stated limit, in landscape physical
+   * pixels, and a screen that cannot be read states none.
+   */
+  it.each(['ios', 'android'] as const)('states the screen as the largest picture on %s', (os) => {
+    const saved = Dimensions.screen;
+    Dimensions.screen = { width: 400, height: 900, scale: 2.7, fontScale: 1 };
+    try {
+      const caps = onPlatform(os, deviceCapabilities);
+      expect(caps.maxWidth).toBe(2430);
+      expect(caps.maxHeight).toBe(1080);
+    } finally {
+      Dimensions.screen = saved;
+    }
+    expect(onPlatform(os, deviceCapabilities).maxHeight).toBeUndefined();
   });
 
   it('claims fragmented-MP4 HLS on both platforms, which is what remux depends on', () => {

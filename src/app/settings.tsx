@@ -17,9 +17,9 @@ import {
   QUALITY_CLASSES,
   displayQualityClass,
   type QualityClass,
-  type QualityPreference,
 } from '@machafoundation/core';
-import { displayPixels, offerEverything, qualityLabel, qualityPreferences } from '../playback/quality';
+import { displayPixels } from '../playback/capabilities';
+import { qualityLabel, qualityPreferences } from '../playback/quality';
 import { colors, space, type as typography } from '../ui/theme';
 
 export default function SettingsScreen() {
@@ -217,21 +217,22 @@ export default function SettingsScreen() {
  * core's default. A quality picked on a detail screen or in the player is
  * never capped by either.
  */
+type Connection = 'wifi' | 'cellular';
+
 function QualitySettings() {
   const preference = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot);
-  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
-  const [editing, setEditing] = useState<keyof QualityPreference | undefined>(undefined);
+  const [editing, setEditing] = useState<Connection | undefined>(undefined);
   const display = displayPixels();
   const screen = display ? displayQualityClass(display.width, display.height) : undefined;
-  const defaults: Record<keyof QualityPreference, string> = {
+  const defaults: Record<Connection, string> = {
     wifi: screen ? `Up to this screen, ${qualityLabel(screen)}` : 'No limit',
     cellular: `Up to ${qualityLabel(DEFAULT_CELLULAR_CEILING)}`,
   };
-  const describe = (kind: keyof QualityPreference) => {
+  const describe = (kind: Connection) => {
     const set = preference[kind];
     return set === undefined ? defaults[kind] : `Up to ${qualityLabel(set)}`;
   };
-  const choose = (kind: keyof QualityPreference, quality: QualityClass | undefined) => {
+  const choose = (kind: Connection, quality: QualityClass | undefined) => {
     qualityPreferences.set(kind, quality);
     setEditing(undefined);
   };
@@ -258,12 +259,12 @@ function QualitySettings() {
       <ListRow
         title="Offer everything"
         detail={
-          everything
+          preference.offerAll
             ? 'On. Qualities above this screen, and modes this phone may not play, can be picked.'
             : 'Off. Only qualities and modes this phone can play are offered.'
         }
         detailLines={2}
-        onPress={() => offerEverything.set(!everything)}
+        onPress={() => qualityPreferences.setOfferAll(!preference.offerAll)}
       />
       <Sheet
         visible={editing !== undefined}

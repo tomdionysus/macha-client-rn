@@ -1,6 +1,5 @@
 import {
   QualityPreferenceStore,
-  displayQualityClass,
   playbackVersions,
   qualityCeiling,
   streamsToName,
@@ -18,8 +17,8 @@ import {
   type QualityClass,
   type VersionStep,
 } from '@machafoundation/core';
-import { Dimensions } from 'react-native';
-import { clientStore, readValidatedJson, writeJson } from '../state/storage';
+import { clientStore } from '../state/storage';
+import { displayPixels } from './capabilities';
 
 /**
  * Per-quality play and the ceilings on automatic play (Tom, 2026-09-25; the
@@ -60,19 +59,6 @@ export function currentConnectionKind(): ConnectionKind {
   return connection;
 }
 
-/**
- * The panel in physical pixels. `screen` rather than `window`, because the
- * window loses the system bars and the panel does not. Stated landscape,
- * though core's `displayQualityClass` no longer needs it (`3a5dc56`): it
- * classes a screen by the largest 16:9 picture it shows whole, either way up.
- */
-export function displayPixels(): { width: number; height: number } | undefined {
-  const { width, height, scale } = Dimensions.get('screen');
-  const long = Math.round(Math.max(width, height) * scale);
-  const short = Math.round(Math.min(width, height) * scale);
-  return long > 0 && short > 0 ? { width: long, height: short } : undefined;
-}
-
 /** The cap on automatic play here and now. A viewer's pick is never capped. */
 export function deviceQualityCeiling(): QualityCeiling | undefined {
   return qualityCeiling({
@@ -107,71 +93,32 @@ export function ceilingExplanation(ceiling: QualityCeiling, overridable: boolean
       return overridable
         ? `Play picks ${cap} to match this screen. Choose a quality to play a larger one.`
         : `Play picks ${cap} to match this screen.`;
+    case 'ceiling-device':
+      return overridable
+        ? `Play picks ${cap}, the largest this phone plays. A larger quality may not play here.`
+        : `Play picks ${cap}, the largest this phone plays. Offer everything in Settings lists larger ones.`;
   }
 }
 
-const OFFER_EVERYTHING_KEY = 'macha.offer-everything';
-
-function isBoolean(value: unknown): value is boolean {
-  return typeof value === 'boolean';
+/**
+ * Whether the viewer turned off the device limit (Tom, 2026-09-25: limit to
+ * the device on all clients, with a setting on all clients to turn it off).
+ * Kept in core's store with the ceilings.
+ */
+export function offerAll(): boolean {
+  return qualityPreferences.get().offerAll === true;
 }
 
 /**
- * Whether to offer what this phone may not play (Tom, 2026-09-25: "sensible
- * defaults but leaving the user in ultimate control"). Off, the qualities
- * above this screen are not offered, and the Playback sheet's modes this
- * device cannot decode are listed with the reason but cannot be picked. On,
- * both can be picked. Kept on this device.
+ * Whether an item's qualities are worth a button each: more than one, or one
+ * that is not what Play would take anyway. A single button that does what
+ * Play does is noise. What is offered at all is core's: nothing above this
+ * device unless `offerAll` (`playbackVersions`).
  */
-class OfferEverythingStore {
-  private readonly listeners = new Set<() => void>();
-
-  getSnapshot = (): boolean => readValidatedJson(OFFER_EVERYTHING_KEY, isBoolean) ?? false;
-
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  };
-
-  set(value: boolean): void {
-    writeJson(OFFER_EVERYTHING_KEY, value);
-    for (const listener of this.listeners) listener();
-  }
-}
-
-export const offerEverything = new OfferEverythingStore();
-
-/** This screen's class, as core classes a display, or undefined where it cannot be read. */
-export function screenQualityClass(): QualityClass | undefined {
-  const display = displayPixels();
-  return display ? displayQualityClass(display.width, display.height) : undefined;
-}
-
-/**
- * The qualities to offer the viewer, or undefined when there is no choice
- * worth a button.
- *
- * **Nothing above this screen, unless the viewer asked for everything.** Tom,
- * 2026-09-25: a phone cannot play 2160p, so it is not offered. The screen is
- * the measure because it is the one this client can read: the codec probe
- * reports codecs and profiles, not decoder sizes. A screen that cannot be
- * read hides nothing.
- *
- * Worth offering means more than one quality, or one that is not what Play
- * would take anyway. A single button that does what Play does is noise.
- */
-export function offeredVersions(
-  versions: PlaybackVersions | undefined,
-  screen: QualityClass | undefined,
-  everything: boolean,
-): PlaybackVersions | undefined {
-  if (!versions) return undefined;
-  const steps = everything || screen === undefined ? versions.steps : versions.steps.filter((step) => step.quality <= screen);
+export function offersVersions(versions: PlaybackVersions | undefined): versions is PlaybackVersions {
+  if (!versions) return false;
   const automatic = versions.automatic?.quality;
-  if (steps.length > 1 || steps.some((step) => step.quality !== automatic)) return { ...versions, steps };
-  return undefined;
+  return versions.steps.length > 1 || versions.steps.some((step) => step.quality !== automatic);
 }
 
 /** Whether a quality larger than automatic play's is on offer, so a ceiling can be overridden. */
@@ -211,7 +158,7 @@ export function automaticStart(
   ceiling: QualityCeiling | undefined,
   preferences: PlaybackPreferencesUpdate = {},
 ): StartChoice | undefined {
-  const versions = playbackVersions(files, capabilities, { overrides, mediaIds, ...(ceiling ? { ceiling } : {}) });
+  const versions = playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll(), ...(ceiling ? { ceiling } : {}) });
   const step = versions.automatic;
   if (!step) return undefined;
   return { ...stepStart(step, files, preferences), versions };
@@ -229,7 +176,10 @@ export function versionStart(
   overrides: PlaybackPolicyOverrides | undefined,
   preferences: PlaybackPreferencesUpdate = {},
 ): StartChoice {
-  return { ...stepStart(step, files, preferences), versions: playbackVersions(files, capabilities, { overrides, mediaIds }) };
+  return {
+    ...stepStart(step, files, preferences),
+    versions: playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll() }),
+  };
 }
 
 function stepStart(

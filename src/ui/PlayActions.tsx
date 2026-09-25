@@ -8,10 +8,9 @@ import {
   ceilingExplanation,
   deviceQualityCeiling,
   largerOffered,
-  offerEverything,
-  offeredVersions,
+  offersVersions,
   qualityLabel,
-  screenQualityClass,
+  qualityPreferences,
 } from '../playback/quality';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
@@ -34,8 +33,9 @@ interface Props {
  *
  * Beside them, one button per quality the item offers (Tom, 2026-09-25):
  * Play decides, and a quality button is the viewer deciding, never capped.
- * They start where the primary button would. Nothing above this screen is
- * offered unless the viewer turned on "Offer everything" (`offeredVersions`).
+ * They start where the primary button would. Nothing above this device is
+ * offered unless the viewer turned on "Offer everything" (core's
+ * `playbackVersions`, with `offerAll`).
  * A downloaded item plays off the disk whatever is pressed, so it offers none.
  */
 export function PlayActions({ item, queue }: Props) {
@@ -50,16 +50,17 @@ export function PlayActions({ item, queue }: Props) {
     (signal) => (stored ? Promise.resolve(undefined) : playback.facts({ itemId: item.id }, signal)),
     [playback, item.id, stored],
   );
-  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
+  const everything = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot).offerAll === true;
   const versions = useMemo(() => {
     if (!facts.value) return undefined;
     const ceiling = deviceQualityCeiling();
     const all = playbackVersions(facts.value, deviceCapabilities(), {
       overrides: devicePlaybackOverrides(),
       mediaIds: item.mediaIds,
+      offerAll: everything,
       ...(ceiling ? { ceiling } : {}),
     });
-    return offeredVersions(all, screenQualityClass(), everything);
+    return offersVersions(all) ? all : undefined;
   }, [facts.value, item.mediaIds, everything]);
 
   const play = useCallback(

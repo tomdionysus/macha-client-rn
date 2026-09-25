@@ -13,9 +13,10 @@ export const Platform = {
   },
 };
 
-/** No panel here; a test that cares passes a display rather than reading one. */
+/** No panel unless a test gives one, as it sets `Platform.OS`. */
 export const Dimensions = {
+  screen: { width: 0, height: 0, scale: 1, fontScale: 1 },
   get(_dimension: 'screen' | 'window') {
-    return { width: 0, height: 0, scale: 1, fontScale: 1 };
+    return Dimensions.screen;
   },
 };

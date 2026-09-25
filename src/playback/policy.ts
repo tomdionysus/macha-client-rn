@@ -216,6 +216,8 @@ function objectionSentence(
       return 'this video is HDR and this device cannot display it.';
     case 'video-dolby-vision-not-supported':
       return 'this video needs Dolby Vision, which this device does not support.';
+    case 'video-size-exceeds-client':
+      return 'this video is larger than this device plays.';
     case 'video-codec-not-playable':
     case 'video-codec-not-deliverable-over-hls':
       return 'this device cannot decode this video’s format.';

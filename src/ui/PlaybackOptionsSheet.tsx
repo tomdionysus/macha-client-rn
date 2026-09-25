@@ -6,11 +6,10 @@ import { directUnavailableReason, remuxUnavailableReason } from '../playback/pol
 import {
   ceilingExplanation,
   largerOffered,
-  offerEverything,
-  offeredVersions,
+  offersVersions,
   playingStep,
   qualityLabel,
-  screenQualityClass,
+  qualityPreferences,
 } from '../playback/quality';
 import type { VersionStep } from '@machafoundation/core';
 import { usePlayback } from '../providers/PlaybackProvider';
@@ -45,7 +44,7 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, playVersion, versions, busy } = usePlayback();
-  const everything = useSyncExternalStore(offerEverything.subscribe, offerEverything.getSnapshot);
+  const everything = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot).offerAll === true;
   const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
   const directBlocked = session ? directUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
 
@@ -83,7 +82,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   // any: the same list as the detail screen's buttons (Tom, 2026-09-25),
   // and two lists of heights would contradict each other. The node's list
   // stays for an item whose facts never arrived.
-  const shownVersions = offeredVersions(versions, screenQualityClass(), everything);
+  const shownVersions = offersVersions(versions) ? versions : undefined;
   const playing = shownVersions ? playingStep(shownVersions.steps, session) : undefined;
 
   return (

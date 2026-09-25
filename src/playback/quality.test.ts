@@ -8,7 +8,7 @@ import {
   type PlaybackMediaFacts,
   type PlaybackSession,
 } from '@machafoundation/core';
-import { automaticStart, connectionKindOf, offeredVersions, playingStep, versionStart, versionUpdate } from './quality';
+import { automaticStart, connectionKindOf, offersVersions, playingStep, versionStart, versionUpdate } from './quality';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -169,27 +169,29 @@ describe('playingStep', () => {
 
 /**
  * Tom, 2026-09-25: a phone cannot play 2160p, so it is not offered; a setting
- * offers everything, the viewer in ultimate control.
+ * offers everything. What is offered is core's, from the screen this phone
+ * states as its limit; what is left here is whether it is worth a button.
  */
-describe('offeredVersions', () => {
-  const versions = playbackVersions([uhd, fhd], phone, { mediaIds: ['uhd', 'fhd'], ceiling: { quality: 1080, reason: 'ceiling-display' } });
+describe('offersVersions', () => {
+  const screen = { ...phone, maxWidth: 2400, maxHeight: 1080 };
 
-  it('offers nothing above this screen', () => {
-    expect(offeredVersions(versions, 1080, false)?.steps.map((step) => step.quality)).toEqual([1080, 720]);
+  it('offers nothing above the screen the phone states', () => {
+    const versions = playbackVersions([uhd, fhd], screen, { mediaIds: ['uhd', 'fhd'] });
+    expect(offersVersions(versions)).toBe(true);
+    expect(versions.steps.map((step) => step.quality)).toEqual([1080, 720]);
   });
 
-  it('offers everything when the viewer asked for it', () => {
-    expect(offeredVersions(versions, 1080, true)?.steps.map((step) => step.quality)).toEqual([2160, 1440, 1080, 720]);
-  });
-
-  it('hides nothing on a screen it cannot read', () => {
-    expect(offeredVersions(versions, undefined, false)?.steps).toHaveLength(4);
+  it('offers everything when the viewer turned the limit off', () => {
+    const versions = playbackVersions([uhd, fhd], screen, { mediaIds: ['uhd', 'fhd'], offerAll: true });
+    expect(versions.steps.map((step) => step.quality)).toEqual([2160, 1440, 1080, 720]);
   });
 
   it('offers no lone button that does what Play does', () => {
-    const only = playbackVersions([fhd], phone, { mediaIds: ['fhd'], ceiling: { quality: 720, reason: 'ceiling-display' } });
-    // A 1080p file on a 720p screen: Play already caps at 720, the one step offered.
-    expect(offeredVersions(only, 720, false)).toBeUndefined();
-    expect(offeredVersions(only, 720, true)?.steps.map((step) => step.quality)).toEqual([1080, 720]);
+    const small = { ...phone, maxWidth: 1280, maxHeight: 720 };
+    // A 1080p file on a 720p screen: Play already takes the 720p step, the only one offered.
+    const versions = playbackVersions([fhd], small, { mediaIds: ['fhd'] });
+    expect(versions.steps.map((step) => step.quality)).toEqual([720]);
+    expect(offersVersions(versions)).toBe(false);
+    expect(offersVersions(playbackVersions([fhd], small, { mediaIds: ['fhd'], offerAll: true }))).toBe(true);
   });
 });

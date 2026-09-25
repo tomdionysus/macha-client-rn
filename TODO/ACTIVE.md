@@ -421,8 +421,9 @@ clients; the rulings and the phone's answers are in COMPLETED 2026-09-25):
   never shows on 0.58.0.
 - **With no setting, automatic play caps at the display's resolution
   class**, which the phone states to core. An explicit setting overrides it.
-  This is a preference default, not a capability: the README's "screen size
-  is never a capability" stands.
+  ~~This is a preference default, not a capability: the README's "screen
+  size is never a capability" stands.~~ **Overruled 2026-09-25**, below: the
+  screen is now the phone's stated limit.
 - **Phone only: Wi-Fi and mobile-data ceilings**, the mobile one lower. The
   viewer is told why when the mobile ceiling limits a choice (core gives a
   reason code, and the words are ours), and both can be set in Settings. We
@@ -458,28 +459,33 @@ client drives the resolver directly:
   `macha.qualityPreference.v1`, which all three clients share (core
   `edef8bf`).
 
-**Tom, 2026-09-25: "sensible defaults but leaving the user in ultimate
-control."** A phone cannot play 2160p, so it is not offered. A setting
-offers everything, including what the phone cannot play. Built:
-- `offeredVersions` hides every step above the screen's class
-  (`displayQualityClass`), on the detail screen and in the sheet. The screen
-  is the measure because it is what this client can read: the codec probe
-  reports codecs and profiles, not decoder sizes. **A decoder-size probe**
-  (`VideoCapabilities.getSupportedHeights`) would be the stricter fact, and
-  it needs a native build.
-- **Settings, Playback quality, "Offer everything"**, stored at
-  `macha.offer-everything` on the device. On, it shows every step and lets
-  the sheet's Remux and Direct be picked even where this device objects. The
-  reason is still shown beside them.
-- A 2160p-only title on the A85 therefore plays automatically as a 1080p
-  transcode, and offers 1080p and 720p buttons.
-
-**Core means to move the filter and the setting into core**, the setting
-joining `QualityPreferenceStore` in place of `macha.offer-everything`. It is
-confirming the ruling's scope with Tom first: whether the limit is "what
-this device can play", and whether it applies to the web and the TV. Keep
-`561d286` as it is until core sends the API, then switch. Moving the key
-costs nothing while nothing has shipped.
+**Tom, 2026-09-25, to this session: "sensible defaults but leaving the user
+in ultimate control."** A phone cannot play 2160p, so it is not offered. A
+setting offers everything, including what the phone cannot play. **Tom,
+in core's session the same day, for all three clients: "limit to the device
+capabilities for direct on all clients - but, all clients should also have a
+setting to disable this."** Core built it in `edfce82`, and this client moved
+onto it:
+- **The phone states its screen as `maxWidth` / `maxHeight`**
+  (`deviceCapabilities`, landscape physical pixels). This retires the old
+  rule that screen size is never a capability. It is a policy statement,
+  not a measured decoder limit: the codec probe reports codecs and profiles,
+  not sizes. **A decoder-size probe** (`VideoCapabilities.getSupportedHeights`)
+  would be the stricter fact, and it needs a native build.
+- **Core's chooser objects to a larger picture**
+  (`video-size-exceeds-client`). A 2160p file therefore transcodes
+  automatically on the A85, and the sheet disables Direct and Remux for it
+  with "this video is larger than this device plays". The sheet reaches this
+  through `videoStreamObjection`, so it needed only the sentence.
+- **`playbackVersions` offers nothing above the device** unless `offerAll`.
+  The phone's own screen filter (`561d286`) is gone. `offersVersions` is
+  left here only to decide whether a choice is worth a button.
+- **"Offer everything"** in Settings is `QualityPreference.offerAll`, set
+  with `setOfferAll`. `macha.offer-everything` is gone; nothing shipped with
+  it. On, it lists every quality and lets the sheet's Remux and Direct be
+  picked where this device objects, with the reason still shown.
+- Automatic play stays within the device either way, reason
+  `ceiling-device`.
 
 **Needs Tom:** the mobile-data default is core's 720p, not a ruling. Core
 said so itself.

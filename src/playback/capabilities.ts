@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Dimensions, Platform } from 'react-native';
 import MachaCodecs from '../../modules/macha-codecs/src/MachaCodecsModule';
 import {
   decodableCodecs,
@@ -20,10 +20,40 @@ import type { PlaybackPolicyOverrides } from '@machafoundation/core';
  * screen — and under the instruction-based API that matters more than it used
  * to, because the server performs what it is told and never second-guesses it.
  *
- * No decoder resolution limit is advertised. Screen size is not a decoder
- * limit: a modern phone decodes 4K perfectly well and scales it down.
+ * **The screen is stated as the largest picture this device plays**
+ * (`maxWidth` / `maxHeight`). Tom, 2026-09-25: "limit to the device
+ * capabilities for direct on all clients", with a setting to turn the limit
+ * off (`QualityPreference.offerAll`), and "2160p they simply can't play in
+ * the phone". It replaces this file's old rule that screen size is never a
+ * capability. It is a policy statement, not a measured decoder limit: the
+ * codec probe reports codecs and profiles, not sizes. Core's chooser objects
+ * to a larger picture (`video-size-exceeds-client`), and `playbackVersions`
+ * offers nothing above it unless the viewer turned the limit off.
  */
 export function deviceCapabilities(): PlaybackCapabilities {
+  return { ...platformCapabilities(), ...screenLimit() };
+}
+
+/**
+ * The panel in physical pixels. `screen` rather than `window`, because the
+ * window loses the system bars and the panel does not. Stated landscape;
+ * core classes a screen either way up (`displayQualityClass`).
+ */
+export function displayPixels(): { width: number; height: number } | undefined {
+  const { width, height, scale } = Dimensions.get('screen');
+  const long = Math.round(Math.max(width, height) * scale);
+  const short = Math.round(Math.min(width, height) * scale);
+  return long > 0 && short > 0 ? { width: long, height: short } : undefined;
+}
+
+/** A panel that cannot be read states no limit. The web client states none either. */
+function screenLimit(): { maxWidth?: number; maxHeight?: number } {
+  if (Platform.OS === 'web') return {};
+  const display = displayPixels();
+  return display ? { maxWidth: display.width, maxHeight: display.height } : {};
+}
+
+function platformCapabilities(): PlaybackCapabilities {
   const audioContainers = ['mp3', 'm4a', 'aac', 'wav', 'flac'];
 
   if (Platform.OS === 'android') {
