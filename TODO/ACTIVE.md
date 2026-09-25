@@ -132,20 +132,11 @@ on the wire, and nothing is owed here.
 
 ### What is on the phone
 
-**The A85 is on an unreleased dev build: `22935ca`**, installed 2026-09-24
-11:01:02 (core `460ad1a`), labelled `versionCode 800` — **the package manager
-cannot tell it from 0.8.0**; identify it by `lastUpdateTime`. It has been
-**off ADB since the morning of 2026-09-24**. Everything after `22935ca` has
-never been on a device.
-
-**Install `develop`, not 0.9.0**: 0.9.0 cannot play on 0.58.0. A dev build's
-contents are only known if the core SHA and `dist:hash` are recorded with the
-install. **After installing: one login**, because the token moved to the
-Keystore and the old plaintext copy was deleted, not moved.
-
-**`ramaroja` is offline for the foreseeable future** (Tom, via core). The A85
-has it configured beside `macnessa` and the LAN node; remove it from the node
-list. Nothing in `src` names it.
+**The A85 has `60fc6c6`** (installed 14:10Z 2026-09-25, `lastUpdateTime`
+17:10 phone time; core `d93c9d8`, dist `379d5e152bd5`), labelled
+`versionCode 900`, so identify it by `lastUpdateTime`. **Tom is logged in.**
+The smoke test ran on it; results are in COMPLETED 2026-09-25. **Its panel
+is 720x1612**, and its decoders top out at 1080p (AV1 at 720p).
 
 ### Driving the phone — read this before sending a single tap
 

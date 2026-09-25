@@ -8,6 +8,100 @@ Newest first.
 
 ---
 
+## 2026-09-25 — The A85 smoke test, and the device limit it corrected
+
+**Build:** app `9f97f8b` + `60fc6c6` (`60fc6c6` is the install; APK
+installed 14:10Z, `lastUpdateTime` 2026-09-25 17:10 phone time), core
+`d93c9d8` (dist `379d5e152bd5`). **Server 0.60.0/0.61.0** on both nodes.
+Driven 14:05Z to 14:32Z, every tap gated on `mCurrentFocus` in the same
+invocation (`tap.sh`); **the gate refused one tap** that would have landed on
+the launcher. Logcat in UTC throughout.
+
+### What the device said before anything was tested
+
+- **The A85's panel is 720x1612** (`wm size`, `dumpsys display`), not the
+  2400x1080 assumed all morning. Stating the screen as the device limit
+  therefore refused 1080p a Direct Play its decoders manage. Tom chose the
+  decoder limit (`9eb331e`).
+- **Its decoders** (`decoder-sizes`, 14:07:31Z): AVC, HEVC, VP8 and VP9
+  1920x1080 at 24 fps; **AV1 1280x720**; MPEG-4 Part 2 854x480. The first
+  cut took the smallest claimed frame, so AV1 capped the whole device at
+  720p; seen on *2001* (864p H.264) offering no quality buttons. **Fixed in
+  `60fc6c6`:** the limit is the largest claimed frame, and AV1 stops being
+  claimed on this device. Test red first against the measured numbers.
+- **Automatic play stays at 720p** here, from the measured panel (Tom).
+
+### Passed
+
+- **Keystore:** one login (Tom), then force-stop and relaunch: "Signed in as
+  tom".
+- **Per-quality buttons:** *2001* shows 1080p and 720p beside Resume / From
+  start, and "Play picks 720p to match this screen. Choose a quality to play
+  a larger one."
+- **Resume:** *2001* from its page, `seek_ms: 3354677` (55:54); *Dark*
+  S01E06 from Continue Watching, `2777721`; *2010*, `161489`. **Backing out
+  mid-load** (mini-player Stop during *2001*'s create) left "Resume 59:09".
+- **Automatic play under the display cap:** transcode at `max_height: 576`
+  (*2001*, 2.37:1), `640` (*Dark*), `534` (*2010*), each naming its file,
+  logged `quality-limited … ceiling-display`.
+- **Mid-play switches:** 720p to 1080p on *2001* became `mode: direct,
+  max_height: null, seek_ms: 3429331`, 200, position kept; **back into
+  transcode under 0.60.0** (`max_height: 576`), 200, slot reacquired.
+- **Multi-audio** (*2010*, English and Italian AC-3): the automatic create
+  named `audio_stream: 1`; Remux became `video: copy, audio: transcode` with
+  `audio_stream: 1` restated; Italian by `audio_stream: 2`; Transcode kept
+  `audio_stream: 2`. All 200.
+- **Playback sheet:** Quality lists the steps with the playing one marked;
+  *Dark*'s Remux disabled with "this video is 10-bit and this device can
+  only decode 8-bit"; **clear of the navigation bar in landscape**.
+- **Labels:** "Sort By Title"; album cards title / artist / year; track
+  search cards album (year) / artist / "Disc 2 · Track 3"; track rows title
+  / album / artist; episode card "Season 1 Episode 6"; the music player's
+  four lines ("…And Justice for All (1988)", "Track 1").
+- **Create failure copy:** "The server could not start this stream. Try
+  again in a moment. (libav pipeline failed before first fragment: read
+  media packet: Input/output error)", with Try again and Stop.
+- **Settings:** "On Wi-Fi: Up to this screen, 720p", "On mobile data: Up to
+  720p", and "Offer everything" toggling its own wording. `ramaroja` was
+  already gone from the node list.
+- **Failover on create:** fi-1 (`10.35.1.50`) overran core's 19 s budget
+  twice; core walked to macnessa, which created in under 7 s.
+
+### Found, not the phone's
+
+- **Data lost with es-1:** *The Martian*'s file `7b5743ad` and *Dark*
+  S01E06 past 46 minutes are missing extents, and the server still lists
+  them as playable (server, after checking). *The Martian* fails on both
+  nodes; *28 Days Later*, *Event Horizon*, *GoodFellas* and *Cowboys &
+  Aliens* are the same, per the server.
+- **fi-1 fetches almost every extent from gbni-1** over the WAN at 4.7-6.3 s
+  each, so its transcode starts overrun core's 19 s even when the data
+  exists; its late answer was 503 `playback_pipeline_start_failed`, "timed
+  out waiting for first fragmented-MP4 segment", trace `5a5843b9`, at 26 s.
+
+### Observed, not yet acted on
+
+- **Direct is enabled on a file whose audio the device cannot decode**
+  (*2010*, AC-3 on the A85): the sheet judges only video and container, so
+  Direct would play silently.
+- **A music track appears in Continue Watching** beside films.
+- **An audio choice is not remembered** between sessions: *2010* came back
+  in English after Italian was picked.
+- **The Albums tab is blank for about 3 s** while it loads, with no
+  indicator.
+
+### Not run
+
+The multi-file check's second half (the only two-file title's chosen file is
+damaged); a refused switch back into transcode (needs a second viewer); a
+track without a year; "Untitled playlist" (none is unnamed); the wrong
+password (needs a logout and Tom's password); node failover mid-play, the
+mobile-data ceiling and the unreachable-cluster wording (each needs a node
+down or the network changed); Remux unlocked by "Offer everything" on a
+ten-bit title; the Galaxy's first run.
+
+---
+
 ## 2026-09-25 — Server 0.58.0, the token in the Keystore, the file named, the login notices
 
 All on `develop`, all pushed, **none of it on a device**: the A85 was off
