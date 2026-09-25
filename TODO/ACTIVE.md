@@ -187,7 +187,7 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
 
 ### Open, in the order worth taking them
 
-1. **When the A85 is back: install `develop`, log in once, and look.**
+1. **Smoke-tested on the A85, 2026-09-25** (COMPLETED has what passed). **Still to run** is the *Not run* list there, and the four *Observed* items want a decision. The sub-items below are the original list, kept for its detail.
    - **Core's three 0.58.0 exercises** above, with any envelope sent to core.
    - **The Keystore:** login survives a force-stop; logout then login
      survives a restart.
