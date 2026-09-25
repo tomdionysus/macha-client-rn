@@ -288,32 +288,38 @@ describe('probedDolbyVisionProfiles', () => {
  * decoders are the device's capability; the A85's screen (720x1612) is not.
  */
 describe('decoderSizeLimit', () => {
-  const a85ish = {
+  // Measured on the A85, 2026-09-25 14:07Z, `decoder-sizes` in logcat.
+  const a85 = {
+    'video/av01': { width: 1280, height: 720 },
     'video/avc': { width: 1920, height: 1080 },
     'video/hevc': { width: 1920, height: 1080 },
-    'video/x-vnd.on2.vp9': { width: 3840, height: 2160 },
+    'video/mp4v-es': { width: 854, height: 480 },
+    'video/x-vnd.on2.vp8': { width: 1920, height: 1080 },
+    'video/x-vnd.on2.vp9': { width: 1920, height: 1080 },
   };
 
-  it('states the largest frame every claimed codec decodes', () => {
-    expect(decoderSizeLimit(a85ish, ['h264', 'hevc', 'vp9'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
-  });
-
-  it('is bound by the weakest claimed codec, not the strongest', () => {
-    expect(decoderSizeLimit(a85ish, ['vp9'])).toEqual({ maxWidth: 3840, maxHeight: 2160 });
-    expect(decoderSizeLimit(a85ish, ['vp9', 'hevc'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+  /**
+   * The first version took the smallest frame, and the A85's 720p AV1 decoder
+   * capped every 1080p H.264 file at 720p.
+   */
+  it('is not capped by a codec that falls short; that codec is no longer claimed', () => {
+    const { limit, codecs } = decoderSizeLimit(a85, ['h264', 'hevc', 'vp9', 'av1']);
+    expect(limit).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+    expect(codecs).toEqual(['h264', 'hevc', 'vp9']);
   });
 
   it('takes the larger of a codec’s spellings', () => {
-    expect(decoderSizeLimit({ 'audio/eac3': { width: 1, height: 1 }, 'video/av01': { width: 1280, height: 720 } }, ['av1'])).toEqual({
-      maxWidth: 1280,
-      maxHeight: 720,
-    });
+    const { limit } = decoderSizeLimit({ 'audio/eac3': { width: 1, height: 1 }, 'video/av01': { width: 1280, height: 720 } }, ['av1']);
+    expect(limit).toEqual({ maxWidth: 1280, maxHeight: 720 });
   });
 
-  it('states nothing where the decoders were not asked, or gave no size', () => {
-    expect(decoderSizeLimit(undefined, ['h264'])).toBeUndefined();
-    expect(decoderSizeLimit({}, ['h264'])).toBeUndefined();
-    // A claimed codec with no size is left out rather than read as zero.
-    expect(decoderSizeLimit({ 'video/avc': { width: 1920, height: 1080 } }, ['h264', 'hevc'])).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+  it('states nothing, and drops nothing, where the decoders were not asked or gave no size', () => {
+    expect(decoderSizeLimit(undefined, ['h264'])).toEqual({ codecs: ['h264'] });
+    expect(decoderSizeLimit({}, ['h264'])).toEqual({ codecs: ['h264'] });
+    // A claimed codec with no size keeps its claim rather than being read as zero.
+    expect(decoderSizeLimit({ 'video/avc': { width: 1920, height: 1080 } }, ['h264', 'hevc'])).toEqual({
+      codecs: ['h264', 'hevc'],
+      limit: { maxWidth: 1920, maxHeight: 1080 },
+    });
   });
 });

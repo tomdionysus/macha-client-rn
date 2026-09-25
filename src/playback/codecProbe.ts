@@ -292,31 +292,46 @@ export function decodableCodecs(
 }
 
 /**
- * The largest picture this device can decode, as one `maxWidth` /
- * `maxHeight` for every video codec it claims, or undefined where no decoder
- * said.
+ * The largest picture this device decodes, as one `maxWidth` / `maxHeight`,
+ * and the claimed video codecs that reach it.
  *
  * Tom, 2026-09-25: limit to the device's capabilities for direct play. The
  * decoders are asked (`videoDecoderSizes`, landscape frames at 24 fps) rather
  * than the screen, which on the A85 is 720x1612 while its decoders manage
- * 1080p. Core's capability is one size for all codecs, so this is the
- * **smallest** of the claimed codecs' largest frames: a claim true of every
- * codec the device says it plays. A claimed codec its decoders gave no size
- * for is left out, since absence of a fact is not a fact.
+ * 1080p.
+ *
+ * **The limit is the largest frame any claimed codec reaches, and a codec
+ * that falls short of it is no longer claimed.** Core's capability is one
+ * size for every codec. The first version took the smallest instead, and on
+ * the A85 (2026-09-25) its AV1 decoder, 720p at 24 fps against 1080p for
+ * H.264, HEVC and VP9, capped the whole device at 720p: every 1080p H.264
+ * file lost its Direct Play to a codec it does not use. Dropping the short
+ * codec keeps every claim true instead. A claimed codec its decoders gave no
+ * size for keeps its claim and sets no limit, since absence of a fact is not
+ * a fact.
  */
 export function decoderSizeLimit(
   sizes: Readonly<Record<string, { width: number; height: number }>> | undefined,
   claimedVideo: readonly string[],
-): { maxWidth: number; maxHeight: number } | undefined {
-  if (!sizes) return undefined;
-  let limit: { maxWidth: number; maxHeight: number } | undefined;
-  for (const codec of claimedVideo) {
+): { codecs: string[]; limit?: { maxWidth: number; maxHeight: number } } {
+  if (!sizes) return { codecs: [...claimedVideo] };
+  const area = (frame: { width: number; height: number }) => frame.width * frame.height;
+  const largestOf = (codec: string) => {
     const frames = (DECODER_MIME_TYPES[codec] ?? []).map((mime) => sizes[mime]).filter((frame) => frame !== undefined);
-    if (frames.length === 0) continue;
-    const largest = frames.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
-    if (!limit || largest.width * largest.height < limit.maxWidth * limit.maxHeight) {
-      limit = { maxWidth: largest.width, maxHeight: largest.height };
-    }
+    return frames.length === 0 ? undefined : frames.reduce((a, b) => (area(b) > area(a) ? b : a));
+  };
+  let top: { width: number; height: number } | undefined;
+  for (const codec of claimedVideo) {
+    const frame = largestOf(codec);
+    if (frame && (!top || area(frame) > area(top))) top = frame;
   }
-  return limit;
+  if (!top) return { codecs: [...claimedVideo] };
+  const reach = top;
+  return {
+    codecs: claimedVideo.filter((codec) => {
+      const frame = largestOf(codec);
+      return !frame || area(frame) >= area(reach);
+    }),
+    limit: { maxWidth: reach.width, maxHeight: reach.height },
+  };
 }
