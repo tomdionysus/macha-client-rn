@@ -206,6 +206,12 @@ export function versionUpdate(
     index >= 0 ? session.sourceInfo.streams.find((stream) => stream.index === index)?.language || undefined : undefined;
   const audioLanguage = languageOf(session.selected.audioStream);
   const subtitleLanguage = languageOf(session.selected.subtitleStream);
+  // The kind of subtitles playing, too: a forced track (foreign dialogue
+  // only) stays forced and a full one full. The Martian's 4K file flags its
+  // forced English track default (core `7a79d49`, found on the television).
+  const subtitleForced = subtitleLanguage
+    ? session.sourceInfo.streams.find((stream) => stream.index === session.selected.subtitleStream)?.forced
+    : undefined;
   return {
     mediaId,
     preferences: {
@@ -214,6 +220,7 @@ export function versionUpdate(
         ? streamsToName(profile, step.instruction.mode, {
             ...(audioLanguage ? { audioLanguage } : {}),
             ...(subtitleLanguage ? { subtitleLanguage } : {}),
+            ...(subtitleForced !== undefined ? { subtitleForced } : {}),
           })
         : {}),
     },

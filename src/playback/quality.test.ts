@@ -142,6 +142,30 @@ describe('versionUpdate', () => {
     expect(update.preferences?.mediaId).toBeUndefined();
   });
 
+  /**
+   * The Martian's 4K file carries a forced English track (foreign dialogue
+   * only) flagged default beside the full one. A switch across files keeps
+   * the kind that was playing (core `7a79d49`, found on the television).
+   */
+  it('keeps a forced subtitle track forced across files, and a full one full', () => {
+    const sub = (index: number, forced: boolean, isDefault: boolean): MediaTechnicalStream =>
+      ({ index, type: 'subtitle', codec: 'subrip', profile: '', language: 'eng', default: isDefault, forced });
+    const target = file('subs', [video('h264', 1920, 1080), audio(1, 'eng', true), sub(2, true, true), sub(3, false, false)]);
+    const playing = (subtitle: number, forced: boolean) =>
+      ({
+        ...session({}),
+        selected: { videoStream: 0, audioStream: 2, subtitleStream: subtitle },
+        sourceInfo: { streams: [
+          { index: 0, type: 'video', codec: 'hevc', language: '', default: true, forced: false },
+          { index: 2, type: 'audio', codec: 'aac', language: 'eng', default: true, forced: false },
+          { index: 5, type: 'subtitle', codec: 'subrip', language: 'eng', default: false, forced },
+        ] },
+      }) as unknown as PlaybackSession;
+    const step = { quality: 1080 as const, source: 'file' as const, mediaId: 'subs', instruction: { mode: 'remux' as const, video: 'copy' as const, audio: 'copy' as const, reasons: [], assumed: [] } };
+    expect(versionUpdate(step, playing(5, true), [target]).preferences?.subtitleStream).toBe(2);
+    expect(versionUpdate(step, playing(5, false), [target]).preferences?.subtitleStream).toBe(3);
+  });
+
   it('keeps the file, and leaves the streams to the PATCH, on a cap of the same file', () => {
     const hd720 = steps.find((step) => step.quality === 720)!;
     const update = versionUpdate(hd720, session({ mediaId: 'fhd' }), [uhd, fhd]);
