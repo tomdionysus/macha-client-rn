@@ -1,270 +1,160 @@
 # Active
 
 Open work for `macha-client-rn`. Plans, experiments and conclusions live here
-while they are live; finished ones move to [COMPLETED.md](COMPLETED.md) with what
-they measured rather than being deleted.
+while they are live; finished ones move to [COMPLETED.md](COMPLETED.md) with
+what they measured rather than being deleted.
 
-Ranked P1 (do next) down to P3 (real, but nobody has lost a minute of playback to
-it). There is no P0 today. Items marked **putative** are speculative and may
-never happen — carried deliberately, because being surprised by one costs more
-than carrying it.
+Ranked P1 (do next) down to P3. There is no P0. **An inherited claim is not
+evidence**: where a peer's claim was checked against source or a device, it
+says so; where it was taken on trust, it says that too.
 
-**An inherited claim is not evidence.** Where a peer's claim was checked against
-source or a device, it says so; where it was taken on trust, it says that too.
-Several entries below exist only because somebody opened the file instead of
-repeating what they were told.
-
-Last rationalised 2026-09-25, for a session starting cold after a `/clear`,
-against the code, core and the server as they are. Everything done is in
-COMPLETED under its date; what is below is what is still open and where
-things stand.
+**Last rationalised 2026-09-27, for a session starting cold after a `/clear`.**
+Everything finished this week is in COMPLETED under 2026-09-24 to 2026-09-27.
 
 ---
 
 ## Start here
 
-**Read this section before anything.**
+### The first job: release 0.10.0 (Tom, 2026-09-27)
+
+**Tom's instruction for the new session: "first thing we'll do is the
+release."** It is this client's release onto core 0.20.0, which core is
+cutting now. The version number is **proposed as 0.10.0** (new features and a
+server-compatibility fix since 0.9.0; `versionCode` 1000). **Confirm the
+number with Tom before bumping.**
+
+**Preconditions, each checked, none assumed:**
+1. **Tom says go**, and has pushed `develop`. On 2026-09-27 `develop` was
+   **41 commits ahead of `origin/develop`**. **This session never pushes**:
+   hand Tom the exact `git push` command and wait (memory *never-push*).
+2. **Core 0.20.0 is actually on npm:** `npm view @machafoundation/core version
+   time --json`. At the rationalisation it was **not** (newest `0.19.0`).
+   Three core versions were once tagged and never published, and one publish
+   was announced complete after failing `EOTP`. Core's candidate was `29fa878`
+   (code) with dist `e2adced47327`; core tells this session when 0.20.0 is
+   published.
+3. **`develop` is green against the link first:** `git -C ../macha-ts log
+   --oneline -1`, `(cd ../macha-ts && npm run -s dist:hash)`, `npx tsc
+   --noEmit -p . >/dev/null; echo $?` (the exit code, never a grep), `npx
+   vitest run`. **337 tests** at the rationalisation.
+
+**The steps**, the procedure below (*Releasing*) made concrete for 0.10.0.
+Use the 0.9.0 route: release commit on `develop`, then `main` fast-forwarded
+to it. `git log develop..main` is empty, so the fast-forward is clean.
+1. On `develop`: `npm install @machafoundation/core@^0.20.0` (the ranged
+   install; a `package.json` edit plus plain `npm install` keeps the link).
+   Then `test -L node_modules/@machafoundation/core` must **fail**, and the
+   lockfile's `resolved` for it must be a registry URL.
+2. Bump `package.json` and `app.json` to `0.10.0`, `android.versionCode` to
+   `1000`, and the README's `*v0.9.0*` line to `*v0.10.0*`, **all in the
+   release commit**. `npm install` to sync the lockfile's own version.
+3. `npx expo prebuild --platform android`; `npm run version:check`; typecheck;
+   tests; a real `npx expo export --platform android` (it must produce an
+   `.hbc`).
+4. Commit, with a message naming what 0.10.0 carries (list below).
+   `git checkout main && git merge --ff-only develop`, then `git tag -a 0.10.0`
+   (annotated, bare semver). `npm run version:check` with the tag in place.
+5. **Fresh-clone proof:** clone the tag into `$CLAUDE_JOB_DIR/tmp` with no
+   `../macha-ts` beside it, `npm ci`, typecheck, tests.
+6. `cd android && ./gradlew assembleRelease` from `main` (registry core).
+   Install on the A85 gated on `ro.serialno` **and** `ro.product.model` in
+   the same invocation, and confirm `dumpsys package foundation.macha.client`
+   reports **`versionCode=1000`**. A short look: sign-in survives, a title's
+   page shows its lines and buttons, *2010* plays.
+7. Back on `develop`: `package.json` to `file:../macha-ts`, plain `npm
+   install`, `test -L` must **succeed**, suite green, commit.
+   `version:check` refuses the link while `HEAD` is the tagged commit, by
+   design.
+8. **Hand Tom the push:** `git push origin develop main 0.10.0`.
+9. Record it in COMPLETED (what shipped, the lockfile integrity hash of core
+   0.20.0, the fresh-clone result, the A85 install), and tell core.
+
+**What 0.10.0 carries since 0.9.0** (all on `develop`; details in COMPLETED
+2026-09-24 to 2026-09-27):
+- **It plays against server 0.58.0 and later**, which 0.9.0 cannot: every
+  create names its file and streams, and every PATCH goes through core's
+  `preparePlaybackPatch`.
+- **Per-quality Play buttons** beside Play, the same list in the Playback
+  sheet, Wi-Fi and mobile-data ceilings, and "Offer everything" in Settings.
+- **The device's own limits:** its decoders' largest frame (AV1 held to its
+  own), and automatic play capped at the measured screen.
+- **Media lines** under each title from core's `technicalSummary`, the same
+  as the web and the television, and the track line in the music player.
+- **Continue Watching resumes as you left it:** the same file, and the mode,
+  quality and tracks where the viewer chose them.
+- **Resume keeps its place** (no idle-player 0 overwrites it); the sign-in
+  token in the Keystore; the login-lapse notices; the music player's lines;
+  viewer text that says "this device", for tablets.
 
 ### Resume here, after a `/clear`
 
-1. Read this section, then *Open, in the order worth taking them*.
-2. `git status --short` should show only `.claude/settings.json`,
+1. Read *Start here*, then *Open, in order*.
+2. `git status --short` shows only `.claude/settings.json`,
    `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
-   `git log origin/develop..develop` should be empty. **Push is Tom's to
-   authorise**, and he has authorised it for this run.
-3. `test -L node_modules/@machafoundation/core` must succeed on `develop`.
-4. Core moves several times a day: `git -C ../macha-ts log --oneline -1` and
-   `(cd ../macha-ts && npm run -s dist:hash)`, then `npx tsc --noEmit -p .
-   >/dev/null; echo $?` and `npx vitest run`. **320 tests** at the last look.
-5. `adb mdns services`. If the A85 is advertising, *Driving the phone* first,
-   then Open item 1.
-6. `ListAgents` shows the live peers (*Peer sessions*). Core sends news; act
-   on it only after reading core's source or `dist`, never on the message
-   alone.
+3. `test -L node_modules/@machafoundation/core` succeeds on `develop`.
+4. Core moves several times a day: check its SHA and `dist:hash`, typecheck
+   and tests, as in precondition 3 above.
+5. `adb mdns services` for the A85, then *Driving the phone* before any tap.
+6. `ListAgents` for the peers. Act on a peer's news only after reading core's
+   source or `dist`, never on the message alone. **Commit before messaging a
+   peer about a change, and quote the SHA git printed** (memory
+   *never-guess-commit-ids*): twice on 2026-09-27 a guessed id went out.
 
-### Where the code is
+### Where things stand
 
-**`main` is `dc60ece`, tagged `0.9.0`, pinning published core `^0.19.0`.**
-A fresh clone of the tag installs and passes 290 tests with no `../macha-ts`
-beside it. **But 0.9.0 cannot start playback against server 0.58.0** (below),
-and nothing has it installed. `git log develop..main` is empty and must stay
-so.
+- **`main` is `dc60ece`, tagged `0.9.0`**, pinning published core `^0.19.0`.
+  0.9.0 cannot start playback against server 0.58.0 or later, which is live.
+- **`develop`** is 65 commits past `main`, linked to `file:../macha-ts`,
+  typecheck clean, **337 tests** against core `29fa878` (dist
+  `e2adced47327`).
+- **The server is 0.64.x on both nodes** (fi-1, the LAN node
+  `http://10.35.1.50:7438`, and gbni-1, `https://macnessa.macha.network`).
+  Changes since 0.58.0 have been torrents, repair and diagnostics; status and
+  playback are unchanged. **fi-1 holds little of the library** and fetches
+  extents from gbni-1 over the WAN, so its transcode starts can overrun core's
+  19 s budget; core walks to macnessa, which then serves.
+- **Lost data, the server's to fix:** *The Cannonball Run*, *28 Days Later*,
+  *Event Horizon*, *GoodFellas*, *Cowboys & Aliens*, and *Dark* S01E06 past
+  46 minutes are missing extents, and the server still lists them as
+  playable. Its per-file readability work waits on Tom. Do not test against
+  them expecting playback.
+- **The A85 has `aebbc44`** (installed 15:20Z 2026-09-27; core `e964514`),
+  labelled `versionCode 900`, so identify a dev build by `lastUpdateTime`.
+  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
+  1920x1080, AV1 to 1280x720. It does not yet show core `29fa878`'s "(4K)" and
+  channel count.
+- **Never run `npm run lint`**: `expo lint` installs ESLint into
+  `package.json` unasked.
+- **The laws are `docs/principles-and-laws.md`**: 1 control, 2 viewer, 3
+  loader, 4 foot. Citations must match its text (AGENTS.md).
 
-**`develop` is well past `main` and fully pushed**, linked to
-`file:../macha-ts`. Typecheck clean and **320 tests** against core `d93c9d8`
-(dist `379d5e152bd5`). Core's `dc47bf6` left a failing test; build on
-neither it alone nor anything before `3a5dc56` for the display class. What it adds since 0.9.0 is under *On develop since
-0.9.0*. **None of it has been on a device.**
+### Open, in order
 
-**Never run `npm run lint`.** `expo lint` installs ESLint into
-`package.json` and the lockfile unasked (2026-09-24, reverted). **Check
-`tsc`'s exit code, not a grep of its output**: its errors are coloured, and
-`grep "error TS"` has read zero errors where there were twenty.
+1. **The release** (above).
+2. **The reaped-session proof**, the 31-minute pause (P1 below).
+3. **What the device runs have not reached**, each needing Tom or a second
+   viewer: failover mid-play and the container restatement (a node taken
+   down, only on Tom's word); a switch back into transcode refused
+   `resource_limit` (a second viewer holding the slot); the mobile-data
+   ceiling and the unreachable-cluster wording (the network changed); the
+   wrong-password wording (a logout, and Tom's password); the camera and a
+   pasted node list (the Galaxy, by hand); the login-lapse notices (a session
+   near expiry). AV1 at 720p or below playing Direct needs such a file.
+4. **Decisions for Tom, from the A85 runs:**
+   - **Direct is offered on a file whose audio the device cannot decode**
+     (*2010*, AC-3 on the A85): the sheet judges video and container only, so
+     Direct would play silently.
+   - **A music track appears in Continue Watching** beside films.
+   - **The Albums tab is blank for about 3 s** while it loads, with no
+     indicator.
+   - **The mobile-data default is core's 720p**, not a ruling.
+   - **The secure store's backup side effect:** AsyncStorage (Continue
+     Watching, the queue, playlists) leaves Android Auto Backup with the
+     token.
+5. **Downloads naming a version**: they still take `fileToPlay`'s file.
+6. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
-**The laws are `docs/principles-and-laws.md`**: core's text and numbering
-(1 control, 2 viewer, 3 loader, 4 foot), shared by every Macha project since
-2026-09-24. Citations must be accurate to it (AGENTS.md). This repo cites
-none.
-
-### Core — linked on `develop`, published on `main`
-
-`package.json` pins `file:../macha-ts` on `develop`; a release pins the
-published package; **a `file:` dependency must never reach `main`**, and
-`version:check` refuses one there. Published core is **`0.19.0`**
-(2026-09-24T17:42Z). **The next phone release needs a published core with
-everything since**, at least:
-- `0bce895` (speaks 0.58.0: a create sends `media_id`);
-- `de86392`;
-- `a50ef64` (`preparePlaybackPatch`);
-- `a5f14fb` (`chooseAmongFiles`);
-- `f3cf74c` (the unreachable route error);
-- `aa843ed`, `edef8bf` and `3a5dc56` (`playbackVersions`,
-  `qualityCeiling`, `QualityPreferenceStore`, `displayQualityClass`: the
-  per-quality buttons).
-
-Core's own session rebuilds its `dist`; do not rebuild it from here.
-
-### Server 0.58.0 — live, and 0.9.0 cannot play against it
-
-**0.58.0 is live on fi-1 and gbni-1** (health from 23:03Z, 2026-09-24). It was
-announced as 0.57.1 and renumbered by Tom because it breaks old clients.
-**The node chooses nothing**: a create sends `media_id`, never `item_id`, and
-a PATCH is held to a create's choices. **Core 0.19.0 gets
-`item_id_not_accepted` on every create**, so 0.9.0 cannot play. `develop`
-handles it:
-- every create names a file (`chooseFile`, `fileToPlay`);
-- every PATCH goes through core's `preparePlaybackPatch`.
-
-The session no longer carries `item_id`, `options.media_ids` or
-`can_switch_media`, so **the Playback sheet's "Version" section never
-shows**; the per-quality buttons replace it (P2 below). The 0.56.0 top-level
-`"status"` key is live with it and reaches this client only through core.
-
-**Core asked for, on the A85 against fi-1 / gbni-1:**
-- a multi-file item, automatic and under a mode the viewer picked;
-- a file with several audio tracks, in Remux and in Transcode;
-- failover between the nodes mid-play.
-
-**Send core any error envelope verbatim, with its code.**
-
-**Server 0.60.0 is live** (tag `7c1d210`): fi-1 from 12:42Z and gbni-1 from 12:43Z, 2026-09-25, per core; not checked here. **Server 0.61.0** (tag `acd74ef`, torrent jobs only; the phone shows none) followed at 13:35Z / 13:36Z, and is what the A85 smoke test ran against. **Server 0.62.3** (tag `f3bf8d7`, covering 0.62.0 to 0.62.2) is live on both nodes from 15:42Z, per core: torrent and repair internals, nothing on the wire. **Server 0.64.0** (protocol 22, cluster-level torrents) is live on both nodes from 2026-09-27, per the server: status and playback unchanged; the only new value outside torrents is `error.scope: "cluster"` on torrent 503s. The A85 was last checked against 0.63.0.
-A PATCH out of transcode now releases the transcode slot, and a PATCH back
-can be refused 429 `resource_limit` (scope: request). **Checked here, no
-change needed:** `sendUpdate` keeps the old session and what it reports on
-any refusal, never fails over or goes fatal, and the A85 already measured
-that refusal's wording ("…carried on unchanged. (video transcode limit
-reached)", pinned in `supersede.test.ts`). The one fix: a refused mode
-change no longer forgets the viewer's quality pick. The new keepalive close
-route is for browsers; this client closes with the DELETE. **When it is
-live:** on the A85, Direct then back to Transcode with another viewer
-holding the slot.
-
-**Server 0.59.0** (tag `1f37a41`) is live on fi-1 and gbni-1 from
-11:30Z 2026-09-25, per core; not checked here. Scheduling only: replica
-repair keeps a 95:5 share while viewers or the loader are busy, rather than
-stopping. Nothing changes on the wire, and nothing is owed here.
-
-**Server 0.58.3** (tag `834d9f2`) is live on fi-1 and gbni-1 as of
-2026-09-25, per core; this client has not checked the health endpoint. It is
-an ingest fix only: two files of one job were planned onto one destination,
-and the second failed `destination_conflict` on every retry. Nothing changes
-on the wire, and nothing is owed here.
-
-### What is on the phone
-
-**The A85 has `4505cc8`** (installed 08:29Z 2026-09-27, `lastUpdateTime`
-11:31 phone time; core `9441b85`, dist `78ac8dee048f`), labelled
-`versionCode 900`, so identify it by `lastUpdateTime`. **Tom is logged in.**
-The smoke test ran on it; results are in COMPLETED 2026-09-25. **Its panel
-is 720x1612**, and its decoders top out at 1080p (AV1 at 720p).
-
-### Driving the phone — read this before sending a single tap
-
-**Twice in one session blind taps landed outside the app**: once starting a
-timer in the Clock app, once opening a private WhatsApp conversation. Nothing
-was typed or sent either time, and both were noticed and backed out of, but
-both were avoidable and neither should have happened.
-
-**The rule already written in this file was the one broken: check
-`mCurrentFocus` and abort if it is not `foundation.macha.client`.** It was
-being applied as a habit rather than as a gate. **Do not send `input tap` or
-`input swipe` without checking focus immediately beforehand, in the same
-invocation, and abandoning the sequence if it fails.** An install, a
-relaunch, or an incoming notification is enough to lose it.
-
-Two more device facts: wireless debugging is the only route and **its port
-rotates** (`41931`, then `35737` in one evening) — rediscover with `adb mdns
-services`; and **two televisions also answer ADB**, so every command needs an
-explicit `-s`.
-
-**A secure lock screen is a wall.** `KEYCODE_WAKEUP` and `wm dismiss-keyguard`
-wake the screen and clear a swipe keyguard; they do not clear a PIN or a
-pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
-`mCurrentFocus` reads `NotificationShade` throughout. Measured 2026-09-21
-23:32. **Do not attempt a PIN.** Ask Tom to unlock it, and treat anything
-"observed" while it was locked as not observed.
-
-### On develop since 0.9.0, one line each (none of it on a device)
-
-- **Every create names a file** (`f6ae991`, `9761b07`): the chooser's pick,
-  and under a mode the viewer chose, and on downloads, through core's
-  `chooseAmongFiles`.
-- **Every PATCH is prepared for 0.58.0** (`b93f907`, core's
-  `preparePlaybackPatch`).
-- **Per-quality Play buttons and quality ceilings** (P2 below): on the
-  detail screen, in the Playback sheet and in Settings. Automatic play is
-  now capped at the display, and every create names its streams.
-- **The sign-in token is in the Keystore** (`dd0205f`, `expo-secure-store`).
-  The plaintext copies are deleted, and logout is core's alone. A release
-  Gradle build ran clean.
-- **Home warns before a login lapses** (3 days out) and **says so after a
-  login was replaced** by an anonymous session (`bc17c4b`, `0fa031d`).
-- **The music player** shows artist, album (year) and track under the artwork
-  (`6aac25a`).
-- **Artwork** reports which URL loaded, so posters keep their URL across an
-  endpoint swap (`44cc97e`).
-- The laws document, the README and AGENTS.md rationalised against the code.
-
-### Open, in the order worth taking them
-
-1. **Smoke-tested on the A85, 2026-09-25** (COMPLETED has what passed). **Still to run** is the *Not run* list there, and the four *Observed* items want a decision. The sub-items below are the original list, kept for its detail.
-   - **Core's three 0.58.0 exercises** above, with any envelope sent to core.
-   - **The Keystore:** login survives a force-stop; logout then login
-     survives a restart.
-   - **Labels:** album cards read title / artist / year; track search cards
-     read album (year) / artist / "Track 9"; music and playlist rows read
-     album then artist; episode cards read "Season 1 Episode 6"; the sort
-     pill reads "Sort By Title".
-   - **The music player's** four lines, on a track with a year and one
-     without.
-   - **The Playback sheet** clear of the navigation bar in landscape.
-   - **The failure wording:** a refresh with the cluster unreachable shows
-     the **downloads**, not an error; a wrong password reads "That username
-     or password was not accepted."; an unnamed playlist reads "Untitled
-     playlist".
-   - Remove `ramaroja`.
-   - **Resume keeps its place** (`presentedRef`, 2026-09-25, after core's
-     `d93c9d8`). Before it, an idle expo-video tick of 0 during the session
-     create became the position, was checkpointed into Continue Watching,
-     and was used by a retry or a stop. Check: resume a Direct and a
-     Transcode title from Continue Watching; back out mid-load and see
-     Continue Watching unchanged; a retry after a refused create resumes
-     where it was; a mid-play switch into Direct keeps the position. Not
-     unit-tested: it lives in the provider, which nothing here renders.
-   - **On the Galaxy** (no endpoints): a wrong port says "did not identify
-     itself as a Macha node" and saves on a second tap.
-2. **The rest of the smoke test.** Unrun on hardware: a quality change, the
-   create-failure and player-failure copy, Remux's container branch, the
-   offline search path. The account cap cannot be tested, because the node
-   limit refuses first.
-3. **The next release**, once core publishes (see *Core*). Run *Releasing*
-   in full, including the fresh-clone proof.
-4. **Per-quality Play buttons: built 2026-09-25, check on the A85** (P2
-   below). Downloads naming a version is still open.
-5. **Prove the reaped-session probe**: the 31-minute pause (P1 below), left
-   out of 0.9.0 by Tom.
-6. **544 MPEG-4 Part 2 files**, **AV1 ten-bit SDR** (P2 below). Both need the
-   phone.
-
-**Waiting on Tom:** whether the secure store's side effect is acceptable. Its
-backup rules also take Continue Watching, the queue and playlists out of
-Android Auto Backup (P1 security, below).
-
-**Not built, deliberately:** the web Search page's A–Z index. The web
-client's design notes were reference, not spec.
-
-### Media info, one way on every client — done on the phone
-
-**Tom, 2026-09-27: "Copy the web style, formatted for the device screen.
-For music - yes, and communicate that preference to the other clients also.
-We need all the UIs to match, within the confines of their devices."**
-Built (`8c800c2`, `f2d0f9f`), on the A85: the web's rules copied word for
-word into `src/ui/mediaLines.ts`; one line per file under the title; the
-track line in the music player; 1440p reads 2K; the cap sentence is the
-web's. The pills (`0fe7030`) and the MEDIA section are gone. Device fitting:
-a line wraps only between fields. Web, TV and core told. **Core declined to host the formatters** (viewer text, per 2026-09-24),
-and **Tom overruled that the same day: "Format, codec, bitrate etc details
-are non i18n and technical. They are core's responsibility, but should be
-supplied to clients in a structured object. The client should still
-'format' them, in terms of layout."** Passed to core, who is to tell the
-other clients. **Done (`c4f6dd6`):** core's `technicalSummary` /
-`fileSummaries` (`5622020`) supply the facts and labels, `qualityLabel` is
-core's, and `mediaLines.ts` is layout only (separator, `wrapBetweenFields`).
-The tests written for the phone's own copy pass unchanged on core's output;
-the A85 reads the same. The cap sentence stays here (core agreed).
-
-### Continue Watching resumes as you left it — built, check on the A85
-
-Tom, 2026-09-27 (via the television): store the item id and the media id,
-the mode, resolution, subtitles "and all other data needed to resume as if
-you'd never left". Core `89a9d0c`; the phone `9a48362` builds the resume
-state itself (`src/playback/resume.ts`) and restores it on a resume (the
-Resume button or a Continue Watching card, not From start or a pick). **The
-television's hole** (progress keyed by the session's file) **is not here**.
-**Check on the A85:** *2010*, Remux and Italian, leave, resume from Continue
-Watching: the create should name `fe22176d…`, mode transcode (Remux renamed
-for AC-3) and `audio_stream: 2`. An automatic title should resume on its
-file with its tracks but no forced mode.
+---
 
 ### The habit that paid, and the one that did not
 
@@ -361,6 +251,31 @@ live. It is the cheapest instrument this client has. **Always read it with
 `-v UTC`** (Tom's Zulu ruling): our log lines carry no timestamp of their
 own, so logcat's is the only one, and it is device-local by default.
 
+### Driving the phone — read this before sending a single tap
+
+**Twice in one session blind taps landed outside the app**: once starting a
+timer in the Clock app, once opening a private WhatsApp conversation. Nothing
+was typed or sent either time, and both were noticed and backed out of, but
+both were avoidable and neither should have happened.
+
+**The rule already written in this file was the one broken: check
+`mCurrentFocus` and abort if it is not `foundation.macha.client`.** It was
+being applied as a habit rather than as a gate. **Do not send `input tap` or
+`input swipe` without checking focus immediately beforehand, in the same
+invocation, and abandoning the sequence if it fails.** An install, a
+relaunch, or an incoming notification is enough to lose it.
+
+Two more device facts: wireless debugging is the only route and **its port
+rotates** (`41931`, then `35737` in one evening) — rediscover with `adb mdns
+services`; and **two televisions also answer ADB**, so every command needs an
+explicit `-s`.
+
+**A secure lock screen is a wall.** `KEYCODE_WAKEUP` and `wm dismiss-keyguard`
+wake the screen and clear a swipe keyguard; they do not clear a PIN or a
+pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
+`mCurrentFocus` reads `NotificationShade` throughout. Measured 2026-09-21
+23:32. **Do not attempt a PIN.** Ask Tom to unlock it, and treat anything
+"observed" while it was locked as not observed.
 
 ### Devices
 
@@ -368,19 +283,23 @@ Deploy with `adb -s <device> install -r android/app/build/outputs/apk/release/ap
 after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **Do not skip prebuild after a version bump.** Every command needs `-s`.
 
-- **Blackview A85**, serial `A85EEA0000005410`, Android 12. Has a **dev build
-  of `22935ca`** labelled `versionCode 800` since 2026-09-24 11:01 (*What is
-  on the phone*). Wireless ADB ports seen: `:35737` and `:41931` on
-  2026-09-21, and others since. The port rotates, so
+- **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
+  Has **`aebbc44`** since 2026-09-27 15:20Z (*Where things stand*). The
+  wireless ADB port rotates on every enable (`34471`, `43777`, `41479` on
+  2026-09-27 alone). The port rotates, so
   rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
   succeeds. It drops when the phone sleeps — a screenshot of a sleeping phone
   is solid black; check `dumpsys power` for `mWakefulness` and send
   `KEYCODE_WAKEUP` before believing a blank capture. **It has a secure lock
   screen** that no ADB command here clears. It has **both** a remote TLS
-  cluster (`https://macnessa.macha.network`, and `ramaroja`, now offline) and a **LAN node at
-  `10.35.1.50`** configured; on the last smoke test playback went to the LAN
-  node while the catalogue came from `macnessa`. The LAN is `10.35.1.x`.
+  cluster (`https://macnessa.macha.network`, gbni-1) and a **LAN node at
+  `10.35.1.50`** (fi-1) configured; `ramaroja` is gone from the list. The
+  LAN is `10.35.1.x`. **Focus-gated helpers** used on 2026-09-27 (`tap.sh`,
+  `key.sh`, `ui.sh` in the job's tmp) are worth rewriting the same way: each
+  checks `mCurrentFocus` in the same invocation, and `ui.sh` deletes the old
+  dump first (a failed `uiautomator dump` otherwise reads back the previous
+  screen).
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
   **0.4.0** and **no endpoints configured**, so it opens on the connect screen
   — the right device for first-run and QR in one pass.
@@ -452,117 +371,6 @@ reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 
-## P2 — Per-quality Play buttons and quality ceilings — built, check on a device
-
-**Tom's design, settled 2026-09-25** (consolidated by core for all three
-clients; the rulings and the phone's answers are in COMPLETED 2026-09-25):
-- **The generic Play stays and means "decide for me"**: `chooseFile`'s pick.
-- **Beside it, one button per quality**, capping down only, from the best
-  file's class down to 720p. A quality with its own file plays that file;
-  one without transcodes down from a better file. **Nothing above the best
-  file is ever offered.**
-- **Below 720p, the best file's own class is shown** (e.g. 480p), never one
-  above it. Core's classes are 2160, 1440, 1080, 720, 576, 480 and 360,
-  judged by width as well as height.
-- **An explicit pick is never capped**, and never overridden by a fallback.
-- **The same list appears in the Playback sheet during play.** It replaces
-  the "Version" section, which labelled versions by a shortened media id and
-  never shows on 0.58.0.
-- **With no setting, automatic play caps at the display's resolution
-  class**, which the phone states to core. An explicit setting overrides it.
-  ~~This is a preference default, not a capability: the README's "screen
-  size is never a capability" stands.~~ **Overruled 2026-09-25**, below: the
-  screen is now the phone's stated limit.
-- **Phone only: Wi-Fi and mobile-data ceilings**, the mobile one lower. The
-  viewer is told why when the mobile ceiling limits a choice (core gives a
-  reason code, and the words are ours), and both can be set in Settings. We
-  pass the connection kind from NetInfo; `'unknown'` counts as Wi-Fi.
-- **Downloads should name a version too.** Today they name the file playback
-  would pick.
-
-**Built 2026-09-25 against core `aa843ed`; never on a device.** Core's
-source was read before building, not its message alone. Everything this
-client repeats of the coordinator is in `src/playback/quality.ts`, since this
-client drives the resolver directly:
-- **Automatic play** is `playbackVersions(...).automatic` under
-  `deviceQualityCeiling()`, read at each start. The display is `Dimensions`
-  `screen` in physical pixels. Core classes it with `displayQualityClass`
-  (`3a5dc56`): the largest 16:9 picture shown whole, so 2400x1080 is 1080p
-  either way up. The connection is NetInfo's `type`,
-  set from `MachaProvider`'s listener.
-- **Every automatic or picked create now names its streams**
-  (`streamsToName` on the chosen file). It named only the file before, so a
-  multi-audio file in Remux or Transcode was refused `choice_required` and
-  core's resolver took the node's first candidate.
-- **A pick** starts through `StartOptions.version` and switches mid-play
-  through `playVersion`. The PATCH skips `statedUpdate`, whose transform is
-  judged from the file playing now. It always states the cap, `null` for a
-  file step: `restatePreferencesClearedByMode` would otherwise carry an old
-  cap into a transcode file step. A retry replays the pick; a Mode or height
-  change from the sheet clears it.
-- **The sheet's Quality section is the steps** where there are any. The
-  node's own height list shows only for an item whose facts never arrived,
-  so there are not two lists of heights. The "Version" section is gone.
-- **Settings** has *Playback quality*, On Wi-Fi and On mobile data, stored
-  on this device through core's `QualityPreferenceStore`, at core's key
-  `macha.qualityPreference.v1`, which all three clients share (core
-  `edef8bf`).
-
-**Tom, 2026-09-25, to this session: "sensible defaults but leaving the user
-in ultimate control."** A phone cannot play 2160p, so it is not offered. A
-setting offers everything, including what the phone cannot play. **Tom,
-in core's session the same day, for all three clients: "limit to the device
-capabilities for direct on all clients - but, all clients should also have a
-setting to disable this."** Core built it in `edfce82`, and this client moved
-onto it:
-- ~~**The phone states its screen as `maxWidth` / `maxHeight`**~~ **Wrong,
-  and replaced the same day.** The A85's panel is **720x1612**, not the
-  2400x1080 assumed here, so every 1080p file was refused the Direct Play its
-  decoders manage. Found on the device before the smoke test; Tom chose the
-  decoder limit.
-- **The limit is the decoders'** (`decoderSizeLimit`, Android only): the
-  native `videoDecoderSizes()` asks each video decoder type for the largest
-  standard 16:9 landscape frame it decodes at 24 fps, hardware decoders where
-  the type has any. The stated limit is the smallest of the claimed codecs'
-  largest frames. iOS and web state none. The screen is a preference default
-  for automatic play again, never a capability.
-- **Automatic play on the A85 stays capped at 720p** (Tom, 2026-09-25,
-  confirming the display ruling once the panel was measured at 720x1612).
-  Play transcodes a 1080p film to 720p on the node; picking 1080p on the
-  title plays the file directly, uncapped. Asked because landscape was
-  thought to make the panel 1080p: it does not, it is 1612x720 either way.
-- **Tom, 2026-09-25: "most people watch their phone landscaped", and tablets
-  are in scope.** Both measurements are landscape, and viewer text says
-  "this device", not "this phone".
-- **Core's chooser objects to a larger picture**
-  (`video-size-exceeds-client`). A 2160p file therefore transcodes
-  automatically on the A85, and the sheet disables Direct and Remux for it
-  with "this video is larger than this device plays". The sheet reaches this
-  through `videoStreamObjection`, so it needed only the sentence.
-- **`playbackVersions` offers nothing above the device** unless `offerAll`.
-  The phone's own screen filter (`561d286`) is gone. `offersVersions` is
-  left here only to decide whether a choice is worth a button.
-- **"Offer everything"** in Settings is `QualityPreference.offerAll`, set
-  with `setOfferAll`. `macha.offer-everything` is gone; nothing shipped with
-  it. On, it lists every quality and lets the sheet's Remux and Direct be
-  picked where this device objects, with the reason still shown.
-- Automatic play stays within the device either way, reason
-  `ceiling-device`.
-
-**Needs Tom:** the mobile-data default is core's 720p, not a ruling. Core
-said so itself.
-
-**Still open:** downloads naming a version (they still take `fileToPlay`'s
-file), and all of it on the A85: a multi-file item, a 2160p-only title, a
-switch between files mid-play, the mobile-data explanation, and a retry
-after a failed pick.
-
-**Core fixed `playVersion`'s stale cap in `edef8bf`**, after the phone
-reported it from source. It now sends `maxHeight: step.maxHeight ?? null`,
-as the phone's PATCH already did, with core's test failing without it.
-
----
-
 ## P1 — media3's bytecode says a segment 500 is retried; our device said it is fatal
 
 **Unresolved contradiction, found 2026-09-20 while answering a question from
@@ -616,72 +424,6 @@ signal here rather than the stronger one. Core has been told this is a
 bytecode reading rather than a result, and that the experiment belongs on this
 end. **expo-video installs no `LoadErrorHandlingPolicy` of its own**, so the
 default above is what runs.
-
----
-
-## P1 — The token in the Keystore — built, check on a device
-
-**Built** (`dd0205f`, history in COMPLETED 2026-09-25): `expo-secure-store`
-behind core's `secureStorage`, `configureAndroidBackup` explicit, the
-plaintext copies deleted, and `signOut()` core's alone. A release Gradle
-build ran clean. **Check on the A85** (Open item 1): one login, then login
-survives a force-stop, and logout then login survives a restart.
-
-**Waiting on Tom:** the module's backup rules back up `sharedpref` only, so
-AsyncStorage (Continue Watching, the queue, playlists) also leaves Android
-Auto Backup. Before, everything was backed up, token included.
-
-**Settled and not to be reopened:** core's `isMachaStorageKey` must **not**
-replace `owned()` in `state/storage.ts` — it is core's key registry, not this
-client's hydration filter. The reasoning is in the comment there and pinned
-by the hydrate test.
-
----
-
-## P2 — At 30 days a signed-in viewer becomes nobody — built, check on a device
-
-Core's refresh re-mints with no credentials, so at 30 days a signed-in viewer
-becomes anonymous mid-use. **Both halves are built** (`bc17c4b`, `0fa031d`,
-`src/account/expiry.ts`, tested):
-- **Before:** within 3 days of `expires_unix_ms`, Home says "Your login
-  expires in N days" and opens the login screen. The 3-day window is a
-  choice, not a ruling.
-- **After:** when core's `lastIdentityChange` shows a named account replaced
-  by an anonymous session, Home says "You have been logged out", naming the
-  account.
-
-Neither can be seen on a device without a session near its expiry, or one
-revoked. **The after-half is the instrument for the unexplained 2026-09-16
-sign-out**: if it recurs, the banner names the account lost. History in
-COMPLETED 2026-09-24/25.
-
----
-
-## P1 — What still needs a person holding a phone
-
-Nothing here can be done from this machine alone. The Galaxy is the better
-device for the camera and the paste — clean install, no endpoints, opens on the
-connect screen.
-
-- **Unlock the A85** for the `develop` install and the one login. It has a
-  secure lock screen that no ADB command here clears (*Driving the phone*).
-- **The camera.** Never used. The permission prompt, a real code read at a real
-  distance, and the second refusal — where the prompt becomes a link to
-  Settings rather than another request.
-- **Pasting a list of addresses into a node row.** `editRow`'s split path is
-  unit-tested only; `adb shell input text` cannot emulate a clipboard paste.
-- **The 31-minute pause** for the reaped-session P1 above. It is wired, and
-  it shipped in 0.9.0 unproven.
-- **The two open segment-hold measurements** in the native-player-error-opacity
-  note (COMPLETED, 2026-09-08): whether a cold session on either engine ever
-  receives a 500 before its own read timeout, and the prefetch arithmetic. Both
-  are cheaper now that the node states its hold: read `session.source.budgets`
-  off `logcat` and compare against media3's 8000 ms music read timeout.
-
-**The marker's inherited claim was wrong and is retired.** It said a deployed
-node "names no user". `session_json` writes `username` beside `user_id`
-whenever the session names one; the device agrees, and a successful login has
-since confirmed it for a signed-in user. No `users.me()` fallback needs writing.
 
 ---
 
@@ -841,8 +583,11 @@ SDR, so the claim rests on an inference about what an HDR10-only profile list
 implies for SDR ten-bit content. The same shape of assumption this file keeps
 catching.
 
-**The test:** force **Direct play** on *The Cannonball Run* from the options
-sheet — its Opus audio is decodable, so only the video question remains. Three
+**Blocked on data, 2026-09-27:** *The Cannonball Run*'s file has lost
+extents, and both nodes refuse it (`read media: extent unavailable`), so it
+cannot be the test until the server restores it or another ten-bit AV1 file
+exists. **The test, when it can run:** force **Direct play** on it from the
+options sheet — its Opus audio is decodable, so only the video question remains. Three
 attempts to open the sheet failed on 2026-09-21: the chrome does not auto-hide
 while paused, a "reveal" tap dismisses it, and the layers icon eats the next
 tap. Tap the icon with the chrome already visible and verify the sheet opened
@@ -949,6 +694,8 @@ unset makes core fall back to the *direct* lists silently, which would claim
 E-AC-3 in fMP4 — an independent black-picture path. The `web` fallback branch
 does leave them unset: dead code on a device, but recorded rather than trusted.
 
+---
+
 ## P2 — Stall detection, if it is ever wired
 
 **Status:** deliberately not started.
@@ -1006,18 +753,6 @@ so misattribution cannot occur by construction.
 
 ---
 
-## Open observations from the A85, 2026-09-16
-
-The run itself is recorded in COMPLETED. Two things from it are still open:
-
-- **The startup delay that is real** is a degraded node: seven route-attempts
-  to `macnessa` between 213 ms and 230 ms, then nothing until **4231 ms**, when
-  the walk gives up and reaches `ramaroja`. A four-second wait on a dead node,
-  and a cluster-health question rather than a client one. Core's `develop`
-  now routes status reads advisorily and takes a signal on discovery, which
-  may change the shape; re-measure on the next run.
-- **The device signed itself out between two runs.** See the 30-day P1.
-
 ## Cluster membership can shrink and regrow on its own
 
 **Not a fault, and it will look like one.** gbni-2 (`inverbeg`) was removed on
@@ -1047,10 +782,9 @@ remembered? })` is the shared form of what `MachaProvider.tsx` does with
 `applyAdvertisement`. Ours is already the right shape, so adopting it removes
 a mirror and fixes nothing.
 
-**The 0.56.0 top-level `"status"` key is live** (with 0.57.0 and 0.58.0).
-This client parses no server JSON itself — every response comes through
-core — so it reaches this client only through core. **On the next A85 run,
-watch logcat for any parse failure.**
+**Server keys added since 0.56.0** (the top-level `"status"`, 0.63.0's
+`threads`, 0.64.1's `prompt_replication`) reach this client only through
+core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
 
 - **The mint-failed window is still open and is core's**, confirmed by core
   on 2026-09-20 against its `develop`, and by diff here: `0.12.0` through
@@ -1084,7 +818,9 @@ watch logcat for any parse failure.**
   was wrong (see COMPLETED). The Android TV client is the first that can
   promote a standby and will report what actually happens. **Do not re-file
   without that result.**
-- **Core `0.19.0` is on npm** (2026-09-24T17:42Z) and 0.9.0 pins it. Before
+- **Core `0.20.0` is being cut** (2026-09-27) for the release above; `0.19.0`
+  (2026-09-24T17:42Z) is the newest on npm at the rationalisation, and 0.9.0
+  pins it. Before
   it, `0.18.0` (2026-09-21T19:31Z) was pinned by 0.8.0. `0.15.0`
   and `0.16.0` were superseded and will never be published; `0.17.0` was
   tagged and overtaken. Everything they carried — the walk fix, the bounded
@@ -1110,6 +846,8 @@ watch logcat for any parse failure.**
   A yes would say the bytecode path is reachable somewhere; it would still not
   be a result about expo-video.
 
+---
+
 ## Possible server change worth watching
 
 **Tying the video transcode entitlement to the engine rather than the session**
@@ -1123,6 +861,8 @@ is a new state this client would have to handle rather than treat as an error.
 With the reaped-session P1 wired, `regenerate` failing on the owning node is
 exactly the branch that state would arrive in. No action until the server
 session says which way it goes.
+
+---
 
 ## Deferred by Tom
 
@@ -1153,6 +893,8 @@ session says which way it goes.
   the two sources, and this client has no second managed presentation to cut
   to. **If it ever comes back, it should come back to the Android TV client
   rather than here.**
+
+---
 
 ## Checked and already correct
 
