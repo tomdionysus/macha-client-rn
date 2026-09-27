@@ -1,5 +1,6 @@
 import {
   QualityPreferenceStore,
+  qualityLabel,
   playbackVersions,
   qualityCeiling,
   streamsToName,
@@ -68,13 +69,8 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
   });
 }
 
-/** How a step reads on a button or in the sheet. */
-export function qualityLabel(quality: QualityClass): string {
-  // As the web labels them (Tom, 2026-09-27: every client alike).
-  if (quality === 2160) return '4K';
-  if (quality === 1440) return '2K';
-  return `${quality}p`;
-}
+/** How a step reads on a button or in the sheet: core's label ("4K", "2K", "1080p"). */
+export { qualityLabel } from '@machafoundation/core';
 
 /**
  * Why Play will not choose the largest file, for the viewer (Tom: automatic

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogueMediaProfile, CatalogueMediaStreamProfile } from '@machafoundation/core';
-import { fileLines, mediaProfileSummary, wrapBetweenFields } from './mediaLines';
+import { fileLines, wrapBetweenFields } from './mediaLines';
+
+const mediaProfileSummary = (profile: CatalogueMediaProfile) => fileLines([profile])[0];
 
 /**
- * The web client's rules, copied for the phone (Tom, 2026-09-27: "Copy the
- * web style"). These pin the same outputs the web pins, so the two read alike.
+ * The phone's lines over core's facts (`technicalSummary`, core `5622020`).
+ * These pinned the phone's own copy of the web's rules before core took them,
+ * and now pin that core's facts and the phone's layout read exactly the same.
  */
 function stream(partial: Partial<CatalogueMediaStreamProfile>): CatalogueMediaStreamProfile {
   return {
