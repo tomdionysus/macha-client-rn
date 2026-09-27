@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { CatalogueMediaProfile } from '../api/catalogue';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
-import { fileLines } from './mediaLines';
+import { fileLines, wrapBetweenFields } from './mediaLines';
 import { colors, type as typography } from './theme';
 
 /**
@@ -11,7 +11,8 @@ import { colors, type as typography } from './theme';
  * formatted for the device; see `mediaLines.ts`). Every `macha:` file of the
  * item is read, and a file whose profile cannot be read is left out rather
  * than failing the others. Lines wrap at the device's width rather than
- * truncate, since every field carries something.
+ * truncate, since every field carries something, and only between fields
+ * (`wrapBetweenFields`).
  *
  * Advisory metadata, never a precondition for playback: a node that answers
  * `202 profile_pending` or 404 simply produces nothing here.
@@ -32,7 +33,7 @@ export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
     <View style={styles.lines}>
       {lines.map((line) => (
         <Text key={line} style={styles.line}>
-          {line}
+          {wrapBetweenFields(line)}
         </Text>
       ))}
     </View>

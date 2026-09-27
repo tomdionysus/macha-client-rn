@@ -89,3 +89,16 @@ export function mediaProfileSummary(profile: CatalogueMediaProfile): string {
   if (profile.bitrate > 0) parts.push(`${(profile.bitrate / 1_000_000).toFixed(1)} Mbps`);
   return parts.join(' · ');
 }
+
+/**
+ * A line as a narrow screen should wrap it: only between fields, never
+ * inside one. The music player's column on the A85 (2026-09-27) broke "926
+ * kbps" across two lines; every space inside a field becomes a no-break
+ * space, so a break can only fall at " · " (agreed with the web client).
+ */
+export function wrapBetweenFields(line: string): string {
+  return line
+    .split(' · ')
+    .map((field) => field.replace(/ /g, '\u00A0'))
+    .join(' · ');
+}

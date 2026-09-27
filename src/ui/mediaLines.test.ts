@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogueMediaProfile, CatalogueMediaStreamProfile } from '@machafoundation/core';
-import { fileLines, mediaProfileSummary } from './mediaLines';
+import { fileLines, mediaProfileSummary, wrapBetweenFields } from './mediaLines';
 
 /**
  * The web client's rules, copied for the phone (Tom, 2026-09-27: "Copy the
@@ -58,5 +58,14 @@ describe('fileLines', () => {
   it('gives each file its line, and one line to files that read the same', () => {
     expect(fileLines([martian4k, martian1080])).toHaveLength(2);
     expect(fileLines([martian1080, { ...martian1080, media_id: 'other' }])).toEqual(['2h 31m · 1920×1080 · HEVC · E-AC-3 · 3.1 Mbps']);
+  });
+});
+
+describe('wrapBetweenFields', () => {
+  /** The A85's music player broke "926 kbps" across two lines. */
+  it('leaves a break only between fields', () => {
+    const wrapped = wrapBetweenFields('6:43 · FLAC · 16-bit · 44.1 kHz · Stereo · 926 kbps');
+    expect(wrapped).toBe('6:43 · FLAC · 16-bit · 44.1\u00A0kHz · Stereo · 926\u00A0kbps');
+    expect(wrapped.split(' ').filter((part) => part !== '·')).toHaveLength(6);
   });
 });
