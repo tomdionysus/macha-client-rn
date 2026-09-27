@@ -8,6 +8,33 @@ Newest first.
 
 ---
 
+## 2026-09-27 (evening) — Core's release checklist on the A85
+
+**Build:** app `aebbc44`, core `e964514` (dist `b33baa4a1f60`), server
+0.64.x. 15:08Z to 15:36Z, focus-gated, logcat in UTC. Reported to core
+verbatim.
+
+- **Resume as left: fixed on the device, then passed.** *2010* in Remux
+  with Italian resumed on the same file and track but re-encoded the
+  picture: Remux there is transcode with the video copied (AC-3), and the
+  entry had saved the session's `transcode`. `aebbc44` records the mode the
+  viewer picked (test red first); the re-run resumed `video: copy, audio:
+  transcode, audio_stream: 2`, `seek_ms: 542902`, 201. Core told, since its
+  `resumeStateFrom` has the same shape.
+- **Automatic resume:** *Serenity* resumed on `8aff2ca1…` at `seek_ms:
+  62678` with `audio_stream: 1`, automatic play choosing again on that file.
+  An entry needs 30 s of progress (core's `MINIMUM_PROGRESS_MS`).
+- **AV1 over its limit:** *The Cannonball Run* (1920×1072 AV1) instructed as
+  transcode, not Direct. **Both nodes then refused it**, 503
+  `playback_unavailable`, "read media: extent unavailable": its data is
+  gone. Server told. AV1 at 720p or below: no such file known.
+- **Media lines from core's facts:** *The Martian*, *2010*, *Serenity* (two
+  lengths, not combined) and a FLAC track, as expected.
+- **Not run:** failover mid-play, and a refused switch back into transcode
+  (need a node down or a second viewer).
+
+---
+
 ## 2026-09-27 — The A85 again: per-codec limits, the file pills, server 0.63.0
 
 **Build:** app `4505cc8` (installed 08:29Z, `lastUpdateTime` 11:31 phone
