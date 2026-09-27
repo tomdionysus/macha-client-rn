@@ -7,6 +7,8 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import {
   choosePlaybackInstruction,
   degradeInstruction,
+  playbackVersions,
+  resumePreferences,
   restatePreferencesClearedByMode,
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
@@ -15,7 +17,8 @@ import {
   type StreamInstruction,
   type VersionStep,
 } from '@machafoundation/core';
-import { automaticStart, deviceQualityCeiling, versionStart, versionUpdate } from '../playback/quality';
+import { automaticStart, deviceQualityCeiling, offerAll, versionStart, versionUpdate } from '../playback/quality';
+import { progressOf, type PlaybackChoice } from '../playback/resume';
 import {
   ensureAudioEngine,
   loadAudioTrack,
@@ -322,6 +325,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * television, Tom's "sometimes starts at 0").
    */
   const presentedRef = useRef(false);
+  /**
+   * Who chose how this item plays, for Continue Watching (`progressOf`): a
+   * resume restores the viewer's mode and quality, and lets automatic play
+   * choose again where it chose.
+   */
+  const choiceRef = useRef<PlaybackChoice>({ chosenByViewer: false });
   const filesRef = useRef<readonly PlaybackMediaFacts[] | undefined>(undefined);
 
   useEffect(() => () => player.release(), [player]);
@@ -343,7 +352,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       if (!force && now - lastCheckpointRef.current < PROGRESS_CHECKPOINT_MS) return;
       lastCheckpointRef.current = now;
-      continueWatching.update(progressFor(media, positionMs, durationMs));
+      // The title, the file and how it is playing (Tom, 2026-09-27: resume
+      // "as if you'd never left"); off the disk, the position alone.
+      continueWatching.update(progressOf(media, positionMs, durationMs, sessionRef.current, choiceRef.current));
       queueStore.updatePosition(positionMs);
     },
     [continueWatching, queueStore],
@@ -463,6 +474,23 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // The resume point is the position until the player reports one of
         // this source's, so a stop or a retry before then keeps it.
         positionRef.current = seekMs;
+        // Resuming where the viewer left: the same file, and where they chose
+        // them, the same mode, cap and tracks (core's `resumePreferences`).
+        // Only a resume; "From start", a picked quality or a picked mode is a
+        // fresh choice.
+        const resumeEntry =
+          !options.version && options.preferences?.mode === undefined && seekMs > 0 && seekMs === remembered
+            ? continueWatching.entryFor(media.id)
+            : undefined;
+        const startPreferences: PlaybackPreferencesUpdate = {
+          ...(resumeEntry ? resumePreferences(resumeEntry) : {}),
+          ...options.preferences,
+        };
+        // `'choose'` is core's client-side sentinel for "you decide". This
+        // client always decides, so it never sets one — narrowing here keeps
+        // that true at the type level rather than by convention.
+        const requestedMode = startPreferences.mode === 'choose' ? undefined : startPreferences.mode;
+        choiceRef.current = { chosenByViewer: !!options.version || requestedMode !== undefined, quality: options.version?.quality };
         // A start seek is a seek like any other: a freshly presented player
         // reports 0 for a few frames before it lands, and those frames must
         // not be checkpointed over the resume point either. Nothing of the
@@ -521,18 +549,18 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           mediaApi,
           playbackApi,
           media,
-          // `'choose'` is core's client-side sentinel for "you decide". This
-          // client always decides, so it never sets one — narrowing here keeps
-          // that true at the type level rather than by convention.
-          options.preferences?.mode === 'choose' ? undefined : options.preferences?.mode,
-          options.preferences,
+          requestedMode,
+          startPreferences,
           options.version,
         );
         if (generationRef.current !== myGeneration) return;
         filesRef.current = files;
+        if (!choiceRef.current.chosenByViewer && versions?.automatic) {
+          choiceRef.current = { chosenByViewer: false, quality: versions.automatic.quality };
+        }
         if (versions) setState((current) => ({ ...current, versions }));
         const session = await createSession(playbackApi, media, instruction, seekMs, {
-          ...options.preferences,
+          ...startPreferences,
           // A height cap and the streams named, for the file chosen.
           ...chosenPreferences,
           // The file the chooser picked, sent as the session's `media_id`.
@@ -1193,7 +1221,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // the pick is still what is playing.
       const preferences = update.preferences;
       const replacesPick = preferences?.mode !== undefined || preferences?.maxHeight !== undefined;
-      if ((await sendUpdate(update, false)) && replacesPick) versionRef.current = undefined;
+      if ((await sendUpdate(update, false)) && replacesPick) {
+        versionRef.current = undefined;
+        choiceRef.current = { chosenByViewer: true };
+      }
     },
     [sendUpdate],
   );
@@ -1210,7 +1241,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       });
       // Remembered only once it plays, so a refused switch leaves a retry on
       // what was actually playing.
-      if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) versionRef.current = step;
+      if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) {
+        versionRef.current = step;
+        choiceRef.current = { chosenByViewer: true, quality: step.quality };
+      }
     },
     [sendUpdate],
   );
@@ -1700,7 +1734,9 @@ async function chooseInstruction(
     // the runtime still is, and asking for it must not fail the playback.
     // Which file is still ours to pick (`fileToPlay`), and the runtime and
     // audio codec are read from that file.
-    const chosenMediaId = fileToPlay(files, media.mediaIds, capabilities, overrides);
+    // A resume names the file it left; otherwise the file is still ours to pick.
+    const named = preferences?.mediaId !== undefined && media.mediaIds.includes(preferences.mediaId) ? preferences.mediaId : undefined;
+    const chosenMediaId = named ?? fileToPlay(files, media.mediaIds, capabilities, overrides);
     const stated = files?.find((entry) => entry.mediaId === chosenMediaId) ?? files?.[0];
     return {
       instruction: {
@@ -1727,9 +1763,16 @@ async function chooseInstruction(
   // Automatic play: the best file at or below this device's ceiling, named
   // on the session with its streams. The ceiling is read now, so a phone
   // that moved onto mobile data since the detail screen drew is capped by it.
-  const chosen = files
-    ? automaticStart(files, media.mediaIds, capabilities, overrides, deviceQualityCeiling(), preferences)
+  // A resume names the file it left: automatic play chooses how, not which,
+  // as core's coordinator does (`89a9d0c`). The sheet still offers every file.
+  const named = preferences?.mediaId !== undefined ? files?.filter((file) => file.mediaId === preferences.mediaId) : undefined;
+  const candidates = named && named.length > 0 ? named : files;
+  const chosen = candidates
+    ? automaticStart(candidates, media.mediaIds, capabilities, overrides, deviceQualityCeiling(), preferences)
     : undefined;
+  if (chosen && candidates !== files && files) {
+    chosen.versions = { ...chosen.versions, steps: playbackVersions(files, capabilities, { overrides, mediaIds: media.mediaIds, offerAll: offerAll() }).steps };
+  }
   if (chosen) {
     if (chosen.versions.limitedBy) {
       console.log('[macha] [playback] quality-limited', {

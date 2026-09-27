@@ -39,7 +39,7 @@ export default function HomeScreen() {
   }, [continueWatching, home]);
 
   const progressByItem = useMemo(
-    () => new Map(resumable.map((entry) => [entry.mediaId, entry])),
+    () => new Map(resumable.map((entry) => [entry.itemId, entry])),
     [resumable],
   );
   /**

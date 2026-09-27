@@ -3,8 +3,18 @@ import { ContinueWatchingStore, type PlaybackProgress } from '@machafoundation/c
 import { clientStore } from './storage';
 import { adoptLegacyContinueWatching } from './continueWatchingMigration';
 
-const entry = (mediaId: string, positionMs = 60_000): PlaybackProgress => ({
+// Stored in the shape a phone saved before 2026-09-27, which named the title
+// `mediaId`; core reads that as `itemId` (`89a9d0c`).
+const entry = (mediaId: string, positionMs = 60_000) => ({
   mediaId,
+  positionMs,
+  durationMs: 3_600_000,
+  updatedAt: Date.now(),
+});
+
+/** An entry in today's shape, as the store writes it. */
+const current = (itemId: string, positionMs = 60_000): PlaybackProgress => ({
+  itemId,
   positionMs,
   durationMs: 3_600_000,
   updatedAt: Date.now(),
@@ -24,19 +34,19 @@ describe('adoptLegacyContinueWatching', () => {
 
     adoptLegacyContinueWatching(store, 'client');
 
-    expect(store.list().map((e) => e.mediaId).sort()).toEqual(['macha:one', 'macha:two']);
+    expect(store.list().map((e) => e.itemId).sort()).toEqual(['macha:one', 'macha:two']);
   });
 
   it('never drags a viewer back to where they were before upgrading', () => {
     // The store already has something, so the viewer has watched since the
     // rename. Adopting on top of that would resurrect stale positions.
     const store = new ContinueWatchingStore('client', clientStore);
-    store.update(entry('macha:current'));
+    store.update(current('macha:current'));
     clientStore.setItem(legacyKey('client'), JSON.stringify([entry('macha:stale')]));
 
     adoptLegacyContinueWatching(store, 'client');
 
-    expect(store.list().map((e) => e.mediaId)).toEqual(['macha:current']);
+    expect(store.list().map((e) => e.itemId)).toEqual(['macha:current']);
   });
 
   it('sweeps the anonymous pool written before hydration finished', () => {
@@ -48,7 +58,7 @@ describe('adoptLegacyContinueWatching', () => {
 
     adoptLegacyContinueWatching(store, 'client');
 
-    expect(store.list().map((e) => e.mediaId)).toEqual(['macha:early']);
+    expect(store.list().map((e) => e.itemId)).toEqual(['macha:early']);
   });
 
   it('prefers the real client id over the anonymous pool when both exist', () => {
@@ -58,7 +68,7 @@ describe('adoptLegacyContinueWatching', () => {
 
     adoptLegacyContinueWatching(store, 'client');
 
-    expect(store.list().map((e) => e.mediaId)).toEqual(['macha:real']);
+    expect(store.list().map((e) => e.itemId)).toEqual(['macha:real']);
   });
 
   it('leaves the old key in place, so a rollback still finds it', () => {
