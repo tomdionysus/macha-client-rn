@@ -25,6 +25,20 @@ point:** *Firefly* S1E11 "Serenity" has two 1080p files and read "Transcode:
 single-file title (*2001*) shows none. A title whose files play different
 ways has not been seen yet.
 
+### Every file in MEDIA, and *The Martian* (`93db956`)
+
+Tom: *The Martian* showed one 4K listing and no pills, and should show two.
+**Checked before changing anything**, through a new `title-files` log line
+(the item's media ids against what the facts route returns): at 08:47Z the
+cluster had **one** file, `1e763547` (4K HEVC), imported 08:15Z; the damaged
+`7b5743ad` had gone and the server could not say how. The phone was right.
+The MEDIA section did show only the first file of any item, so it now lists
+every file, one summary line and its audio each, under "MEDIA · N FILES".
+**At 09:16Z the item had two files** (`1e763547` 4K and `aecde798` 1080p,
+both HEVC, the 1080p with E-AC-3 only), and the A85 showed "Transcode: 4K,
+1080p" and both listings. Both transcode here: the 4K is over the decoder
+limit, the 1080p's E-AC-3 cannot be decoded.
+
 ### Passed
 
 - **Per-codec limit live:** the create logs `videoCodecs: h264, hevc, vp9,
