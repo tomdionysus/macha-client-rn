@@ -132,8 +132,8 @@ on the wire, and nothing is owed here.
 
 ### What is on the phone
 
-**The A85 has `60fc6c6`** (installed 14:10Z 2026-09-25, `lastUpdateTime`
-17:10 phone time; core `d93c9d8`, dist `379d5e152bd5`), labelled
+**The A85 has `4505cc8`** (installed 08:29Z 2026-09-27, `lastUpdateTime`
+11:31 phone time; core `9441b85`, dist `78ac8dee048f`), labelled
 `versionCode 900`, so identify it by `lastUpdateTime`. **Tom is logged in.**
 The smoke test ran on it; results are in COMPLETED 2026-09-25. **Its panel
 is 720x1612**, and its decoders top out at 1080p (AV1 at 720p).

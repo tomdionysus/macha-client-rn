@@ -8,6 +8,49 @@ Newest first.
 
 ---
 
+## 2026-09-27 — The A85 again: per-codec limits, the file pills, server 0.63.0
+
+**Build:** app `4505cc8` (installed 08:29Z, `lastUpdateTime` 11:31 phone
+time), core `9441b85` (dist `78ac8dee048f`), **server 0.63.0** on both
+nodes. Every tap gated on focus; logcat in UTC. Tom still signed in after
+three updates.
+
+### The file pills (`0fe7030`, `4505cc8`)
+
+Tom, mid-run: for titles with several files, small pills below the title,
+"Direct: 4K, 1080p, 720p". `filePills` groups each file by the mode core's
+chooser gives it here; 2160p now reads **4K** everywhere. **First cut hid the
+point:** *Firefly* S1E11 "Serenity" has two 1080p files and read "Transcode:
+1080p"; it now reads **"Transcode: 1080p ×2"**, test red first. A
+single-file title (*2001*) shows none. A title whose files play different
+ways has not been seen yet.
+
+### Passed
+
+- **Per-codec limit live:** the create logs `videoCodecs: h264, hevc, vp9,
+  av1` with `maxWidth: 1920`, AV1 held to 1280x720 (`c4fba76`).
+- **Two files, automatic:** *Serenity* picked and named
+  `macha:8aff2ca1…`, 720p cap, 201 first time (macnessa).
+- **Lifting a cap on the same file:** 1080p from the sheet sent a transcode
+  PATCH with `max_height: null`, 200, position kept.
+- **Resume from Continue Watching:** *Serenity* at `seek_ms: 146413`, same
+  file.
+- **Cluster status under 0.63.0:** both nodes 0.63.0, ready, "Healthy"; the
+  new `threads` array broke nothing.
+- **Settings:** "Up to 4K" among the ceilings.
+
+### Noticed
+
+- **Continue Watching lost *2001*, *2010* and the Metallica track** between
+  2026-09-25 and today; it held *Alien*, *Night Watch* and *Serenity*.
+  Possibly Tom's doing; asked, not assumed.
+- **A tap meant for the tab bar hit the player's Previous button** while
+  its controls were up, and the queue moved to *Objects in Space*. The
+  driving's fault, not the app's, but it shows the full-screen player covers
+  the tab bar's position.
+
+---
+
 ## 2026-09-25 — The A85 smoke test, and the device limit it corrected
 
 **Build:** app `9f97f8b` + `60fc6c6` (`60fc6c6` is the install; APK
