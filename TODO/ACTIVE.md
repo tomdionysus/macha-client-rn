@@ -24,8 +24,9 @@ server-compatibility fix since 0.9.0; `versionCode` 1000). **Confirm the
 number with Tom before bumping.**
 
 **Preconditions, each checked, none assumed:**
-1. **Tom says go**, and has pushed `develop`. On 2026-09-27 `develop` was
-   **41 commits ahead of `origin/develop`**. **This session never pushes**:
+1. **Tom says go**, and has pushed `develop`: `git log --oneline
+   origin/develop..develop` must be empty (43 commits at the
+   rationalisation). **This session never pushes**:
    hand Tom the exact `git push` command and wait (memory *never-push*).
 2. **Core 0.20.0 is actually on npm:** `npm view @machafoundation/core version
    time --json`. At the rationalisation it was **not** (newest `0.19.0`).
@@ -104,7 +105,7 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
 
 - **`main` is `dc60ece`, tagged `0.9.0`**, pinning published core `^0.19.0`.
   0.9.0 cannot start playback against server 0.58.0 or later, which is live.
-- **`develop`** is 65 commits past `main`, linked to `file:../macha-ts`,
+- **`develop`** is well past `main` (`git log --oneline main..develop`), linked to `file:../macha-ts`,
   typecheck clean, **337 tests** against core `29fa878` (dist
   `e2adced47327`).
 - **The server is 0.64.x on both nodes** (fi-1, the LAN node
