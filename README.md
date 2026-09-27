@@ -19,15 +19,16 @@ matching Macha — see [`LICENSE`](LICENSE).
 
 ## Where this sits in the project
 
-Macha has three clients and one shared library, and the clients share their
-brains rather than their views:
+Macha is a server, one shared client library and three clients, and the
+clients share their brains rather than their views:
 
 | | |
 |---|---|
-| **`@machafoundation/core`** (`../macha-ts`) | The shared TypeScript library: cluster routing, session lifecycle, playback decoding and negotiation, the model layer, per-device stores. On `develop` it is linked with `file:../macha-ts`, so **core's working tree is this client's code** — a rebuild picks up uncommitted changes, and `dist/` is what actually resolves. A release on `main` pins the published package instead; see `AGENTS.md`. |
+| **[Macha](https://github.com/tomdionysus/macha)** (`../macha`) | The server: a C++20 distributed filesystem and media server that splits large, mostly immutable video and music libraries into encrypted extents across ordinary machines, catalogues them, and serves them directly or transcoded. Everything the clients talk to. |
+| **[`@machafoundation/core`](https://github.com/tomdionysus/macha-core-npm)** (`../macha-ts`) | The shared TypeScript library: cluster routing, session lifecycle, playback decoding and negotiation, the model layer, per-device stores. On `develop` it is linked with `file:../macha-ts`, so **core's working tree is this client's code** — a rebuild picks up uncommitted changes, and `dist/` is what actually resolves. A release on `main` pins the [published package](https://www.npmjs.com/package/@machafoundation/core) instead; see `AGENTS.md`. |
 | **This repo** | The phone. |
-| **Android TV client** (`../macha-client-rn-tv`) | The television. A separate React Native codebase: nothing measured on it transfers to this one. |
-| **Web/TV client** (`../macha-client`) | Browser, Samsung Tizen and TCL sets. Also owns administration. |
+| **[Android TV client](https://github.com/tomdionysus/macha-client-rn-android-tv)** (`../macha-client-rn-tv`) | The television: React Native, leanback, D-pad only. A separate codebase: nothing measured on it transfers to this one. |
+| **[Web/TV client](https://github.com/tomdionysus/macha-client)** (`../macha-client`) | React and TypeScript, for browsers, Samsung Tizen and TCL sets. Also owns administration. |
 
 Anything not phone-specific belongs in core, not here. The convergence work is
 mostly done: `src/api/` is now thin adapters over core, and four local modules
