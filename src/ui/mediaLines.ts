@@ -9,7 +9,8 @@ import { fileSummaries, type CatalogueMediaProfile, type MediaTechnicalProfile, 
  * terms of layout." What is left here is the phone's layout: the separator,
  * and wrapping only between fields.
  *
- * A film or an episode: "2h 31m · 3840×2160 · HEVC · TRUEHD · 47.4 Mbps".
+ * A film or an episode: "2h 31m · 3840×2160 (4K) · HEVC · TRUEHD · 7.1 ·
+ * 47.4 Mbps", files highest resolution first.
  * A track: "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps".
  */
 

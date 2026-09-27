@@ -5,7 +5,10 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 const mediaProfileSummary = (profile: CatalogueMediaProfile) => fileLines([profile])[0];
 
 /**
- * The phone's lines over core's facts (`technicalSummary`, core `5622020`).
+ * The phone's lines over core's facts (`technicalSummary`, core `5622020`,
+ * with the class and channel count added in `29fa878`: Tom, 2026-09-27, "add
+ * a (4K), (2K), (1080p) etc after the physical resolution. Also add a channel
+ * count after the audio codec").
  * These pinned the phone's own copy of the web's rules before core took them,
  * and now pin that core's facts and the phone's layout read exactly the same.
  */
@@ -33,8 +36,8 @@ const martian1080 = profile(9_060_000, 3_100_000, [
 
 describe('mediaProfileSummary', () => {
   it('reads a film as the web does', () => {
-    expect(mediaProfileSummary(martian4k)).toBe('2h 31m · 3840×2160 · HEVC · TRUEHD · 47.4 Mbps');
-    expect(mediaProfileSummary(martian1080)).toBe('2h 31m · 1920×1080 · HEVC · E-AC-3 · 3.1 Mbps');
+    expect(mediaProfileSummary(martian4k)).toBe('2h 31m · 3840×2160 (4K) · HEVC · TRUEHD · 7.1 · 47.4 Mbps');
+    expect(mediaProfileSummary(martian1080)).toBe('2h 31m · 1920×1080 (1080p) · HEVC · E-AC-3 · 5.1 · 3.1 Mbps');
   });
 
   it('names the default audio track, not the first', () => {
@@ -43,7 +46,7 @@ describe('mediaProfileSummary', () => {
       stream({ index: 1, type: 'audio', codec: 'ac3' }),
       stream({ index: 2, type: 'audio', codec: 'aac', default: true }),
     ]);
-    expect(mediaProfileSummary(second)).toBe('37m · 1280×720 · H.264 · AAC · 5.0 Mbps');
+    expect(mediaProfileSummary(second)).toBe('37m · 1280×720 (720p) · H.264 · AAC · 5.0 Mbps');
   });
 
   it('reads a track as a track, and ignores its cover art', () => {
@@ -60,7 +63,12 @@ describe('mediaProfileSummary', () => {
 describe('fileLines', () => {
   it('gives each file its line, and one line to files that read the same', () => {
     expect(fileLines([martian4k, martian1080])).toHaveLength(2);
-    expect(fileLines([martian1080, { ...martian1080, media_id: 'other' }])).toEqual(['2h 31m · 1920×1080 · HEVC · E-AC-3 · 3.1 Mbps']);
+    expect(fileLines([martian1080, { ...martian1080, media_id: 'other' }])).toEqual(['2h 31m · 1920×1080 (1080p) · HEVC · E-AC-3 · 5.1 · 3.1 Mbps']);
+  });
+
+  /** Tom, 2026-09-27 (via the television): highest resolution first. */
+  it('lists the largest picture first, whatever the stored order', () => {
+    expect(fileLines([martian1080, martian4k]).map((line) => line.split(' · ')[1])).toEqual(['3840×2160 (4K)', '1920×1080 (1080p)']);
   });
 });
 
