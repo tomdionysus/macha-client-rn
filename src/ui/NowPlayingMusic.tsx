@@ -18,6 +18,7 @@ import {
   SkipForwardIcon,
 } from './Icons';
 import { albumLabel, trackNumberLabel } from './labels';
+import { MediaLines } from './MediaProfile';
 import { QueueSheet } from './QueueSheet';
 import { SeekBar } from './SeekBar';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
@@ -117,6 +118,9 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
               </Text>
             ) : null}
             {trackLine ? <Text style={styles.track}>{trackLine}</Text> : null}
+            {/* The track's file, as every client shows it (Tom, 2026-09-27):
+                "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps". */}
+            <MediaLines mediaIds={media.mediaIds} />
           </View>
           <Pressable
             accessibilityRole="button"

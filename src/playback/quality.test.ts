@@ -8,7 +8,7 @@ import {
   type PlaybackMediaFacts,
   type PlaybackSession,
 } from '@machafoundation/core';
-import { automaticStart, connectionKindOf, filePillLabel, filePills, offersVersions, playingStep, qualityLabel, versionStart, versionUpdate } from './quality';
+import { automaticStart, connectionKindOf, offersVersions, playingStep, qualityLabel, versionStart, versionUpdate } from './quality';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -196,41 +196,10 @@ describe('offersVersions', () => {
   });
 });
 
-/**
- * Tom, 2026-09-27: for titles with several files, small pills below the
- * title, "Direct: 4K, 1080p, 720p".
- */
-describe('filePills', () => {
-  it('groups the files by how this device plays them, largest first', () => {
-    // The 2160p file is Matroska HEVC, so it remuxes here; the 1080p MP4 plays directly.
-    const versions = playbackVersions([uhd, fhd], phone, { mediaIds: ['uhd', 'fhd'] });
-    expect(filePills(versions)).toEqual([
-      { mode: 'direct', qualities: [1080] },
-      { mode: 'remux', qualities: [2160] },
-    ]);
-  });
-
-  it('lists files above the device limit too: they describe the item', () => {
-    const limited = { ...phone, maxWidth: 1920, maxHeight: 1080 };
-    const pills = filePills(playbackVersions([uhd, fhd], limited, { mediaIds: ['uhd', 'fhd'] }));
-    expect(pills.flatMap((pill) => pill.qualities)).toContain(2160);
-  });
-
-  it('says nothing for a single file', () => {
-    expect(filePills(playbackVersions([fhd], phone, { mediaIds: ['fhd'] }))).toEqual([]);
-    expect(filePills(undefined)).toEqual([]);
-  });
-
-  /** *Firefly* S1E11 on the A85: two 1080p files merged into "Transcode: 1080p". */
-  it('counts files that share a class, so two files do not read as one', () => {
-    const second = file('fhd2', [video('h264', 1920, 1080), audio(1, 'eng', true)]);
-    const pills = filePills(playbackVersions([fhd, second], phone, { mediaIds: ['fhd', 'fhd2'] }));
-    expect(pills.map(filePillLabel)).toEqual(['Direct: 1080p ×2']);
-    expect(filePillLabel({ mode: 'direct', qualities: [2160, 1080, 720] })).toBe('Direct: 4K, 1080p, 720p');
-  });
-
-  it('calls 2160p 4K', () => {
+describe('qualityLabel', () => {
+  it('labels classes as the web does', () => {
     expect(qualityLabel(2160)).toBe('4K');
+    expect(qualityLabel(1440)).toBe('2K');
     expect(qualityLabel(1080)).toBe('1080p');
   });
 });

@@ -70,77 +70,23 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
 
 /** How a step reads on a button or in the sheet. */
 export function qualityLabel(quality: QualityClass): string {
-  // "4K" is what a viewer calls it (Tom, 2026-09-27: "Direct: 4K, 1080p").
-  return quality === 2160 ? '4K' : `${quality}p`;
+  // As the web labels them (Tom, 2026-09-27: every client alike).
+  if (quality === 2160) return '4K';
+  if (quality === 1440) return '2K';
+  return `${quality}p`;
 }
 
 /**
- * One pill: the files this device plays one way, one class per file, largest
- * first. Two files of one class are two entries, so the pill can say so.
+ * Why Play will not choose the largest file, for the viewer (Tom: automatic
+ * play capped "with context to the user as to why"). The web client's
+ * sentences word for word (`qualityLimitText`), so every client says it alike.
  */
-export interface FilePill {
-  mode: PlaybackInstruction['mode'];
-  qualities: QualityClass[];
-}
-
-const PILL_MODE_NAMES = { direct: 'Direct', remux: 'Remux', transcode: 'Transcode' } as const;
-
-/**
- * "Direct: 4K, 1080p", with a count where files share a class ("Transcode:
- * 1080p ×2"). *Firefly* S1E11 on the A85 (2026-09-27) has two 1080p files,
- * and merging them read as one file, which hid what the pill is for.
- */
-export function filePillLabel(pill: FilePill): string {
-  const counts = new Map<QualityClass, number>();
-  for (const quality of pill.qualities) counts.set(quality, (counts.get(quality) ?? 0) + 1);
-  const parts = [...counts].map(([quality, count]) => (count > 1 ? `${qualityLabel(quality)} ×${count}` : qualityLabel(quality)));
-  return `${PILL_MODE_NAMES[pill.mode]}: ${parts.join(', ')}`;
-}
-
-const PILL_ORDER: readonly PlaybackInstruction['mode'][] = ['direct', 'remux', 'transcode'];
-
-/**
- * What an item's files are, when it has more than one (Tom, 2026-09-27):
- * small pills below the title, such as "Direct: 4K, 1080p". Grouped by the
- * mode core's chooser gives each file on this device, so the pill says how
- * it would play here as well as what exists. Every file is listed, whatever
- * "Offer everything" says: these describe the item, not what is offered. A
- * single file gives no pills; the buttons and the media facts already say it.
- */
-export function filePills(versions: PlaybackVersions | undefined): FilePill[] {
-  const files = versions?.files ?? [];
-  if (files.length < 2) return [];
-  return PILL_ORDER.map((mode) => ({
-    mode,
-    qualities: files.filter((file) => file.instruction.mode === mode).map((file) => file.quality).sort((a, b) => b - a),
-  })).filter((pill) => pill.qualities.length > 0);
-}
-
-/**
- * Why automatic play took less than the item's best, for the viewer. The
- * reason codes are core's; the words are ours. `overridable` is whether a
- * larger quality is on offer to pick instead.
- */
-export function ceilingExplanation(ceiling: QualityCeiling, overridable: boolean): string {
-  const cap = qualityLabel(ceiling.quality);
-  switch (ceiling.reason) {
-    case 'ceiling-cellular':
-      return overridable
-        ? `On mobile data, Play is limited to ${cap}. Choose a quality to override it, or change the limit in Settings.`
-        : `On mobile data, Play is limited to ${cap}. You can change the limit in Settings.`;
-    case 'ceiling-preference':
-      return overridable
-        ? `Play is limited to ${cap} by your setting. Choose a quality to override it, or change it in Settings.`
-        : `Play is limited to ${cap} by your setting, which you can change in Settings.`;
-    case 'ceiling-display':
-      return overridable
-        ? `Play picks ${cap} to match this screen. Choose a quality to play a larger one.`
-        : `Play picks ${cap} to match this screen.`;
-    case 'ceiling-device':
-      return overridable
-        ? `Play picks ${cap}, the largest this device plays. A larger quality may not play here.`
-        : `Play picks ${cap}, the largest this device plays. Offer everything in Settings lists larger ones.`;
-  }
+export function ceilingExplanation(ceiling: QualityCeiling): string {
+  const label = qualityLabel(ceiling.quality);
+  if (ceiling.reason === 'ceiling-display') return `Play chooses up to ${label}, the most this screen shows. Pick a quality to play another.`;
+  if (ceiling.reason === 'ceiling-device') return `Play chooses up to ${label}, the most this device plays. Pick a quality to play another.`;
+  if (ceiling.reason === 'ceiling-cellular') return `Play chooses up to ${label} on mobile data. Pick a quality to play another.`;
+  return `Play chooses up to ${label}, as set in Settings. Pick a quality to play another.`;
 }
 
 /**
@@ -162,12 +108,6 @@ export function offersVersions(versions: PlaybackVersions | undefined): versions
   if (!versions) return false;
   const automatic = versions.automatic?.quality;
   return versions.steps.length > 1 || versions.steps.some((step) => step.quality !== automatic);
-}
-
-/** Whether a quality larger than automatic play's is on offer, so a ceiling can be overridden. */
-export function largerOffered(versions: PlaybackVersions): boolean {
-  const automatic = versions.automatic?.quality ?? 0;
-  return versions.steps.some((step) => step.quality > automatic);
 }
 
 /** What a create asks for: the instruction, its file, and the preferences that go with them. */

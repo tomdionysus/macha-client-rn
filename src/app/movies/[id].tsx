@@ -4,7 +4,6 @@ import { useAsync } from '../../hooks/useAsync';
 import { useMacha } from '../../providers/MachaProvider';
 import type { MediaSummary } from '../../types';
 import { DetailHero } from '../../ui/DetailHero';
-import { MediaProfileFacts } from '../../ui/MediaProfile';
 import { PlayActions } from '../../ui/PlayActions';
 import { Screen } from '../../ui/Screen';
 import { ErrorState, Loading } from '../../ui/Status';
@@ -27,7 +26,6 @@ export default function MovieScreen() {
             facts={[movie.year ? String(movie.year) : undefined, 'Film']}
             actions={<PlayActions item={movie} />}
           />
-          <MediaProfileFacts mediaIds={movie.mediaIds} />
         </>
       ) : null}
     </Screen>

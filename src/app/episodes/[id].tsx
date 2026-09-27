@@ -4,7 +4,6 @@ import { useAsync } from '../../hooks/useAsync';
 import { useMacha } from '../../providers/MachaProvider';
 import type { Episode } from '../../types';
 import { DetailHero } from '../../ui/DetailHero';
-import { MediaProfileFacts } from '../../ui/MediaProfile';
 import { PlayActions } from '../../ui/PlayActions';
 import { Screen } from '../../ui/Screen';
 import { ErrorState, Loading } from '../../ui/Status';
@@ -39,7 +38,6 @@ export default function EpisodeScreen() {
             ]}
             actions={<PlayActions item={episode} queue={siblings.value} />}
           />
-          <MediaProfileFacts mediaIds={episode.mediaIds} />
         </>
       ) : null}
     </Screen>

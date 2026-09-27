@@ -7,9 +7,6 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import {
   ceilingExplanation,
   deviceQualityCeiling,
-  filePillLabel,
-  filePills,
-  largerOffered,
   offersVersions,
   qualityLabel,
   qualityPreferences,
@@ -18,7 +15,8 @@ import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
-import { Button, Tag } from './controls';
+import { Button } from './controls';
+import { MediaLines } from './MediaProfile';
 import { formatDuration } from './format';
 import { colors, space, type as typography } from './theme';
 
@@ -79,16 +77,9 @@ export function PlayActions({ item, queue }: Props) {
       steps: all?.steps.map((step) => step.quality),
     });
   }, [facts.value, facts.error, item.id, item.mediaIds, all]);
-  // Several files: what they are and how each plays here, above the buttons
-  // (Tom, 2026-09-27: "Direct: 4K, 1080p, 720p").
-  const pills = filePills(all);
-  const files = pills.length > 0 ? (
-    <View style={styles.pills}>
-      {pills.map((pill) => (
-        <Tag key={pill.mode} label={filePillLabel(pill)} />
-      ))}
-    </View>
-  ) : null;
+  // Each file's line under the title, above the buttons, as the web shows
+  // them (Tom, 2026-09-27).
+  const files = <MediaLines mediaIds={item.mediaIds} />;
 
   const play = useCallback(
     (seekMs?: number, version?: VersionStep) => {
@@ -116,7 +107,7 @@ export function PlayActions({ item, queue }: Props) {
         />
       ))}
       {versions.limitedBy ? (
-        <Text style={styles.limited}>{ceilingExplanation(versions.limitedBy, largerOffered(versions))}</Text>
+        <Text style={styles.limited}>{ceilingExplanation(versions.limitedBy)}</Text>
       ) : null}
     </>
   ) : null;
@@ -147,12 +138,6 @@ export function PlayActions({ item, queue }: Props) {
 }
 
 const styles = StyleSheet.create({
-  pills: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.sm,
-    width: '100%',
-  },
   limited: {
     ...typography.caption,
     color: colors.textFaint,

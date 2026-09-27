@@ -5,7 +5,6 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
 import {
   ceilingExplanation,
-  largerOffered,
   offersVersions,
   playingStep,
   qualityLabel,
@@ -133,7 +132,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
           ))}
           {shownVersions.limitedBy && !playing ? (
             <Text style={{ ...typography.caption, color: colors.textFaint, marginBottom: space.md }}>
-              {ceilingExplanation(shownVersions.limitedBy, largerOffered(shownVersions))}
+              {ceilingExplanation(shownVersions.limitedBy)}
             </Text>
           ) : null}
         </SheetSection>
