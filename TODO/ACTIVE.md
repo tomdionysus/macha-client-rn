@@ -247,10 +247,11 @@ and **Tom overruled that the same day: "Format, codec, bitrate etc details
 are non i18n and technical. They are core's responsibility, but should be
 supplied to clients in a structured object. The client should still
 'format' them, in terms of layout."** Passed to core, who is to tell the
-other clients. **When core's object lands,** cut `mediaLines.ts` down to
-layout (order, separators, `wrapBetweenFields`) over core's fields. The cap
-sentence is a sentence, and probably stays here; that reading is mine, not
-Tom's.
+other clients. **Done (`c4f6dd6`):** core's `technicalSummary` /
+`fileSummaries` (`5622020`) supply the facts and labels, `qualityLabel` is
+core's, and `mediaLines.ts` is layout only (separator, `wrapBetweenFields`).
+The tests written for the phone's own copy pass unchanged on core's output;
+the A85 reads the same. The cap sentence stays here (core agreed).
 
 ### The habit that paid, and the one that did not
 
