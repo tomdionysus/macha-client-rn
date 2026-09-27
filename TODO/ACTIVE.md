@@ -253,6 +253,19 @@ core's, and `mediaLines.ts` is layout only (separator, `wrapBetweenFields`).
 The tests written for the phone's own copy pass unchanged on core's output;
 the A85 reads the same. The cap sentence stays here (core agreed).
 
+### Continue Watching resumes as you left it — built, check on the A85
+
+Tom, 2026-09-27 (via the television): store the item id and the media id,
+the mode, resolution, subtitles "and all other data needed to resume as if
+you'd never left". Core `89a9d0c`; the phone `9a48362` builds the resume
+state itself (`src/playback/resume.ts`) and restores it on a resume (the
+Resume button or a Continue Watching card, not From start or a pick). **The
+television's hole** (progress keyed by the session's file) **is not here**.
+**Check on the A85:** *2010*, Remux and Italian, leave, resume from Continue
+Watching: the create should name `fe22176d…`, mode transcode (Remux renamed
+for AC-3) and `audio_stream: 2`. An automatic title should resume on its
+file with its tracks but no forced mode.
+
 ### The habit that paid, and the one that did not
 
 **Five claims were retracted on 2026-09-21 and every one was caught by opening
