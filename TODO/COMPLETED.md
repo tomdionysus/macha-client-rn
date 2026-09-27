@@ -8,6 +8,47 @@ Newest first.
 
 ---
 
+## 2026-09-27 night — 0.10.0 released, on core 0.20.0
+
+`main` = `2a314ca`, tag `0.10.0` (annotated), pushed with `develop` on Tom's
+"push all please". Core's session relayed Tom's instruction to deploy to
+`main` with the published core; Tom confirmed the number and chose the full
+release procedure over a bare merge.
+
+- **Core 0.20.0 confirmed on npm** with our own `npm view`: version 0.20.0,
+  `dist-tags.latest` 0.20.0, gitHead `d7b4057`.
+- `npm install @machafoundation/core@^0.20.0` on `develop`: not a link,
+  lockfile `resolved` is
+  `https://registry.npmjs.org/@machafoundation/core/-/core-0.20.0.tgz`,
+  integrity
+  `sha512-ZyYbjniKY5YXOce1psltt43Ox7fpqewS8Eo/2m6+oWiRFtf3nigJvq1UoYUwPIbwDdCywcrsIm8/YC9kh0ujBg==`,
+  matching npm's.
+- **Storage keys:** every key core 0.20.0 stores is under `macha.` or
+  `macha-`, which `OWNED_KEY_PREFIXES` hydrates. The `macha:` strings in its
+  dist are event names and a media-id prefix, and `macha_version` is a
+  server response field; none is a storage key.
+- Version 0.10.0 / `versionCode 1000` in `package.json`, `app.json` and the
+  README, in the release commit. Prebuild wrote them to `build.gradle`.
+  `version:check` consistent before and after tagging. Typecheck exit 0,
+  337 tests, `expo export --platform android` produced an `.hbc`, all
+  against the registry copy. `main` fast-forwarded to the release commit.
+- **Proved standalone:** a fresh clone of the tag with no `../macha-ts`
+  beside it ran `npm ci`, typechecked clean and passed 337 tests.
+- Back on `develop` (`19c0a7c`): `file:../macha-ts`, plain `npm install`,
+  lockfile `{"resolved":"../macha-ts","link":true}`, typecheck exit 0, 337
+  tests.
+- **A85:** `assembleRelease` from `main` after `npm ci` (registry core, not a
+  link), APK sha256 `2fc8069288811803...`. Installed gated on `ro.serialno`
+  `A85EEA0000005410` and `ro.product.model` `A85` in the same invocation;
+  `dumpsys package` reports `versionCode=1000`, `versionName=0.10.0`.
+  Launched with `am start`: `ReactNativeJS: Running "main"`, no crash.
+
+**Not done:** the short look (sign-in survives, a title's page, *2010*
+plays). The phone was asleep behind its secure lock screen, so nothing on
+screen was observed. That needs Tom to unlock it.
+
+---
+
 ## 2026-09-27 — Moved from ACTIVE at the rationalisation before the 0.10.0 release
 
 Finished or folded into ACTIVE's short open list; kept here word for word,
