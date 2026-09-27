@@ -70,7 +70,33 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
 
 /** How a step reads on a button or in the sheet. */
 export function qualityLabel(quality: QualityClass): string {
-  return `${quality}p`;
+  // "4K" is what a viewer calls it (Tom, 2026-09-27: "Direct: 4K, 1080p").
+  return quality === 2160 ? '4K' : `${quality}p`;
+}
+
+/** One pill: the files this device plays one way, by class, largest first. */
+export interface FilePill {
+  mode: PlaybackInstruction['mode'];
+  qualities: QualityClass[];
+}
+
+const PILL_ORDER: readonly PlaybackInstruction['mode'][] = ['direct', 'remux', 'transcode'];
+
+/**
+ * What an item's files are, when it has more than one (Tom, 2026-09-27):
+ * small pills below the title, such as "Direct: 4K, 1080p". Grouped by the
+ * mode core's chooser gives each file on this device, so the pill says how
+ * it would play here as well as what exists. Every file is listed, whatever
+ * "Offer everything" says: these describe the item, not what is offered. A
+ * single file gives no pills; the buttons and the media facts already say it.
+ */
+export function filePills(versions: PlaybackVersions | undefined): FilePill[] {
+  const files = versions?.files ?? [];
+  if (files.length < 2) return [];
+  return PILL_ORDER.map((mode) => ({
+    mode,
+    qualities: [...new Set(files.filter((file) => file.instruction.mode === mode).map((file) => file.quality))].sort((a, b) => b - a),
+  })).filter((pill) => pill.qualities.length > 0);
 }
 
 /**

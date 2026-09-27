@@ -8,7 +8,7 @@ import {
   type PlaybackMediaFacts,
   type PlaybackSession,
 } from '@machafoundation/core';
-import { automaticStart, connectionKindOf, offersVersions, playingStep, versionStart, versionUpdate } from './quality';
+import { automaticStart, connectionKindOf, filePills, offersVersions, playingStep, qualityLabel, versionStart, versionUpdate } from './quality';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -193,5 +193,36 @@ describe('offersVersions', () => {
     expect(versions.steps.map((step) => step.quality)).toEqual([720]);
     expect(offersVersions(versions)).toBe(false);
     expect(offersVersions(playbackVersions([fhd], small, { mediaIds: ['fhd'], offerAll: true }))).toBe(true);
+  });
+});
+
+/**
+ * Tom, 2026-09-27: for titles with several files, small pills below the
+ * title, "Direct: 4K, 1080p, 720p".
+ */
+describe('filePills', () => {
+  it('groups the files by how this device plays them, largest first', () => {
+    // The 2160p file is Matroska HEVC, so it remuxes here; the 1080p MP4 plays directly.
+    const versions = playbackVersions([uhd, fhd], phone, { mediaIds: ['uhd', 'fhd'] });
+    expect(filePills(versions)).toEqual([
+      { mode: 'direct', qualities: [1080] },
+      { mode: 'remux', qualities: [2160] },
+    ]);
+  });
+
+  it('lists files above the device limit too: they describe the item', () => {
+    const limited = { ...phone, maxWidth: 1920, maxHeight: 1080 };
+    const pills = filePills(playbackVersions([uhd, fhd], limited, { mediaIds: ['uhd', 'fhd'] }));
+    expect(pills.flatMap((pill) => pill.qualities)).toContain(2160);
+  });
+
+  it('says nothing for a single file', () => {
+    expect(filePills(playbackVersions([fhd], phone, { mediaIds: ['fhd'] }))).toEqual([]);
+    expect(filePills(undefined)).toEqual([]);
+  });
+
+  it('calls 2160p 4K', () => {
+    expect(qualityLabel(2160)).toBe('4K');
+    expect(qualityLabel(1080)).toBe('1080p');
   });
 });

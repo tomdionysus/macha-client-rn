@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useSyncExternalStore } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { playbackVersions, type VersionStep } from '@machafoundation/core';
 import { useAsync } from '../hooks/useAsync';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
   ceilingExplanation,
   deviceQualityCeiling,
+  filePills,
   largerOffered,
   offersVersions,
   qualityLabel,
@@ -16,7 +17,7 @@ import { useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
-import { Button } from './controls';
+import { Button, Tag } from './controls';
 import { formatDuration } from './format';
 import { colors, space, type as typography } from './theme';
 
@@ -51,17 +52,27 @@ export function PlayActions({ item, queue }: Props) {
     [playback, item.id, stored],
   );
   const everything = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot).offerAll === true;
-  const versions = useMemo(() => {
+  const all = useMemo(() => {
     if (!facts.value) return undefined;
     const ceiling = deviceQualityCeiling();
-    const all = playbackVersions(facts.value, deviceCapabilities(), {
+    return playbackVersions(facts.value, deviceCapabilities(), {
       overrides: devicePlaybackOverrides(),
       mediaIds: item.mediaIds,
       offerAll: everything,
       ...(ceiling ? { ceiling } : {}),
     });
-    return offersVersions(all) ? all : undefined;
   }, [facts.value, item.mediaIds, everything]);
+  const versions = offersVersions(all) ? all : undefined;
+  // Several files: what they are and how each plays here, above the buttons
+  // (Tom, 2026-09-27: "Direct: 4K, 1080p, 720p").
+  const pills = filePills(all);
+  const files = pills.length > 0 ? (
+    <View style={styles.pills}>
+      {pills.map((pill) => (
+        <Tag key={pill.mode} label={`${MODE_NAMES[pill.mode]}: ${pill.qualities.map(qualityLabel).join(', ')}`} />
+      ))}
+    </View>
+  ) : null;
 
   const play = useCallback(
     (seekMs?: number, version?: VersionStep) => {
@@ -97,6 +108,7 @@ export function PlayActions({ item, queue }: Props) {
   if (resumeMs > 0) {
     return (
       <>
+        {files}
         <Button
           label={`Resume ${formatDuration(resumeMs)}`}
           icon={<PlayIcon size={18} color={colors.text} />}
@@ -111,13 +123,22 @@ export function PlayActions({ item, queue }: Props) {
 
   return (
     <>
+      {files}
       <Button label="Play" icon={<PlayIcon size={18} color={colors.text} />} onPress={() => play(0)} busy={busy} />
       {qualities}
     </>
   );
 }
 
+const MODE_NAMES = { direct: 'Direct', remux: 'Remux', transcode: 'Transcode' } as const;
+
 const styles = StyleSheet.create({
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    width: '100%',
+  },
   limited: {
     ...typography.caption,
     color: colors.textFaint,
