@@ -34,6 +34,16 @@ describe('progressOf', () => {
     expect(resumePreferences(entry)).toEqual({ mediaId: 'macha:b', mode: 'remux', container: 'fmp4', audioStream: 2, subtitleStream: 4 });
   });
 
+  /**
+   * On the A85 (2026-09-27) Remux on *2010* is carried as transcode with the
+   * video copied, because the device cannot decode its AC-3. The entry saved
+   * the session's `transcode`, and the resume re-encoded the picture.
+   */
+  it('resumes the mode the viewer picked, not the one the node was asked for', () => {
+    const entry = progressOf(film, 60_000, 6_000_000, session('transcode', { audio: 2 }), { chosenByViewer: true, mode: 'remux' });
+    expect(resumePreferences(entry).mode).toBe('remux');
+  });
+
   it('keeps the file and the streams, but lets automatic play choose how again', () => {
     const entry = progressOf(film, 60_000, 6_000_000, session('transcode', { maxHeight: 720, audio: 2 }), { chosenByViewer: false, quality: 720 });
     const preferences = resumePreferences(entry);

@@ -490,7 +490,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // client always decides, so it never sets one — narrowing here keeps
         // that true at the type level rather than by convention.
         const requestedMode = startPreferences.mode === 'choose' ? undefined : startPreferences.mode;
-        choiceRef.current = { chosenByViewer: !!options.version || requestedMode !== undefined, quality: options.version?.quality };
+        choiceRef.current = {
+          chosenByViewer: !!options.version || requestedMode !== undefined,
+          quality: options.version?.quality,
+          mode: options.version?.instruction.mode ?? requestedMode,
+        };
         // A start seek is a seek like any other: a freshly presented player
         // reports 0 for a few frames before it lands, and those frames must
         // not be checkpointed over the resume point either. Nothing of the
@@ -1223,7 +1227,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const replacesPick = preferences?.mode !== undefined || preferences?.maxHeight !== undefined;
       if ((await sendUpdate(update, false)) && replacesPick) {
         versionRef.current = undefined;
-        choiceRef.current = { chosenByViewer: true };
+        const mode = preferences?.mode;
+        choiceRef.current = {
+          chosenByViewer: true,
+          // A cap alone keeps the mode the viewer already chose.
+          mode: mode !== undefined && mode !== 'choose' ? mode : choiceRef.current.mode,
+        };
       }
     },
     [sendUpdate],
@@ -1243,7 +1252,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // what was actually playing.
       if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) {
         versionRef.current = step;
-        choiceRef.current = { chosenByViewer: true, quality: step.quality };
+        choiceRef.current = { chosenByViewer: true, quality: step.quality, mode: step.instruction.mode };
       }
     },
     [sendUpdate],

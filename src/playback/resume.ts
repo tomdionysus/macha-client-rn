@@ -1,6 +1,7 @@
 import {
   progressFor,
   type MediaSummary,
+  type PlaybackMode,
   type PlaybackProgress,
   type PlaybackResumeState,
   type PlaybackSession,
@@ -22,6 +23,13 @@ export interface PlaybackChoice {
   chosenByViewer: boolean;
   /** The quality playing, where it is one of the item's steps. */
   quality?: QualityClass;
+  /**
+   * The mode the viewer picked, where they picked one. Not the session's:
+   * Remux on a file whose audio this device cannot decode is carried as
+   * transcode with the video copied, and resuming the session's mode
+   * re-encoded the picture (*2010* on the A85, 2026-09-27).
+   */
+  mode?: PlaybackMode;
 }
 
 /**
@@ -37,7 +45,7 @@ export function resumeStateOf(session: PlaybackSession, choice: PlaybackChoice):
   const container = served === 'fmp4' || served === 'mpegts' ? served : undefined;
   return {
     chosenByViewer: choice.chosenByViewer,
-    mode: session.mode,
+    mode: (choice.chosenByViewer ? choice.mode : undefined) ?? session.mode,
     ...(container ? { container } : {}),
     ...(choice.quality !== undefined ? { quality: choice.quality } : {}),
     maxHeight: preferences.maxHeight,
