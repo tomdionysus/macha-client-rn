@@ -74,10 +74,27 @@ export function qualityLabel(quality: QualityClass): string {
   return quality === 2160 ? '4K' : `${quality}p`;
 }
 
-/** One pill: the files this device plays one way, by class, largest first. */
+/**
+ * One pill: the files this device plays one way, one class per file, largest
+ * first. Two files of one class are two entries, so the pill can say so.
+ */
 export interface FilePill {
   mode: PlaybackInstruction['mode'];
   qualities: QualityClass[];
+}
+
+const PILL_MODE_NAMES = { direct: 'Direct', remux: 'Remux', transcode: 'Transcode' } as const;
+
+/**
+ * "Direct: 4K, 1080p", with a count where files share a class ("Transcode:
+ * 1080p ×2"). *Firefly* S1E11 on the A85 (2026-09-27) has two 1080p files,
+ * and merging them read as one file, which hid what the pill is for.
+ */
+export function filePillLabel(pill: FilePill): string {
+  const counts = new Map<QualityClass, number>();
+  for (const quality of pill.qualities) counts.set(quality, (counts.get(quality) ?? 0) + 1);
+  const parts = [...counts].map(([quality, count]) => (count > 1 ? `${qualityLabel(quality)} ×${count}` : qualityLabel(quality)));
+  return `${PILL_MODE_NAMES[pill.mode]}: ${parts.join(', ')}`;
 }
 
 const PILL_ORDER: readonly PlaybackInstruction['mode'][] = ['direct', 'remux', 'transcode'];
@@ -95,7 +112,7 @@ export function filePills(versions: PlaybackVersions | undefined): FilePill[] {
   if (files.length < 2) return [];
   return PILL_ORDER.map((mode) => ({
     mode,
-    qualities: [...new Set(files.filter((file) => file.instruction.mode === mode).map((file) => file.quality))].sort((a, b) => b - a),
+    qualities: files.filter((file) => file.instruction.mode === mode).map((file) => file.quality).sort((a, b) => b - a),
   })).filter((pill) => pill.qualities.length > 0);
 }
 

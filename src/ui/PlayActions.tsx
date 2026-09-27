@@ -7,6 +7,7 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import {
   ceilingExplanation,
   deviceQualityCeiling,
+  filePillLabel,
   filePills,
   largerOffered,
   offersVersions,
@@ -69,7 +70,7 @@ export function PlayActions({ item, queue }: Props) {
   const files = pills.length > 0 ? (
     <View style={styles.pills}>
       {pills.map((pill) => (
-        <Tag key={pill.mode} label={`${MODE_NAMES[pill.mode]}: ${pill.qualities.map(qualityLabel).join(', ')}`} />
+        <Tag key={pill.mode} label={filePillLabel(pill)} />
       ))}
     </View>
   ) : null;
@@ -129,8 +130,6 @@ export function PlayActions({ item, queue }: Props) {
     </>
   );
 }
-
-const MODE_NAMES = { direct: 'Direct', remux: 'Remux', transcode: 'Transcode' } as const;
 
 const styles = StyleSheet.create({
   pills: {
