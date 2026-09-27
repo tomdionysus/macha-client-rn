@@ -233,6 +233,19 @@ Android Auto Backup (P1 security, below).
 **Not built, deliberately:** the web Search page's A–Z index. The web
 client's design notes were reference, not spec.
 
+### Media info, one way on every client — waiting on Tom
+
+The web client (`cfbd6bf`, `ddb31c8`, `e31635a`) proposes one line per file
+under the title: "2h 31m · 3840×2160 · HEVC · TRUEHD · 47.4 Mbps", audio
+codec from the default track (else the first), identical lines combined
+(quoting Tom, relayed), and a proposed track line "3:45 · FLAC · 24-bit ·
+96 kHz · Stereo · 2,304 kbps". **The phone differs** (`93db956`): pills
+above the buttons by mode, and a MEDIA section below the synopsis with a
+class, the container and "2 h 31 m". **Two conflicts are with Tom**, put to
+him by the web: the pills (he ruled them to the phone on 2026-09-27, and on
+the web said "It doesn't work" and asked for per-file lines instead), and
+the position. **Change nothing until he answers.**
+
 ### The habit that paid, and the one that did not
 
 **Five claims were retracted on 2026-09-21 and every one was caught by opening
