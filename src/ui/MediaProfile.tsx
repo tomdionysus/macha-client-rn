@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { CatalogueMediaProfile } from '../api/catalogue';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
+import { qualityClass } from '@machafoundation/core';
+import { qualityLabel } from '../playback/quality';
 import { Tag } from './controls';
 import { describeStream, formatBitrate, formatChannels, formatLanguage, formatRuntime } from './format';
 import { colors, space, type as typography } from './theme';
@@ -14,7 +16,61 @@ import { colors, space, type as typography } from './theme';
  * answers `202 profile_pending` or 404 simply produces nothing here, and the
  * play buttons above are unaffected.
  */
-export function MediaProfileFacts({ mediaId }: { mediaId: string | undefined }) {
+export function MediaProfileFacts({ mediaIds }: { mediaIds: readonly string[] }) {
+  if (mediaIds.length <= 1) return <SingleFileFacts mediaId={mediaIds[0]} />;
+  // Several files, each on two compact lines (Tom, 2026-09-27): what the file
+  // is, then its audio. The full layout below is for an item's only file.
+  return (
+    <View style={styles.block}>
+      <Text style={styles.heading}>{`MEDIA · ${mediaIds.length} FILES`}</Text>
+      {mediaIds.map((mediaId) => (
+        <CompactFileFacts key={mediaId} mediaId={mediaId} />
+      ))}
+    </View>
+  );
+}
+
+/** One of several files: "4K · HEVC · 24.1 Mbps · MKV · 2 h 21 m", then its audio. */
+function CompactFileFacts({ mediaId }: { mediaId: string }) {
+  const value = useProfile(mediaId);
+  if (!value) return null;
+  const video = value.streams.find((stream) => stream.type === 'video' && !stream.attached_picture);
+  const audio = value.streams.filter((stream) => stream.type === 'audio');
+  const summary = [
+    video?.width || video?.height ? qualityLabel(qualityClass(video.width, video.height)) : undefined,
+    video?.codec?.toUpperCase(),
+    formatBitrate(value.bitrate),
+    value.format?.split(',')[0]?.toUpperCase(),
+    formatRuntime(value.duration_ms),
+  ].filter(Boolean);
+  return (
+    <View style={styles.file}>
+      <Text style={styles.fileSummary}>{summary.join('  ·  ')}</Text>
+      {audio.length > 0 ? (
+        <Text style={styles.line}>
+          <Text style={styles.lineLabel}>Audio · </Text>
+          {audio
+            .map((stream) =>
+              [formatLanguage(stream.language), stream.codec?.toUpperCase(), formatChannels(stream.channels)]
+                .filter(Boolean)
+                .join(' '),
+            )
+            .join(', ')}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function useProfile(mediaId: string | undefined): CatalogueMediaProfile | undefined {
+  const { media, generation } = useMacha();
+  return useAsync<CatalogueMediaProfile | undefined>(
+    async (signal) => (mediaId ? media.mediaProfile(mediaId, signal) : undefined),
+    [media, generation, mediaId],
+  ).value;
+}
+
+function SingleFileFacts({ mediaId }: { mediaId: string | undefined }) {
   const { media, generation } = useMacha();
   const profile = useAsync<CatalogueMediaProfile | undefined>(
     async (signal) => (mediaId ? media.mediaProfile(mediaId, signal) : undefined),
@@ -93,5 +149,14 @@ const styles = StyleSheet.create({
   },
   lineLabel: {
     color: colors.textFaint,
+  },
+  file: {
+    gap: 2,
+    marginBottom: space.sm,
+  },
+  fileSummary: {
+    ...typography.caption,
+    color: colors.text,
+    lineHeight: 18,
   },
 });

@@ -27,7 +27,7 @@ export default function MovieScreen() {
             facts={[movie.year ? String(movie.year) : undefined, 'Film']}
             actions={<PlayActions item={movie} />}
           />
-          <MediaProfileFacts mediaId={movie.mediaIds[0]} />
+          <MediaProfileFacts mediaIds={movie.mediaIds} />
         </>
       ) : null}
     </Screen>

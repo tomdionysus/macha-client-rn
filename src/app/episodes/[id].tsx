@@ -39,7 +39,7 @@ export default function EpisodeScreen() {
             ]}
             actions={<PlayActions item={episode} queue={siblings.value} />}
           />
-          <MediaProfileFacts mediaId={episode.mediaIds[0]} />
+          <MediaProfileFacts mediaIds={episode.mediaIds} />
         </>
       ) : null}
     </Screen>

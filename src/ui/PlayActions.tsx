@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { playbackVersions, type VersionStep } from '@machafoundation/core';
 import { useAsync } from '../hooks/useAsync';
@@ -64,6 +64,21 @@ export function PlayActions({ item, queue }: Props) {
     });
   }, [facts.value, item.mediaIds, everything]);
   const versions = offersVersions(all) ? all : undefined;
+  // What the page was drawn from, once per answer: the item's own file list
+  // against what the facts route returned. The two can disagree, and only
+  // this line tells a missing pill from a missing file.
+  useEffect(() => {
+    if (!facts.value && !facts.error) return;
+    console.log('[macha] [playback] title-files', {
+      itemId: item.id,
+      itemMediaIds: item.mediaIds,
+      facts: facts.value?.map((file) => {
+        const video = file.profile.streams.find((stream) => stream.type === 'video');
+        return { mediaId: file.mediaId, width: video?.width, height: video?.height, codec: video?.codec };
+      }) ?? `error: ${String(facts.error)}`,
+      steps: all?.steps.map((step) => step.quality),
+    });
+  }, [facts.value, facts.error, item.id, item.mediaIds, all]);
   // Several files: what they are and how each plays here, above the buttons
   // (Tom, 2026-09-27: "Direct: 4K, 1080p, 720p").
   const pills = filePills(all);
