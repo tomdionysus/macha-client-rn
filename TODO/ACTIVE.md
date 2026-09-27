@@ -242,8 +242,14 @@ Built (`8c800c2`, `f2d0f9f`), on the A85: the web's rules copied word for
 word into `src/ui/mediaLines.ts`; one line per file under the title; the
 track line in the music player; 1440p reads 2K; the cap sentence is the
 web's. The pills (`0fe7030`) and the MEDIA section are gone. Device fitting:
-a line wraps only between fields. Web, TV and core told; **proposed to core
-that it host the formatters**, and if it does, `mediaLines.ts` goes.
+a line wraps only between fields. Web, TV and core told. **Core declined to
+host the formatters as they stand**: Tom ruled on 2026-09-24 that core
+writes no viewer text, and these lines, "4K" and the cap sentence are
+viewer text. Core has put it to Tom: keep the copies in step by hand, or
+allow core a formatting module. **Until he answers, keep
+`mediaLines.ts`, `qualityLabel` and `ceilingExplanation` word for word with
+the web's** (`macha-client` `src/screens/DetailScreen.tsx`,
+`src/text/viewerText.ts`).
 
 ### The habit that paid, and the one that did not
 
