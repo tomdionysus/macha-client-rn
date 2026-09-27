@@ -913,7 +913,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   const seekTo = useCallback(
     (positionMs: number) => {
-      const bounded = Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs));
+      // Whole milliseconds: a lock-screen or headset seek arrives as seconds
+      // times 1000 and can be fractional, and a fractional position stored as
+      // a resume point is what looped core's transcode resume (`7bdc219`).
+      const bounded = Math.round(Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs)));
       positionRef.current = bounded;
       pendingSeekRef.current = { targetMs: bounded, atMs: Date.now() };
       if (engineRef.current === 'audio') {
