@@ -334,6 +334,56 @@ default above is what runs.
 
 ---
 
+## P2 — Start progress (server 0.69.0 `start=async`): match the web word for word
+
+**Not built. Waits on server 0.69.0 being deployed** (committed, deploying
+2026-09-28) **and on the web's version being committed** (uncommitted on
+the web's develop when asked). Core `00ff3eb` (develop, pushed) puts it in
+`ClusterPlaybackResolver`, which is what this client drives:
+`resolve(media, caps, seekMs, prefs, { onStartProgress })` and `update(id,
+update, signal, { onStartProgress })`. Both still resolve to the ready
+session, and core long-polls. `PlaybackStartProgress` is `{ kind:
+'start'|'change', stage: 'planning'|'preroll'|'encoding'|'ready'|'failed',
+progressSeq, elapsedMs, sourceBytesRead?, prerollDecodedMs?, prerollTotalMs?,
+outputMediaMs?, firstFragmentMs? }`, counters and never estimates.
+`resolver.closePendingForPageExit()` closes pending starts on exit. Direct
+sessions, downloads among them, never go pending.
+
+**The web's design, from the web client session, 2026-09-28. Match the words
+exactly.** The web's text is `startProgressText` in its
+`src/text/viewerText.ts`; read it once committed rather than copying from
+this note.
+- **planning:** start "Preparing the stream on <node>"; change "Preparing
+  new stream on <node>…".
+- **preroll:** start "Finding the start point: 40%"; change "Finding the
+  start point on <node>: 40%".
+- **encoding:** start "Starting the stream: 60%"; change "Starting the new
+  stream on <node>: 60%".
+- **ready / failed:** nothing.
+- A start names the node only while planning; a change names it
+  throughout. <node> is the endpoint name the stream-status line shows.
+- **Percentages are only ever measured:** preroll is
+  `floor(prerollDecodedMs / prerollTotalMs * 100)`, encoding is
+  `floor(outputMediaMs / firstFragmentMs * 100)`, clamped to 0-100. With a
+  figure absent or a total of 0, show the sentence with no percentage:
+  never 0%, never a guess. The phone may draw that fraction as a bar (the
+  web shows text only). `sourceBytesRead` and `elapsedMs` are not shown.
+- **A start:** the note under the spinner, after the same 5 s delay (a
+  quick start is not announced), with a seconds count: "Starting the
+  stream: 60% — 9s". **A change:** in place of the "Preparing new stream on
+  <node>…" line, with "…" when there is no percentage, while the current
+  picture plays on.
+- **Failure:** core's `start_no_progress` has no server sentence; the web
+  says "The node stopped making progress starting this stream." A node's
+  failed stage arrives as `playback_pipeline_start_failed` (or its own
+  code) with the server's sentence, shown like any other failure.
+- **Ours to decide:** the coordinator tries another node before the
+  failure screen; this client drives the resolver, so whether a
+  `start_no_progress` fails over is our call. The reaped-session recovery
+  (`recoveryAfterProbe`) is the place to decide it.
+
+---
+
 ## P2 — What the route cutover left open
 
 The cutover itself is done and on hardware — COMPLETED, 2026-09-21, *Playback
