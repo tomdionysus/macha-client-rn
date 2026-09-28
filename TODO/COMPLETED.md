@@ -43,9 +43,22 @@ release procedure over a bare merge.
   `dumpsys package` reports `versionCode=1000`, `versionName=0.10.0`.
   Launched with `am start`: `ReactNativeJS: Running "main"`, no crash.
 
-**Not done:** the short look (sign-in survives, a title's page, *2010*
-plays). The phone was asleep behind its secure lock screen, so nothing on
-screen was observed. That needs Tom to unlock it.
+**The short look, 2026-09-28 ~14:13Z, once Tom had unlocked the phone**
+(same tagged APK, reached by `am start`, every tap focus-gated):
+- **Sign-in survived the upgrade:** Home reads "Signed in as tom", with
+  Continue Watching (Serenity, *2010*), Films and TV.
+- **A title's page:** *The Happening* shows core's media line ("1h 30m ·
+  1920×1038 (1080p) · HEVC · AAC · Stereo · 3.0 Mbps"), Play beside 1080p
+  and 720p, and "Play chooses up to 720p, the most this screen shows."
+- ***2010* plays** from Continue Watching, in Transcode through
+  `macnessa.macha.network` (video copied, audio transcoded). It resumed at
+  9:30 and the on-screen clock read 11:00 at a later look, with the
+  picture moving and `dumpsys media_session` at state 3, speed 1.0, its
+  position advancing. That position counts from the start of the transcoded
+  stream, not the title, so it read about 104 s when the screen showed
+  roughly 11:00. Paused afterwards with `KEYCODE_MEDIA_PAUSE`.
+- `uiautomator dump` returns nothing while video is playing, so the player
+  was read from screenshots.
 
 ---
 
