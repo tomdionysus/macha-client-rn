@@ -68,8 +68,7 @@ COMPLETED. The next release follows *Releasing* below.
 
 ### Open, in order
 
-1. **The reaped-session proof**, the 31-minute pause (P1 below).
-2. **What the device runs have not reached**, each needing Tom or a second
+1. **What the device runs have not reached**, each needing Tom or a second
    viewer: failover mid-play and the container restatement (a node taken
    down, only on Tom's word); a switch back into transcode refused
    `resource_limit` (a second viewer holding the slot); the mobile-data
@@ -77,7 +76,10 @@ COMPLETED. The next release follows *Releasing* below.
    wrong-password wording (a logout, and Tom's password); the camera and a
    pasted node list (the Galaxy, by hand); the login-lapse notices (a session
    near expiry). AV1 at 720p or below playing Direct needs such a file.
-3. **Decisions for Tom, from the A85 runs.** Ruled 2026-09-28:
+   **Not built:** the proactive half of the reaped-session recovery (asking
+   when `AppState` returns with an old session). The reactive half is
+   proven on the A85 (COMPLETED 2026-09-28).
+2. **Decisions for Tom, from the A85 runs.** Ruled 2026-09-28:
    - **Direct on a file whose audio the device cannot decode** (*2010*,
      AC-3 on the A85) **stays offered.** Tom: leave as is. Do not re-raise.
    - **Continue Watching is films and episodes only**; a music track does
@@ -93,7 +95,7 @@ COMPLETED. The next release follows *Releasing* below.
      and **the secure store's backup side effect:** AsyncStorage (Continue
      Watching, the queue, playlists) leaves Android Auto Backup with the
      token.
-4. **Downloads naming a version**: they still take `fileToPlay`'s file.
+3. **Downloads naming a version**: they still take `fileToPlay`'s file.
    **Tom, 2026-09-28: Download opens a chooser** on a multi-file title,
    listing each file (a download is always a copy of one file, never a
    transcode). **Nothing had ever downloaded a film or an episode** (music
@@ -103,7 +105,7 @@ COMPLETED. The next release follows *Releasing* below.
    on the A85. **Open for Tom:** the chooser offers files this device cannot
    decode (4K ten-bit HEVC on the A85), and a download always plays off the
    disk, so such a copy would not play. Mark them, hide them, or leave it?
-5. **The media3 segment-500 contradiction** (P1 below), and the P2s.
+4. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
 ---
 
@@ -264,61 +266,6 @@ after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **Check the foreground before driving the phone.** Blind `adb input` chains have
 landed in another app mid-sequence. `dumpsys window | grep mCurrentFocus` first,
 and abort if it is not `foundation.macha.client`.
-
----
-
-## P1 — A reaped session is charged to the node that answered honestly — built, unproven
-
-**Built 2026-09-24 in `61ce107` (+ the `player-error-settling` log line in
-`a11e150`) on Tom's option A; shipped in 0.9.0 unproven, the 31-minute run
-left out of the release by Tom's decision.** The design history —
-core's corrected sequence, the attribution question, the divergence on a live
-session — is in COMPLETED under 2026-09-24, *The reaped-session probe*.
-
-**What it does.** A player error the guards do not excuse waits
-`errorSettleMs` — the node's own window, about 8 s — and is acted on only if
-the player is still in error under the same generation, so an error from a
-source already replaced never reaches the probe. Then `sessionAlive` on the
-owning node (records nothing either way) → `classifyProbe` →
-`recoveryAfterProbe`: **`gone` regenerates on the same node**, no charge and
-no failover budget, bounded by core's same-position rule; `alive`,
-unanswerable, or a failed regeneration fail over as before. Branches on core's
-codes, never its wording.
-
-**The cost, and it applies to every genuine failover:** they now start up to
-the node's window later than before.
-
-**The run that proves it** (A85, about 35 minutes): play a transcode, pause
-31 minutes — past `session_idle` — resume, and read logcat for
-`player-error-settling` → `session-probe { outcome: 'gone', recovery:
-'regenerate' }` → `regenerate-result`, **not** `failover-attempt`. It may
-instead show the session is never reaped while paused — something keeping it
-alive — which is worth knowing either way. The player screen keeps the phone
-awake, so wireless ADB should hold.
-
-**Not built:** the proactive half — asking when `AppState` returns to
-`active` with an old session, before the viewer presses play.
-
-**One divergence from core's written sequence, since resolved.** Core wrote the
-resolver-direct recovery down on 2026-09-24 (`docs/writing-a-player.md`,
-*Recovering without the coordinator*, core `5973dc5`). This build matches it
-except in two places. `alive` fails over where core stops — deliberate and
-commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
-tell the cases apart. **`session_provenance_unknown`** is classified
-separately by `classifyProbe` and then **fails over**, where core says
-**stop**. **Resolved 2026-09-24: failing over is right, and core's doc now says so** (core `746aba5`: its "stop" predated ids carrying their node). Core, 2026-09-24: `alive` →
-fail over is defensible given expo-video; provenance is the one to settle —
-with session ids now carrying their node it fires only for an id this
-resolver never issued, and failing over then charges a healthy node.
-**Tom asked how it could ever happen; the answer, from source:** core raises
-it only for an id with no node prefix, which is impossible here because every
-id is core's own, or for a session missing from the resolver's map whose node
-is no longer in the registry. `candidates()` filters nothing by health, so it
-means *gone from membership*. That needs a services rebuild mid-playback
-(`MachaProvider`'s `generation`: an access change or a reconfigure builds a
-new resolver while the player keeps its session) **and** the serving node
-leaving the cluster. The node is then gone, so failing over is right, and the
-reasoning is now in `recoveryAfterProbe`'s comment.
 
 ---
 

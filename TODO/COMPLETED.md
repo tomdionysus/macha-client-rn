@@ -8,6 +8,105 @@ Newest first.
 
 ---
 
+## 2026-09-28 — The reaped session regenerates on its own node: proven on the A85
+
+**The 31-minute run, on the tagged 0.10.0** (`2a314ca`, registry core
+0.20.0), against gbni-1 (`https://macnessa.macha.network`). Built in
+`61ce107` on 2026-09-24 and shipped in 0.9.0 unproven; this is the proof.
+
+- *2010* played in Transcode from Continue Watching, session
+  `9d79992a…` created 14:13:14Z. Paused about 14:15:00Z (`KEYCODE_MEDIA_PAUSE`).
+  The play screen's `useKeepAwake()` held the phone awake. Tom used WhatsApp
+  on the phone meanwhile, and Macha's process (pid 20551) survived in the
+  background.
+- Resumed at **14:48:12Z, 33 minutes paused**, after `am start` brought
+  Macha forward on Tom's word. The focus-gated resume at 14:46:48Z had
+  refused while WhatsApp was in front, as it should.
+- **Nothing happened for 40 s**: the player played what it had buffered
+  before the pause (media session 103.9 s → 156.7 s). At the buffer's end it
+  went to state 7 (error), and:
+  - 14:49:05.048 `player-error-settling { settleMs: 8000 }`
+  - 14:49:13.055 `GET /playback/sessions/9d79992a…` → **404 `not_found`**
+    ("playback session not found"): **the server had reaped it.**
+  - 14:49:13.419 `session-probe { outcome: 'gone', recovery: 'regenerate',
+    positionMs: 727204 }`, then `regenerate-attempt { on: macnessa, resumeMs:
+    727204 }` and core's `generation-regenerate` on the same endpoint.
+  - The `DELETE` of the old session answered 404 too
+    (`session-stop-already-gone`).
+  - 14:49:22.002 `session-created` `8dceca5e…`; 14:49:22.003
+    `regenerate-result { on: macnessa }`.
+  - **No `failover-attempt`** anywhere in the log.
+- **Playback carried on**: the screen read 12:13 of 1:55:55, in Transcode,
+  picture moving, 17 s after the error. Paused again afterwards.
+- Right after, core logged `preemptive-endpoint-swap` from macnessa (316 ms,
+  CPU 170%) to the LAN node `10.35.1.50:7438` (25 ms). That is core's health
+  routing for later requests; the session stayed on macnessa.
+
+**What it shows beyond the design:** the error arrives only when the
+buffer runs out, not at resume. So a resume after a long pause plays for as
+long as the buffer lasts (here ~40 s), then stops for about 17 s (the 8 s
+settle, the probe, a transcode create) before it continues. The proactive
+half (probe on `AppState` `active`, or on unpause after a long pause) would
+move that stall to the moment of pressing play. Still not built.
+
+The log is not in the repo; the lines above are copied from it.
+
+### The P1 as it stood in ACTIVE
+
+**Built 2026-09-24 in `61ce107` (+ the `player-error-settling` log line in
+`a11e150`) on Tom's option A; shipped in 0.9.0 unproven, the 31-minute run
+left out of the release by Tom's decision.** The design history —
+core's corrected sequence, the attribution question, the divergence on a live
+session — is in COMPLETED under 2026-09-24, *The reaped-session probe*.
+
+**What it does.** A player error the guards do not excuse waits
+`errorSettleMs` — the node's own window, about 8 s — and is acted on only if
+the player is still in error under the same generation, so an error from a
+source already replaced never reaches the probe. Then `sessionAlive` on the
+owning node (records nothing either way) → `classifyProbe` →
+`recoveryAfterProbe`: **`gone` regenerates on the same node**, no charge and
+no failover budget, bounded by core's same-position rule; `alive`,
+unanswerable, or a failed regeneration fail over as before. Branches on core's
+codes, never its wording.
+
+**The cost, and it applies to every genuine failover:** they now start up to
+the node's window later than before.
+
+**The run that proves it** (A85, about 35 minutes): play a transcode, pause
+31 minutes — past `session_idle` — resume, and read logcat for
+`player-error-settling` → `session-probe { outcome: 'gone', recovery:
+'regenerate' }` → `regenerate-result`, **not** `failover-attempt`. It may
+instead show the session is never reaped while paused — something keeping it
+alive — which is worth knowing either way. The player screen keeps the phone
+awake, so wireless ADB should hold.
+
+**Not built:** the proactive half — asking when `AppState` returns to
+`active` with an old session, before the viewer presses play.
+
+**One divergence from core's written sequence, since resolved.** Core wrote the
+resolver-direct recovery down on 2026-09-24 (`docs/writing-a-player.md`,
+*Recovering without the coordinator*, core `5973dc5`). This build matches it
+except in two places. `alive` fails over where core stops — deliberate and
+commented in `recoveryAfterProbe`, since expo-video hides the 404 that would
+tell the cases apart. **`session_provenance_unknown`** is classified
+separately by `classifyProbe` and then **fails over**, where core says
+**stop**. **Resolved 2026-09-24: failing over is right, and core's doc now says so** (core `746aba5`: its "stop" predated ids carrying their node). Core, 2026-09-24: `alive` →
+fail over is defensible given expo-video; provenance is the one to settle —
+with session ids now carrying their node it fires only for an id this
+resolver never issued, and failing over then charges a healthy node.
+**Tom asked how it could ever happen; the answer, from source:** core raises
+it only for an id with no node prefix, which is impossible here because every
+id is core's own, or for a session missing from the resolver's map whose node
+is no longer in the registry. `candidates()` filters nothing by health, so it
+means *gone from membership*. That needs a services rebuild mid-playback
+(`MachaProvider`'s `generation`: an access change or a reconfigure builds a
+new resolver while the player keeps its session) **and** the serving node
+leaving the cluster. The node is then gone, so failing over is right, and the
+reasoning is now in `recoveryAfterProbe`'s comment.
+
+
+---
+
 ## 2026-09-27 night — 0.10.0 released, on core 0.20.0
 
 `main` = `2a314ca`, tag `0.10.0` (annotated), pushed with `develop` on Tom's
