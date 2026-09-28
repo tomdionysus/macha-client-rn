@@ -8,6 +8,50 @@ Newest first.
 
 ---
 
+## 2026-09-28 evening — One unreadable row emptied the store; recovered. Downloads greyed where they cannot play
+
+On the A85, release builds of `develop`, the last `a089da9` at 20:01:30
+local (core `7819d37`, dist `25adddffaa9a`).
+
+- **The store emptied itself on a cold start.** A build opened on the
+  Connect screen, as if never configured, and Tom had not touched it.
+  logcat: `SQLiteBlobTooBigException: Row too big to fit into
+  CursorWindow` from AsyncStorage's `multiGet` of all 13 Macha keys.
+  `hydrate()` swallowed it and started empty, and `getClientId()` then
+  minted a new id over the real one, orphaning Continue Watching,
+  downloads, playlists and the music library. **The row was the play
+  queue** (`macha.playbackQueue.v1.a2618e45…`): playing one track from the
+  Tracks tab queues the whole library, and core's `PlaybackQueueStore`
+  saved it all. **Fixed here in `cf05f04`**: a failed bulk read falls back
+  to key by key, losing only the unreadable row and logging
+  `unreadable-key`. **Fixed in core `bb3d79c`**: the saved queue is a
+  window of at most 200 items. **Recovered in `9b366ac`** (Tom's choice): an
+  id that owns no per-client data gives way to the only one that does,
+  logged `client-id-recovered { from: 'f8a87e95…', to: 'a2618e45…' }`.
+  Continue Watching came back (only *Alien*, since Tom had removed the
+  others). My navigation script had typed "martian" into the Connect
+  screen's address field without noticing where it was; nothing was
+  submitted. Every step now checks the screen before it acts.
+- **Gradle does not rebuild the JS bundle when only core changes.** Through
+  the `file:` link the up-to-date check sees no input change, so an
+  `assembleRelease` after a core bump reused the old bundle (the APK kept
+  its 18:30 timestamp). Force it: `./gradlew
+  :app:createBundleReleaseJsAndAssets --rerun` before `assembleRelease`,
+  and confirm with `strings` on
+  `app/build/generated/assets/react/release/index.android.bundle`.
+- **Unplayable files cannot be downloaded** (`b4d2c1b`). *The Martian*'s
+  chooser: 4K (50.1 GB) and 1080p (3.3 GB, E-AC-3) greyed with "Not
+  available for this device", 720p (1.3 GB) enabled; sizes now the node's.
+  *2010* (AC-3 only): Download greyed, and a tap says "Not available for
+  this device." as a toast.
+- **One spinner** (`7fbf4d3`), all `ActivityIndicator`s through `Spinner`.
+- **Title pages** (`a089da9`): Download in the header across from Back;
+  the format lines under the synopsis as "Available Direct Formats". Both
+  seen on the A85.
+- **Tom's clarification recorded** (`dd7c885`): Direct with audio this
+  device cannot decode stays available but is never the default. Already
+  the behaviour.
+
 ## 2026-09-28 — Film downloads with a chooser, a cancel that stops, music out of Continue Watching, a spinner you can see
 
 On `develop`, from Tom's rulings of 2026-09-28 (ACTIVE, *Decisions for

@@ -334,6 +334,44 @@ default above is what runs.
 
 ---
 
+## P2 — Three cross-client items to match the web (not built)
+
+Each one is Tom's direction that all clients show the same. Take the words
+from the web's source once committed, not from these notes.
+
+- **A transcode too slow to keep up** (core `d1069d2`, pushed). The
+  coordinator fails over an early stall (before 15 s of a transformed
+  generation) once; if the replacement stalls too, it stops. For a quality
+  the viewer chose: `TOO_SLOW_TO_PLAY_CODE` (`'too_slow_to_play'`). For
+  core's own choice it steps down to the next lower version, with a
+  `quality-stepped-down` notice. **This client runs its own failover, so it
+  has to mirror the rule in its recovery path.** Web wording (working tree,
+  `tooSlowToPlayText` / `qualitySteppedDownText`): "Macha can't play
+  <quality> because the server can't convert <its video and audio | its
+  video | its audio | it> fast enough to keep up." with **Try again** and
+  **Choose another quality**; the stepped-down notice is "Switched to <new
+  quality>: the server can't convert a higher quality fast enough." (falls
+  back to "a lower quality"), shown where notices show, and it stays.
+- **The sentence under the quality buttons** (web `f512cdc`,
+  `qualityChoiceText(versions)`), replacing "Play chooses up to <q>, the
+  most this screen shows...". It is built from `versions.automatic`,
+  `passedOver` (core `03b0bdb`) and `limitedBy`: "Play chooses <q>", plus ",
+  which plays without converting" only when a larger file was passed over
+  for converting and the chosen one converts nothing. Clauses: "<q> needs
+  its video / its audio / its video and audio converted"; "<q> is more than
+  this screen shows / this device plays / Play uses on mobile data / the
+  most set in Settings". Joined with ", and ", then ". Pick a quality to
+  play another." No sentence when no clause applies. Example: "Play chooses
+  720p, which plays without converting. 1080p needs its audio converted,
+  and 4K is more than this screen shows. Pick a quality to play another."
+- **Naming nodes:** core's `session.endpoint.name` ("corvus-fi-1", core
+  `7819d37`), falling back to the URL's hostname (no scheme, no port). **React
+  Native's `URL` returns `''` for a hostname it cannot read rather than
+  throwing** (the TV found it; check this tree's `URL.js`), so treat `''` as
+  unread and show the address as it is. Web `e4eae8f`, TV `1c872c5`.
+
+---
+
 ## P2 — Start progress (server 0.69.0 `start=async`): match the web word for word
 
 **Not built. Server 0.69.0 is live on both nodes since 16:01Z 2026-09-28**
