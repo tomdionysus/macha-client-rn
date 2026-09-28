@@ -383,7 +383,10 @@ from the web's source once committed, not from these notes.
   throwing** (the TV found it; check this tree's `URL.js`), so treat `''` as
   unread and show the address as it is. Web `e4eae8f`, TV `1c872c5`.
 - **Avoid a transcode no node keeps up with** (server 0.70.0, core
-  `fb96757`). Pass `{ transcodeRate: (source) => resolver.transcodeRate(source) }`
+  `fb96757`). **Server 0.70.0 is live on both nodes since 17:09Z
+  2026-09-28**, `node_name` "Corvus FI-1" and "Corvus GBNI-1". Rates fill
+  in only as transcodes of a minute or more finish, so
+  `resolver.transcodeRate` answers `undefined` until then. Pass `{ transcodeRate: (source) => resolver.transcodeRate(source) }`
   to `playbackVersions` and automatic play skips a file no node transcodes
   at real speed, with `passedOver.reasons` including
   `'transcode-below-real-time'`. The web's wording: the passed-over clause
