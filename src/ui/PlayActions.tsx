@@ -17,6 +17,7 @@ import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
 import { Button } from './controls';
 import { MediaLines } from './MediaProfile';
+import { DownloadButton } from './DownloadButton';
 import { formatDuration } from './format';
 import { colors, space, type as typography } from './theme';
 
@@ -124,6 +125,7 @@ export function PlayActions({ item, queue }: Props) {
         />
         <Button label="From start" variant="secondary" onPress={() => play(0)} disabled={busy} />
         {qualities}
+        <DownloadButton item={item} />
       </>
     );
   }
@@ -133,6 +135,7 @@ export function PlayActions({ item, queue }: Props) {
       {files}
       <Button label="Play" icon={<PlayIcon size={18} color={colors.text} />} onPress={() => play(0)} busy={busy} />
       {qualities}
+      <DownloadButton item={item} />
     </>
   );
 }

@@ -13,6 +13,12 @@ export interface DownloadRecord {
   mediaId: string;
   /** Catalogue id, for linking back into the library when it is reachable. */
   itemId: string;
+  /**
+   * The viewer named this file in the download chooser (Tom, 2026-09-28),
+   * so `mediaId` is the file to copy. Otherwise the download takes the file
+   * playback would pick.
+   */
+  fileChosen?: boolean;
   state: DownloadState;
   /** `file://` URI of the stored original, once complete. */
   localUri?: string;

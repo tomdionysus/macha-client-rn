@@ -5,6 +5,7 @@ import type { MediaApi } from '../api/media';
 import type { EndpointRegistry, PlaybackInstruction } from '@machafoundation/core';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { fileToPlay } from '../playback/policy';
+import { downloadTarget } from './choice';
 import { type TransferObservation, throughputSample } from './throughputSample';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
@@ -133,19 +134,23 @@ export class DownloadManager {
    * downloaded is a legitimate thing to do and deserves a different answer
    * than one that started twelve transfers.
    */
-  enqueue(items: readonly MediaSummary[]): number {
+  enqueue(items: readonly MediaSummary[], options: { mediaId?: string } = {}): number {
     let queued = 0;
     for (const media of items) {
-      const mediaId = media.mediaIds[0];
-      if (!mediaId) continue;
-      const existing = this.store.get(mediaId);
-      if (existing && (existing.state === 'complete' || existing.state === 'downloading' || existing.state === 'queued')) {
-        continue;
-      }
+      const target = downloadTarget(media, options.mediaId);
+      if (!target) continue;
+      // Any of the title's files already stored or on its way counts: a
+      // title is downloaded once, whichever file it was.
+      const busy = media.mediaIds.some((mediaId) => {
+        const existing = this.store.get(mediaId);
+        return existing && (existing.state === 'complete' || existing.state === 'downloading' || existing.state === 'queued');
+      });
+      if (busy) continue;
       queued += 1;
       this.store.put({
-        mediaId,
+        mediaId: target.mediaId,
         itemId: media.id,
+        ...(target.fileChosen ? { fileChosen: true } : {}),
         state: 'queued',
         updatedAt: Date.now(),
         media,
@@ -243,14 +248,17 @@ export class DownloadManager {
         // consulted and none was defaulted behind our back.
         assumed: [],
       };
-      // Which file is ours to name, and the server is to refuse a create that
-      // names none on a multi-file item. The one playback would pick: under
-      // Direct, a file this device plays as it is, where there is one.
+      // Which file to name, since the server refuses a create that names none
+      // on a multi-file item. The one the viewer chose, where they did;
+      // otherwise the one playback would pick: under Direct, a file this
+      // device plays as it is, where there is one.
       const files =
-        record.media.mediaIds.length > 1
+        !record.fileChosen && record.media.mediaIds.length > 1
           ? await this.playbackApi.facts({ itemId: record.media.id }).catch(() => undefined)
           : undefined;
-      const fileId = fileToPlay(files, record.media.mediaIds, deviceCapabilities(), devicePlaybackOverrides());
+      const fileId = record.fileChosen
+        ? mediaId
+        : fileToPlay(files, record.media.mediaIds, deviceCapabilities(), devicePlaybackOverrides());
       session = await this.playbackApi.create(record.media, instruction, 0, fileId ? { mediaId: fileId } : undefined);
       const fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 

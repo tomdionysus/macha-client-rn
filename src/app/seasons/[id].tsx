@@ -14,6 +14,7 @@ import { Button } from '../../ui/controls';
 import { pluralize } from '../../ui/format';
 import { colors, radius, space, type as typography } from '../../ui/theme';
 import { episodeCode } from '../../ui/labels';
+import { DownloadButton } from '../../ui/DownloadButton';
 
 export default function SeasonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,6 +131,7 @@ function EpisodeRow({
           </Text>
         ) : null}
       </Pressable>
+      <DownloadButton item={episode} compact />
     </View>
   );
 }
