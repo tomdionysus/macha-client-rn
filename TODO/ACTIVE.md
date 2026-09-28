@@ -379,6 +379,18 @@ this note.
   stream: 60% — 9s". **A change:** in place of the "Preparing new stream on
   <node>…" line, with "…" when there is no percentage, while the current
   picture plays on.
+- **A replacement built behind a playing picture** (the web client,
+  2026-09-28, found live on fi-1; its `preparingStreamText` in
+  `PlayerScreen.tsx`, uncommitted). A failover arrives as a *start* (a new
+  session), not a change, so a line that knew only changes showed no
+  stages. In that line any progress is worded as a change: a change names
+  the serving node ("Starting the new stream on fi-1: 30%"); a start (a
+  failover) names none, since the node the line holds is the one being
+  replaced ("Preparing new stream…", "Finding the start point: 50%",
+  "Starting the new stream…"); with no progress, "Preparing new stream on
+  <node>…" or "Preparing new stream…". The note under the spinner is
+  unchanged. This client's reaped-session regenerate and its failover both
+  build a replacement this way, so both use it.
 - **Failure:** core's `start_no_progress` has no server sentence; the web
   says "The node stopped making progress starting this stream." A node's
   failed stage arrives as `playback_pipeline_start_failed` (or its own
