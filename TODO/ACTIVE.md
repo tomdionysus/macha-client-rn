@@ -81,9 +81,14 @@ COMPLETED. The next release follows *Releasing* below.
    - **Direct on a file whose audio the device cannot decode** (*2010*,
      AC-3 on the A85) **stays offered.** Tom: leave as is. Do not re-raise.
    - **Continue Watching is films and episodes only**; a music track does
-     not belong there. To build.
-   - **The Albums tab gets a loading indicator** for its ~3 s blank load. To
-     build.
+     not belong there. **Built `bb4ce14`**: no track progress is written,
+     and Home drops a stored one. Not yet on the A85.
+   - **The Albums tab gets a loading indicator** for its ~3 s blank load.
+     **Not built: the code already shows one.** `useAsync` clears the value
+     and sets `loading` on a tab change, and the screen renders `<Loading />`
+     for `loading && !value`. So the blank is something else (a slow render
+     of the grid, or artwork), and it has to be watched on the A85 before
+     anything is changed.
    - Still open: **the mobile-data default is core's 720p**, not a ruling;
      and **the secure store's backup side effect:** AsyncStorage (Continue
      Watching, the queue, playlists) leaves Android Auto Backup with the
@@ -91,7 +96,13 @@ COMPLETED. The next release follows *Releasing* below.
 4. **Downloads naming a version**: they still take `fileToPlay`'s file.
    **Tom, 2026-09-28: Download opens a chooser** on a multi-file title,
    listing each file (a download is always a copy of one file, never a
-   transcode). A single-file title downloads as today.
+   transcode). **Nothing had ever downloaded a film or an episode** (music
+   only since the first commit); Tom: add them. **Built `a669e5a`**: Download
+   on the film and episode pages and on episode rows; the chooser lists each
+   file by core's quality label, media line and an estimated size. Not yet
+   on the A85. **Open for Tom:** the chooser offers files this device cannot
+   decode (4K ten-bit HEVC on the A85), and a download always plays off the
+   disk, so such a copy would not play. Mark them, hide them, or leave it?
 5. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
 ---
