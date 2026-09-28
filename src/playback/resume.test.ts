@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resumePreferences, type MediaSummary, type PlaybackSession } from '@machafoundation/core';
-import { progressOf } from './resume';
+import { belongsInContinueWatching, progressOf } from './resume';
 
 /**
  * Tom, 2026-09-27: Continue Watching stores "both the item id AND the media
@@ -56,5 +56,24 @@ describe('progressOf', () => {
     const entry = progressOf(film, 60_000, 6_000_000, undefined, { chosenByViewer: false });
     expect(entry.fileMediaId).toBeUndefined();
     expect(resumePreferences(entry)).toEqual({});
+  });
+});
+
+/**
+ * Tom, 2026-09-28: Continue Watching is films and episodes only. A music
+ * track appeared there on the A85 beside the films.
+ */
+describe('belongsInContinueWatching', () => {
+  it('keeps films and episodes', () => {
+    expect(belongsInContinueWatching({ kind: 'movie' })).toBe(true);
+    expect(belongsInContinueWatching({ kind: 'episode' })).toBe(true);
+  });
+
+  it('keeps music out', () => {
+    expect(belongsInContinueWatching({ kind: 'track' })).toBe(false);
+  });
+
+  it('keeps out an entry saved without its media', () => {
+    expect(belongsInContinueWatching(undefined)).toBe(false);
   });
 });

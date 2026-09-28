@@ -57,6 +57,15 @@ export function resumeStateOf(session: PlaybackSession, choice: PlaybackChoice):
 }
 
 /**
+ * Whether a title belongs in Continue Watching: films and episodes only
+ * (Tom, 2026-09-28). Music resumes from its own queue. An entry saved
+ * without its media cannot be shown, so it does not belong either.
+ */
+export function belongsInContinueWatching(media: Pick<MediaSummary, 'kind'> | undefined): boolean {
+  return media?.kind === 'movie' || media?.kind === 'episode';
+}
+
+/**
  * A Continue Watching entry: the item, and where a session is playing, its
  * file and how. Off the disk there is no session, and the entry is the
  * position alone.

@@ -18,6 +18,7 @@ import { offlineMedia } from '../state/downloads';
 import { localCopyOf, useDownloads } from '../hooks/useDownloads';
 import { clusterMediaUnavailable, describeEmptyLibrary } from '../state/problems';
 import { sessionEndedNotice, sessionExpiryNotice } from '../account/expiry';
+import { belongsInContinueWatching } from '../playback/resume';
 
 /** How many of each kind the Home rails show before "See all" takes over. */
 const RAIL_LIMIT = 14;
@@ -67,7 +68,7 @@ export default function HomeScreen() {
   const resumableItems = useMemo(
     () =>
       resumable.flatMap((entry) => {
-        if (!entry.media) return [];
+        if (!entry.media || !belongsInContinueWatching(entry.media)) return [];
         if (!unavailable) return [entry.media];
         const stored = localCopyOf(downloads, entry.media);
         return stored ? [offlineMedia(stored)] : [];

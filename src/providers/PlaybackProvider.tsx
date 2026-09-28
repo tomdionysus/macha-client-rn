@@ -18,7 +18,7 @@ import {
   type VersionStep,
 } from '@machafoundation/core';
 import { automaticStart, deviceQualityCeiling, offerAll, versionStart, versionUpdate } from '../playback/quality';
-import { progressOf, type PlaybackChoice } from '../playback/resume';
+import { belongsInContinueWatching, progressOf, type PlaybackChoice } from '../playback/resume';
 import {
   ensureAudioEngine,
   loadAudioTrack,
@@ -354,7 +354,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       lastCheckpointRef.current = now;
       // The title, the file and how it is playing (Tom, 2026-09-27: resume
       // "as if you'd never left"); off the disk, the position alone.
-      continueWatching.update(progressOf(media, positionMs, durationMs, sessionRef.current, choiceRef.current));
+      if (belongsInContinueWatching(media)) {
+        continueWatching.update(progressOf(media, positionMs, durationMs, sessionRef.current, choiceRef.current));
+      }
       queueStore.updatePosition(positionMs);
     },
     [continueWatching, queueStore],
@@ -1391,7 +1393,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           positionMs: positionRef.current,
           durationMs: durationRef.current,
         });
-        if (durationRef.current > 0) {
+        if (durationRef.current > 0 && belongsInContinueWatching(media)) {
           // Reaching the end retires the item from Continue Watching rather
           // than leaving it parked one second from the credits.
           continueWatching.update(progressFor(media, durationRef.current, durationRef.current));
@@ -1462,7 +1464,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         if (engineRef.current !== 'audio') return;
         const media = mediaRef.current;
         if (!media) return;
-        if (durationRef.current > 0) {
+        if (durationRef.current > 0 && belongsInContinueWatching(media)) {
           continueWatching.update(progressFor(media, durationRef.current, durationRef.current));
         }
         if (repeatRef.current === 'one') {
