@@ -19,7 +19,9 @@ export function Loading({ label }: { label?: string }) {
   if (!visible) return <View style={styles.block} />;
   return (
     <View style={styles.block}>
-      <ActivityIndicator color={colors.textDim} />
+      {/* Large and in the progress colour: the small grey default read as a
+          blank screen on the A85 while 815 albums took ~6 s (2026-09-28). */}
+      <ActivityIndicator size="large" color={colors.progress} />
       {label ? <Text style={styles.caption}>{label}</Text> : null}
     </View>
   );
