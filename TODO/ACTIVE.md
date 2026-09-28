@@ -82,7 +82,17 @@ COMPLETED. The next release follows *Releasing* below.
    proven on the A85 (COMPLETED 2026-09-28).
 2. **Decisions for Tom, from the A85 runs.** Ruled 2026-09-28:
    - **Direct on a file whose audio the device cannot decode** (*2010*,
-     AC-3 on the A85) **stays offered.** Tom: leave as is. Do not re-raise.
+     AC-3 on the A85) **stays available in the sheet, but is never the
+     default.** Tom, 2026-09-28: "The phone should always transcode if it
+     needs to (the audio won't work) - principle of least astonishment,
+     phone clients should 'just work'. If the user forces direct, that's on
+     them." **Already true, checked in source:** automatic play takes its
+     audio list from `MediaCodecList` (`capabilities.ts`, which drops `ac3`
+     and `eac3` on the A85), so *2010* plays with its audio transcoded, as
+     it did on the A85 on 2026-09-28. Pinned by `capabilities.test.ts` (no
+     unprobed `ac3`/`eac3` claim) and `policy.test.ts` (`audioCopyable`). A
+     resume restores Direct only where the viewer chose it. Do not grey it
+     out, and do not make it the default.
    - **Continue Watching is films and episodes only**; a music track does
      not belong there. **Done `bb4ce14`**, checked on the A85 (COMPLETED).
    - **The Albums tab's indicator:** it had one nobody could see. **Done
