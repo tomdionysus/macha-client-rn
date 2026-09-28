@@ -372,7 +372,13 @@ from the web's source once committed, not from these notes.
 - **Naming nodes:** core's `session.endpoint.name`, from server 0.70.0 the
   operator's name ("Corvus FI-1", core `fb96757`; `7819d37` had the cluster
   name "corvus-fi-1"), falling back to the URL's hostname (no scheme, no
-  port). **React
+  port).
+  **The web's rules for 0.70.0** (Tom: "show the names the server sends";
+  web working tree, uncommitted): wherever a status node is shown,
+  `node_name` trimmed, else the host, else a short id, with the host kept
+  wherever an address is needed; node pickers use core's
+  `endpointRegistry.nodeName(endpointId)` for any of the node's endpoints,
+  else the hostname; the player's status line uses `endpointName`. **React
   Native's `URL` returns `''` for a hostname it cannot read rather than
   throwing** (the TV found it; check this tree's `URL.js`), so treat `''` as
   unread and show the address as it is. Web `e4eae8f`, TV `1c872c5`.
@@ -380,7 +386,11 @@ from the web's source once committed, not from these notes.
   `fb96757`). Pass `{ transcodeRate: (source) => resolver.transcodeRate(source) }`
   to `playbackVersions` and automatic play skips a file no node transcodes
   at real speed, with `passedOver.reasons` including
-  `'transcode-below-real-time'` (the quality sentence above words it). The
+  `'transcode-below-real-time'`. The web's wording: the passed-over clause
+  gains ", which the server can't do fast enough" ("4K needs its video and
+  audio converted, which the server can't do fast enough."); where reasons
+  are listed one by one, "the server cannot convert this picture fast
+  enough to play". The
   phone calls `playbackVersions` in four places, all to change together:
   `PlayActions.tsx:67`, `quality.ts:140` and `:160`, and
   `PlaybackProvider.tsx:1788`. Checked 2026-09-28: the link at `fb96757`
