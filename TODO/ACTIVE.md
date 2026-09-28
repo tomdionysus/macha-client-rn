@@ -336,9 +336,15 @@ default above is what runs.
 
 ## P2 — Start progress (server 0.69.0 `start=async`): match the web word for word
 
-**Not built. Waits on server 0.69.0 being deployed** (committed, deploying
-2026-09-28) **and on the web's version being committed** (uncommitted on
-the web's develop when asked). Core `00ff3eb` (develop, pushed) puts it in
+**Not built. Server 0.69.0 is live on both nodes since 16:01Z 2026-09-28**
+(core's word), both advertising `start=async` with
+`startup_no_progress_ms` 15000. **The link already follows async starts:**
+`../macha-ts` at `ec608c3` (dist `4ba99e5e4911`) contains `00ff3eb`, and
+typecheck and 352 tests pass against it. So a build of `develop` waits out
+an async start inside `resolve`/`update` as before, and shows no progress.
+Word a stalled start from core's `START_NO_PROGRESS_CODE` (`ec608c3`), not
+the string. **Waits on the web's version being committed** (uncommitted on
+the web's develop when asked), so the words are copied from its source. Core `00ff3eb` (develop, pushed) puts it in
 `ClusterPlaybackResolver`, which is what this client drives:
 `resolve(media, caps, seekMs, prefs, { onStartProgress })` and `update(id,
 update, signal, { onStartProgress })`. Both still resolve to the ready
