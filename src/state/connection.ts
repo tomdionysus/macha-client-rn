@@ -45,6 +45,51 @@ export function getClientId(): string {
   return id;
 }
 
+/**
+ * The keys a store saves under a client id, before the id. Each store owns
+ * its own format; this list only reads them back.
+ */
+const PER_CLIENT_PREFIXES = [
+  'macha.continueWatching.v1.',
+  'macha-client-progress:',
+  'macha.progress.v1:',
+  'macha.downloads.v1.',
+  'macha.playbackQueue.v1.',
+  'macha.playlists.v1.',
+  'macha.musicPlaylist.v1.',
+  'macha.musicLibrary.v1.',
+];
+
+/**
+ * The client id to adopt back, where the current one has lost its data.
+ *
+ * On the A85, 2026-09-28, a failed storage read at startup let
+ * `getClientId()` mint a new id over the real one, and every per-client
+ * store was left on the disk under the old id. Tom's call: recover it. So
+ * where the current id owns nothing and exactly one other id owns
+ * something, that one is ours. Two or more cannot be told apart, and
+ * `anonymous` is only what a store is called before hydration.
+ */
+export function orphanedClientId(keys: readonly string[], current: string | null): string | undefined {
+  const owners = new Set<string>();
+  for (const key of keys) {
+    const prefix = PER_CLIENT_PREFIXES.find((candidate) => key.startsWith(candidate));
+    const id = prefix ? key.slice(prefix.length) : '';
+    if (id && id !== 'anonymous') owners.add(id);
+  }
+  if (current && owners.has(current)) return undefined;
+  return owners.size === 1 ? [...owners][0] : undefined;
+}
+
+/** Adopts an orphaned client id back (see `orphanedClientId`), after hydration. */
+export function recoverClientId(): void {
+  const current = clientStore.getItem(CLIENT_ID_KEY);
+  const recovered = orphanedClientId(clientStore.keys(), current);
+  if (!recovered) return;
+  console.warn('[macha] [storage] client-id-recovered', { from: current, to: recovered });
+  clientStore.setItem(CLIENT_ID_KEY, recovered);
+}
+
 /** Bootstrap seeds the viewer configured, not an authoritative membership list. */
 export function getConfiguredEndpoints(): string[] {
   return readValidatedJson(ENDPOINTS_KEY, validEndpoints)?.urls ?? [];

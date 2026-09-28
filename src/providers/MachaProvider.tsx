@@ -29,6 +29,7 @@ import {
   getClientId,
   getConfiguredEndpoints,
   getDiscoveredEndpoints,
+  recoverClientId,
   setConfiguredEndpoints,
   setDiscoveredEndpoints,
 } from '../state/connection';
@@ -201,6 +202,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
       // Before any endpoint exists to create a session on, so nothing this
       // process holds can be in it. A remount in the same process gets none.
       orphansRef.current = sessionLedger.takeOrphans();
+      recoverClientId();
       setClientId(getClientId());
       setEndpoints(getConfiguredEndpoints());
       setHydrated(true);

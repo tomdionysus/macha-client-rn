@@ -88,6 +88,11 @@ class ClientStore {
     return this.cache.get(key) ?? null;
   }
 
+  /** Every key hydrated or written since, for reading stores back by name. */
+  keys(): string[] {
+    return [...this.cache.keys()];
+  }
+
   setItem(key: string, value: string): void {
     this.cache.set(key, value);
     this.enqueue(() => AsyncStorage.setItem(key, value));
