@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { playbackVersions, type VersionStep } from '@machafoundation/core';
-import { useAsync } from '../hooks/useAsync';
+import { playbackVersions, type PlaybackMediaFacts, type VersionStep } from '@machafoundation/core';
+import { useAsync, type AsyncResult } from '../hooks/useAsync';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
   ceilingExplanation,
@@ -16,8 +16,6 @@ import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
 import { Button } from './controls';
-import { MediaLines } from './MediaProfile';
-import { DownloadButton } from './DownloadButton';
 import { formatDuration } from './format';
 import { colors, space, type as typography } from './theme';
 
@@ -25,6 +23,8 @@ interface Props {
   /** The item to play, and the queue it should play within. */
   item: MediaSummary;
   queue?: readonly MediaSummary[];
+  /** The title's files, from `useTitleFacts`, shared with the header's Download. */
+  facts: AsyncResult<PlaybackMediaFacts[] | undefined>;
 }
 
 /**
@@ -39,18 +39,27 @@ interface Props {
  * `playbackVersions`, with `offerAll`).
  * A downloaded item plays off the disk whatever is pressed, so it offers none.
  */
-export function PlayActions({ item, queue }: Props) {
-  const { continueWatching, playback, downloads } = useMacha();
+/**
+ * A title's playback facts, read once per page: the play buttons need them
+ * and so does the Download in the header, which is greyed before a tap where
+ * no file plays here. A downloaded title plays off the disk, so it asks for
+ * none.
+ */
+export function useTitleFacts(item: MediaSummary | undefined): AsyncResult<PlaybackMediaFacts[] | undefined> {
+  const { playback, downloads } = useMacha();
+  const stored = item ? downloads.localFor(item)?.localUri !== undefined : false;
+  return useAsync(
+    (signal) => (!item || stored ? Promise.resolve(undefined) : playback.facts({ itemId: item.id }, signal)),
+    [playback, item?.id, stored],
+  );
+}
+
+export function PlayActions({ item, queue, facts }: Props) {
+  const { continueWatching } = useMacha();
   const { start, busy } = usePlayback();
   const router = useRouter();
 
   const resumeMs = useMemo(() => continueWatching.positionFor(item.id), [continueWatching, item.id]);
-  const stored = downloads.localFor(item)?.localUri !== undefined;
-
-  const facts = useAsync(
-    (signal) => (stored ? Promise.resolve(undefined) : playback.facts({ itemId: item.id }, signal)),
-    [playback, item.id, stored],
-  );
   const everything = useSyncExternalStore(qualityPreferences.subscribe, qualityPreferences.getSnapshot).offerAll === true;
   const all = useMemo(() => {
     if (!facts.value) return undefined;
@@ -78,9 +87,6 @@ export function PlayActions({ item, queue }: Props) {
       steps: all?.steps.map((step) => step.quality),
     });
   }, [facts.value, facts.error, item.id, item.mediaIds, all]);
-  // Each file's line under the title, above the buttons, as the web shows
-  // them (Tom, 2026-09-27).
-  const files = <MediaLines mediaIds={item.mediaIds} />;
 
   const play = useCallback(
     (seekMs?: number, version?: VersionStep) => {
@@ -116,7 +122,6 @@ export function PlayActions({ item, queue }: Props) {
   if (resumeMs > 0) {
     return (
       <>
-        {files}
         <Button
           label={`Resume ${formatDuration(resumeMs)}`}
           icon={<PlayIcon size={18} color={colors.text} />}
@@ -125,17 +130,14 @@ export function PlayActions({ item, queue }: Props) {
         />
         <Button label="From start" variant="secondary" onPress={() => play(0)} disabled={busy} />
         {qualities}
-        <DownloadButton item={item} files={facts.value} />
       </>
     );
   }
 
   return (
     <>
-      {files}
       <Button label="Play" icon={<PlayIcon size={18} color={colors.text} />} onPress={() => play(0)} busy={busy} />
       {qualities}
-      <DownloadButton item={item} files={facts.value} />
     </>
   );
 }

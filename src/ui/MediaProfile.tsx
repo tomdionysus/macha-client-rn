@@ -4,7 +4,7 @@ import type { CatalogueMediaProfile } from '../api/catalogue';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
 import { fileLines, wrapBetweenFields } from './mediaLines';
-import { colors, type as typography } from './theme';
+import { colors, space, type as typography } from './theme';
 
 /**
  * One line per file, under the title (Tom, 2026-09-27: copy the web's style,
@@ -30,7 +30,8 @@ export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
   const lines = profiles.value ? fileLines(profiles.value) : [];
   if (lines.length === 0) return null;
   return (
-    <View style={styles.lines}>
+    <View style={styles.block}>
+      <Text style={styles.heading}>Available Direct Formats</Text>
       {lines.map((line) => (
         <Text key={line} style={styles.line}>
           {wrapBetweenFields(line)}
@@ -41,9 +42,17 @@ export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
 }
 
 const styles = StyleSheet.create({
-  lines: {
-    width: '100%',
+  // Below the synopsis, as the MEDIA section was before 8c800c2: under the
+  // title the lines wrapped awkwardly beside it (Tom, 2026-09-28).
+  block: {
+    paddingHorizontal: space.lg,
+    marginTop: space.xxl,
     gap: 2,
+  },
+  heading: {
+    ...typography.micro,
+    color: colors.textFaint,
+    marginBottom: space.xs,
   },
   line: {
     ...typography.caption,

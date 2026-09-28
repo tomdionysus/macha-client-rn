@@ -90,14 +90,14 @@ export function DownloadButton({
     if (available === false) {
       return (
         <Control label={`Download ${item.title}`} hint={`${NOT_AVAILABLE_HERE}.`} disabled onPress={unavailable} compact={compact}>
-          <DownloadIcon size={size} color={colors.textFaint} />
+          <DownloadIcon size={size} color={compact ? colors.textFaint : colors.text} />
         </Control>
       );
     }
     return (
       <>
         <Control label={`Download ${item.title}`} onPress={() => void start()} compact={compact}>
-          {checking ? <Spinner /> : <DownloadIcon size={size} color={colors.textFaint} />}
+          {checking ? <Spinner /> : <DownloadIcon size={size} color={compact ? colors.textFaint : colors.text} />}
         </Control>
         {facts && facts.length > 1 ? (
           <DownloadChooser visible={choosing} files={facts} onPick={enqueue} onClose={() => setChoosing(false)} />
@@ -121,7 +121,7 @@ export function DownloadButton({
   if (record.state === 'failed' && record.error === `${NOT_AVAILABLE_HERE}.`) {
     return (
       <Control label={`Download ${item.title}`} hint={`${NOT_AVAILABLE_HERE}.`} disabled onPress={unavailable} compact={compact}>
-        <DownloadIcon size={size} color={colors.textFaint} />
+        <DownloadIcon size={size} color={compact ? colors.textFaint : colors.text} />
       </Control>
     );
   }
@@ -228,12 +228,17 @@ function Control({
 }
 
 const styles = StyleSheet.create({
+  // A title page's Download sits in the header across from Back (Tom,
+  // 2026-09-28), so it looks like the header's other buttons.
   button: {
     width: TOUCH_TARGET,
     height: TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   compact: {
     width: 34,
