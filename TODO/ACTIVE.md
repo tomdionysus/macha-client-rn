@@ -369,11 +369,22 @@ from the web's source once committed, not from these notes.
   play another." No sentence when no clause applies. Example: "Play chooses
   720p, which plays without converting. 1080p needs its audio converted,
   and 4K is more than this screen shows. Pick a quality to play another."
-- **Naming nodes:** core's `session.endpoint.name` ("corvus-fi-1", core
-  `7819d37`), falling back to the URL's hostname (no scheme, no port). **React
+- **Naming nodes:** core's `session.endpoint.name`, from server 0.70.0 the
+  operator's name ("Corvus FI-1", core `fb96757`; `7819d37` had the cluster
+  name "corvus-fi-1"), falling back to the URL's hostname (no scheme, no
+  port). **React
   Native's `URL` returns `''` for a hostname it cannot read rather than
   throwing** (the TV found it; check this tree's `URL.js`), so treat `''` as
   unread and show the address as it is. Web `e4eae8f`, TV `1c872c5`.
+- **Avoid a transcode no node keeps up with** (server 0.70.0, core
+  `fb96757`). Pass `{ transcodeRate: (source) => resolver.transcodeRate(source) }`
+  to `playbackVersions` and automatic play skips a file no node transcodes
+  at real speed, with `passedOver.reasons` including
+  `'transcode-below-real-time'` (the quality sentence above words it). The
+  phone calls `playbackVersions` in four places, all to change together:
+  `PlayActions.tsx:67`, `quality.ts:140` and `:160`, and
+  `PlaybackProvider.tsx:1788`. Checked 2026-09-28: the link at `fb96757`
+  typechecks and passes 359 tests unchanged.
 
 ---
 
