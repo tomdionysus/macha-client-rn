@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlayback, type RepeatMode } from '../providers/PlaybackProvider';
@@ -21,6 +21,7 @@ import { albumLabel, trackNumberLabel } from './labels';
 import { MediaLines } from './MediaProfile';
 import { QueueSheet } from './QueueSheet';
 import { SeekBar } from './SeekBar';
+import { Spinner } from './Status';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
 const NEXT_REPEAT: Record<RepeatMode, RepeatMode> = { off: 'all', all: 'one', one: 'off' };
@@ -171,7 +172,7 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
           onPress={toggle}
           style={styles.playButton}>
           {buffering && !playing ? (
-            <ActivityIndicator color={colors.text} />
+            <Spinner />
           ) : playing ? (
             <PauseIcon size={30} color={colors.text} />
           ) : (

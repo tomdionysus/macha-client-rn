@@ -1,13 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import type { CatalogueMediaProfile } from '@machafoundation/core';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
 import { useAsync } from '../hooks/useAsync';
 import { downloadChoices } from '../downloads/choice';
 import { wrapBetweenFields } from './mediaLines';
 import { Sheet, SheetOption } from './Sheet';
-import { Loading } from './Status';
+import { Loading, Spinner } from './Status';
 import { downloadStateOf, useDownloads } from '../hooks/useDownloads';
 import type { MediaSummary } from '../types';
 import { AlertIcon, CloseIcon, DownloadIcon, DownloadedIcon } from './Icons';
@@ -94,7 +94,7 @@ export function DownloadButton({ item, compact = false }: { item: MediaSummary; 
       {record.state === 'downloading' ? (
         <View style={styles.progress}>
           {percent === undefined ? (
-            <ActivityIndicator size="small" color={colors.progress} />
+            <Spinner />
           ) : (
             <Text style={styles.percent}>{percent}</Text>
           )}

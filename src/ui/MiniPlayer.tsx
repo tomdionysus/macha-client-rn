@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Artwork } from './Artwork';
 import { CloseIcon, PauseIcon, PlayIcon } from './Icons';
 import { MINI_PLAYER_HEIGHT } from './chrome';
+import { Spinner } from './Status';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
 /**
@@ -49,7 +50,7 @@ export function MiniPlayer() {
         onPress={toggle}
         style={styles.control}>
         {buffering && !playing ? (
-          <ActivityIndicator color={colors.text} />
+          <Spinner />
         ) : playing ? (
           <PauseIcon size={22} color={colors.text} />
         ) : (

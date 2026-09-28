@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Spinner } from './Status';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
 interface ButtonProps {
@@ -28,7 +29,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, bu
         pressed && buttonStyles.pressed,
         style,
       ]}>
-      {busy ? <ActivityIndicator color={colors.text} size="small" /> : icon}
+      {busy ? <Spinner /> : icon}
       <Text style={[buttonStyles.label, variant === 'quiet' && buttonStyles.quietLabel]}>{label}</Text>
     </Pressable>
   );

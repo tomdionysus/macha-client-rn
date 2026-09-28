@@ -5,7 +5,6 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayback } from '../providers/PlaybackProvider';
+import { Spinner } from '../ui/Status';
 import { Artwork } from '../ui/Artwork';
 import {
   ChevronDownIcon,
@@ -215,7 +215,7 @@ export default function PlayerScreen() {
 
       {buffering && status !== 'failed' ? (
         <View style={styles.spinner} pointerEvents="none">
-          <ActivityIndicator size="large" color={colors.text} />
+          <Spinner size="large" />
         </View>
       ) : null}
 

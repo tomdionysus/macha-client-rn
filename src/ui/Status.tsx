@@ -10,6 +10,16 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
  */
 const LOADING_INDICATOR_DELAY_MS = 600;
 
+/**
+ * The one spinner (Tom, 2026-09-28: "There should be a standard spinner
+ * everywhere"). Always the progress colour; only the size follows the place:
+ * `large` for a screen or the player, `small` inside a button or a row.
+ * Nothing else in the app draws an `ActivityIndicator`.
+ */
+export function Spinner({ size = 'small' }: { size?: 'small' | 'large' }) {
+  return <ActivityIndicator size={size} color={colors.progress} />;
+}
+
 export function Loading({ label }: { label?: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -19,9 +29,9 @@ export function Loading({ label }: { label?: string }) {
   if (!visible) return <View style={styles.block} />;
   return (
     <View style={styles.block}>
-      {/* Large and in the progress colour: the small grey default read as a
-          blank screen on the A85 while 815 albums took ~6 s (2026-09-28). */}
-      <ActivityIndicator size="large" color={colors.progress} />
+      {/* Large: the small grey default read as a blank screen on the A85
+          while 815 albums took ~6 s (2026-09-28). */}
+      <Spinner size="large" />
       {label ? <Text style={styles.caption}>{label}</Text> : null}
     </View>
   );
