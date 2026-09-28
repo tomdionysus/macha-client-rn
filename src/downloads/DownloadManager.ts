@@ -57,6 +57,12 @@ export class DownloadManager {
   private running = false;
   private active: string | undefined;
   private cancelled = new Set<string>();
+  /**
+   * The transfer in flight, so a cancel can stop it. A flag alone was read
+   * only when the transfer finished: on the A85 (2026-09-28) a cancelled
+   * film kept arriving at 2.4 MB/s, all of it to be deleted at the end.
+   */
+  private transfer: { mediaId: string; task: FileSystem.DownloadResumable } | undefined;
   /** In-flight byte counts, held in memory rather than written to storage. */
   private readonly live = new Map<string, LiveProgress>();
   private lastNotifyAt = 0;
@@ -181,15 +187,22 @@ export class DownloadManager {
 
   cancel(mediaId: string): void {
     this.cancelled.add(mediaId);
+    this.stopTransfer(mediaId);
     const record = this.store.get(mediaId);
     if (record && record.state !== 'complete') this.store.remove(mediaId);
     this.notify();
+  }
+
+  private stopTransfer(mediaId: string): void {
+    if (this.transfer?.mediaId !== mediaId) return;
+    void this.transfer.task.cancelAsync().catch(() => undefined);
   }
 
   /** Removes the record and the bytes. The catalogue item is untouched. */
   async remove(mediaId: string): Promise<void> {
     const record = this.store.get(mediaId);
     this.cancelled.add(mediaId);
+    this.stopTransfer(mediaId);
     if (record?.localUri) await FileSystem.deleteAsync(record.localUri, { idempotent: true }).catch(() => undefined);
     if (record?.artworkUri) await FileSystem.deleteAsync(record.artworkUri, { idempotent: true }).catch(() => undefined);
     this.store.remove(mediaId);
@@ -233,6 +246,7 @@ export class DownloadManager {
     this.notifyThrottled(true);
 
     let session: PlaybackSession | undefined;
+    let fileUri: string | undefined;
     try {
       await FileSystem.makeDirectoryAsync(MEDIA_DIR, { intermediates: true }).catch(() => undefined);
 
@@ -260,7 +274,7 @@ export class DownloadManager {
         ? mediaId
         : fileToPlay(files, record.media.mediaIds, deviceCapabilities(), devicePlaybackOverrides());
       session = await this.playbackApi.create(record.media, instruction, 0, fileId ? { mediaId: fileId } : undefined);
-      const fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
+      fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
       // Built from the progress callbacks so the measurement covers the body
       // transfer only — the session POST and cluster walk above are not this
@@ -297,7 +311,9 @@ export class DownloadManager {
         },
       );
 
-      const result = await resumable.downloadAsync();
+      this.transfer = { mediaId, task: resumable };
+      // Cancelled while the session was being created: start nothing.
+      const result = this.cancelled.has(mediaId) ? undefined : await resumable.downloadAsync();
       if (this.cancelled.has(mediaId)) {
         this.cancelled.delete(mediaId);
         await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => undefined);
@@ -320,10 +336,12 @@ export class DownloadManager {
     } catch (error) {
       if (this.cancelled.has(mediaId)) {
         this.cancelled.delete(mediaId);
+        if (fileUri) await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => undefined);
         return;
       }
       this.store.patch(mediaId, { state: 'failed', error: downloadFailureMessage(error) });
     } finally {
+      if (this.transfer?.mediaId === mediaId) this.transfer = undefined;
       // The lease goes back immediately whether or not the bytes arrived — a
       // download must never hold a session slot it is no longer using.
       if (session) await this.playbackApi.stop(session).catch(() => undefined);
