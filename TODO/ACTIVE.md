@@ -15,77 +15,13 @@ Everything finished this week is in COMPLETED under 2026-09-24 to 2026-09-27.
 
 ## Start here
 
-### The first job: release 0.10.0 (Tom, 2026-09-27)
+### 0.10.0 is released (2026-09-27)
 
-**Tom's instruction for the new session: "first thing we'll do is the
-release."** It is this client's release onto core 0.20.0, which core is
-cutting now. The version number is **proposed as 0.10.0** (new features and a
-server-compatibility fix since 0.9.0; `versionCode` 1000). **Confirm the
-number with Tom before bumping.**
-
-**Preconditions, each checked, none assumed:**
-1. **Tom says go**, and has pushed `develop`: `git log --oneline
-   origin/develop..develop` must be empty (43 commits at the
-   rationalisation). **This session never pushes**:
-   hand Tom the exact `git push` command and wait (memory *never-push*).
-2. **Core 0.20.0 is actually on npm:** `npm view @machafoundation/core version
-   time --json`. At the rationalisation it was **not** (newest `0.19.0`).
-   Three core versions were once tagged and never published, and one publish
-   was announced complete after failing `EOTP`. Core's candidate was `29fa878`
-   (code) with dist `e2adced47327`; core tells this session when 0.20.0 is
-   published.
-3. **`develop` is green against the link first:** `git -C ../macha-ts log
-   --oneline -1`, `(cd ../macha-ts && npm run -s dist:hash)`, `npx tsc
-   --noEmit -p . >/dev/null; echo $?` (the exit code, never a grep), `npx
-   vitest run`. **337 tests** at the rationalisation.
-
-**The steps**, the procedure below (*Releasing*) made concrete for 0.10.0.
-Use the 0.9.0 route: release commit on `develop`, then `main` fast-forwarded
-to it. `git log develop..main` is empty, so the fast-forward is clean.
-1. On `develop`: `npm install @machafoundation/core@^0.20.0` (the ranged
-   install; a `package.json` edit plus plain `npm install` keeps the link).
-   Then `test -L node_modules/@machafoundation/core` must **fail**, and the
-   lockfile's `resolved` for it must be a registry URL.
-2. Bump `package.json` and `app.json` to `0.10.0`, `android.versionCode` to
-   `1000`, and the README's `*v0.9.0*` line to `*v0.10.0*`, **all in the
-   release commit**. `npm install` to sync the lockfile's own version.
-3. `npx expo prebuild --platform android`; `npm run version:check`; typecheck;
-   tests; a real `npx expo export --platform android` (it must produce an
-   `.hbc`).
-4. Commit, with a message naming what 0.10.0 carries (list below).
-   `git checkout main && git merge --ff-only develop`, then `git tag -a 0.10.0`
-   (annotated, bare semver). `npm run version:check` with the tag in place.
-5. **Fresh-clone proof:** clone the tag into `$CLAUDE_JOB_DIR/tmp` with no
-   `../macha-ts` beside it, `npm ci`, typecheck, tests.
-6. `cd android && ./gradlew assembleRelease` from `main` (registry core).
-   Install on the A85 gated on `ro.serialno` **and** `ro.product.model` in
-   the same invocation, and confirm `dumpsys package foundation.macha.client`
-   reports **`versionCode=1000`**. A short look: sign-in survives, a title's
-   page shows its lines and buttons, *2010* plays.
-7. Back on `develop`: `package.json` to `file:../macha-ts`, plain `npm
-   install`, `test -L` must **succeed**, suite green, commit.
-   `version:check` refuses the link while `HEAD` is the tagged commit, by
-   design.
-8. **Hand Tom the push:** `git push origin develop main 0.10.0`.
-9. Record it in COMPLETED (what shipped, the lockfile integrity hash of core
-   0.20.0, the fresh-clone result, the A85 install), and tell core.
-
-**What 0.10.0 carries since 0.9.0** (all on `develop`; details in COMPLETED
-2026-09-24 to 2026-09-27):
-- **It plays against server 0.58.0 and later**, which 0.9.0 cannot: every
-  create names its file and streams, and every PATCH goes through core's
-  `preparePlaybackPatch`.
-- **Per-quality Play buttons** beside Play, the same list in the Playback
-  sheet, Wi-Fi and mobile-data ceilings, and "Offer everything" in Settings.
-- **The device's own limits:** its decoders' largest frame (AV1 held to its
-  own), and automatic play capped at the measured screen.
-- **Media lines** under each title from core's `technicalSummary`, the same
-  as the web and the television, and the track line in the music player.
-- **Continue Watching resumes as you left it:** the same file, and the mode,
-  quality and tracks where the viewer chose them.
-- **Resume keeps its place** (no idle-player 0 overwrites it); the sign-in
-  token in the Keystore; the login-lapse notices; the music player's lines;
-  viewer text that says "this device", for tablets.
+`main` = `2a314ca`, tag `0.10.0`, on published core `^0.20.0`, pushed with
+`develop`. Installed on the A85 at `versionCode 1000` and given the short
+look on 2026-09-28: sign-in kept, a title's page right, *2010* plays. The
+record, with core's integrity hash and the fresh-clone proof, is in
+COMPLETED. The next release follows *Releasing* below.
 
 ### Resume here, after a `/clear`
 
@@ -93,8 +29,9 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
 2. `git status --short` shows only `.claude/settings.json`,
    `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
 3. `test -L node_modules/@machafoundation/core` succeeds on `develop`.
-4. Core moves several times a day: check its SHA and `dist:hash`, typecheck
-   and tests, as in precondition 3 above.
+4. Core moves several times a day: `git -C ../macha-ts log --oneline -1`,
+   `(cd ../macha-ts && npm run -s dist:hash)`, `npx tsc --noEmit -p .
+   >/dev/null; echo $?` (the exit code, never a grep), `npx vitest run`.
 5. `adb mdns services` for the A85, then *Driving the phone* before any tap.
 6. `ListAgents` for the peers. Act on a peer's news only after reading core's
    source or `dist`, never on the message alone. **Commit before messaging a
@@ -103,8 +40,8 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
 
 ### Where things stand
 
-- **`main` is `dc60ece`, tagged `0.9.0`**, pinning published core `^0.19.0`.
-  0.9.0 cannot start playback against server 0.58.0 or later, which is live.
+- **`main` is `2a314ca`, tagged `0.10.0`**, pinning published core `^0.20.0`.
+  It plays against server 0.58.0 and later; 0.9.0 cannot.
 - **`develop`** is well past `main` (`git log --oneline main..develop`), linked to `file:../macha-ts`,
   typecheck clean, **337 tests** against core `29fa878` (dist
   `e2adced47327`).
@@ -119,9 +56,9 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
   46 minutes are missing extents, and the server still lists them as
   playable. Its per-file readability work waits on Tom. Do not test against
   them expecting playback.
-- **The A85 has `aebbc44`** (installed 15:20Z 2026-09-27; core `e964514`),
-  labelled `versionCode 900`, so identify a dev build by `lastUpdateTime`.
-  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
+- **The A85 has the tagged 0.10.0** (`versionCode 1000`, installed
+  2026-09-27 22:46 local), built from `main` on registry core 0.20.0. Tom is
+  signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
   1920x1080, AV1 to 1280x720. It does not yet show core `29fa878`'s "(4K)" and
   channel count.
 - **Never run `npm run lint`**: `expo lint` installs ESLint into
@@ -131,9 +68,8 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
 
 ### Open, in order
 
-1. **The release** (above).
-2. **The reaped-session proof**, the 31-minute pause (P1 below).
-3. **What the device runs have not reached**, each needing Tom or a second
+1. **The reaped-session proof**, the 31-minute pause (P1 below).
+2. **What the device runs have not reached**, each needing Tom or a second
    viewer: failover mid-play and the container restatement (a node taken
    down, only on Tom's word); a switch back into transcode refused
    `resource_limit` (a second viewer holding the slot); the mobile-data
@@ -141,19 +77,22 @@ to it. `git log develop..main` is empty, so the fast-forward is clean.
    wrong-password wording (a logout, and Tom's password); the camera and a
    pasted node list (the Galaxy, by hand); the login-lapse notices (a session
    near expiry). AV1 at 720p or below playing Direct needs such a file.
-4. **Decisions for Tom, from the A85 runs:**
-   - **Direct is offered on a file whose audio the device cannot decode**
-     (*2010*, AC-3 on the A85): the sheet judges video and container only, so
-     Direct would play silently.
-   - **A music track appears in Continue Watching** beside films.
-   - **The Albums tab is blank for about 3 s** while it loads, with no
-     indicator.
-   - **The mobile-data default is core's 720p**, not a ruling.
-   - **The secure store's backup side effect:** AsyncStorage (Continue
+3. **Decisions for Tom, from the A85 runs.** Ruled 2026-09-28:
+   - **Direct on a file whose audio the device cannot decode** (*2010*,
+     AC-3 on the A85) **stays offered.** Tom: leave as is. Do not re-raise.
+   - **Continue Watching is films and episodes only**; a music track does
+     not belong there. To build.
+   - **The Albums tab gets a loading indicator** for its ~3 s blank load. To
+     build.
+   - Still open: **the mobile-data default is core's 720p**, not a ruling;
+     and **the secure store's backup side effect:** AsyncStorage (Continue
      Watching, the queue, playlists) leaves Android Auto Backup with the
      token.
-5. **Downloads naming a version**: they still take `fileToPlay`'s file.
-6. **The media3 segment-500 contradiction** (P1 below), and the P2s.
+4. **Downloads naming a version**: they still take `fileToPlay`'s file.
+   **Tom, 2026-09-28: Download opens a chooser** on a multi-file title,
+   listing each file (a download is always a copy of one file, never a
+   transcode). A single-file title downloads as today.
+5. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
 ---
 
