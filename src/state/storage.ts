@@ -57,12 +57,25 @@ class ClientStore {
 
   async hydrate(): Promise<void> {
     if (this.hydrated) return;
+    let keys: string[] = [];
     try {
-      const keys = (await AsyncStorage.getAllKeys()).filter(owned);
+      keys = (await AsyncStorage.getAllKeys()).filter(owned);
       const entries = await AsyncStorage.multiGet(keys);
       for (const [key, value] of entries) if (value !== null) this.cache.set(key, value);
     } catch {
-      // A device with unreadable storage still gets a working, forgetful app.
+      // One row Android cannot read (over its ~2 MB CursorWindow) fails the
+      // whole `multiGet`. Swallowing that once started the A85 with nothing
+      // (2026-09-28): the Connect screen, and a new client id minted over the
+      // real one, orphaning every per-client store. So read key by key and
+      // lose only what cannot be read, and say which.
+      for (const key of keys) {
+        try {
+          const value = await AsyncStorage.getItem(key);
+          if (value !== null) this.cache.set(key, value);
+        } catch (error) {
+          console.warn('[macha] [storage] unreadable-key', { key, error: String(error) });
+        }
+      }
     }
     this.hydrated = true;
   }
