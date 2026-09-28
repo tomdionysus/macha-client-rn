@@ -1,13 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import type { CatalogueMediaProfile } from '@machafoundation/core';
+import type { PlaybackMediaFacts } from '@machafoundation/core';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
-import { useAsync } from '../hooks/useAsync';
-import { downloadChoices } from '../downloads/choice';
+import { NOT_AVAILABLE_HERE, downloadChoices, playableHere } from '../downloads/choice';
+import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { wrapBetweenFields } from './mediaLines';
 import { Sheet, SheetOption } from './Sheet';
-import { Loading, Spinner } from './Status';
+import { Spinner } from './Status';
 import { downloadStateOf, useDownloads } from '../hooks/useDownloads';
 import type { MediaSummary } from '../types';
 import { AlertIcon, CloseIcon, DownloadIcon, DownloadedIcon } from './Icons';
@@ -22,10 +22,24 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
  * stored item asks before deleting, because the bytes are the point.
  *
  * A title with more than one file opens a chooser first (Tom, 2026-09-28):
- * a download is a copy of one file, so the viewer names which.
+ * a download is a copy of one file, so the viewer names which. A title none
+ * of whose files this device can play off the disk cannot be downloaded: the
+ * button is grey, and tapping it says "Not available for this device".
+ *
+ * `files` are the title's playback facts where the screen already has them
+ * (the title page), so the verdict shows before a tap. Without them (a row
+ * in a list) the facts are fetched on the tap, rather than once per row.
  */
-export function DownloadButton({ item, compact = false }: { item: MediaSummary; compact?: boolean }) {
-  const { downloadManager } = useMacha();
+export function DownloadButton({
+  item,
+  compact = false,
+  files: known,
+}: {
+  item: MediaSummary;
+  compact?: boolean;
+  files?: readonly PlaybackMediaFacts[];
+}) {
+  const { downloadManager, playback } = useMacha();
   const snapshot = useDownloads();
   const toast = useToast();
   const router = useRouter();
@@ -36,7 +50,10 @@ export function DownloadButton({ item, compact = false }: { item: MediaSummary; 
   // that is a very small movement to notice, and the transfer itself happens
   // somewhere the viewer is not looking.
   const [choosing, setChoosing] = useState(false);
-  const files = item.mediaIds.filter((mediaId) => mediaId.startsWith('macha:'));
+  const [fetched, setFetched] = useState<readonly PlaybackMediaFacts[] | undefined>(undefined);
+  const [checking, setChecking] = useState(false);
+  const facts = known ?? fetched;
+  const available = facts ? anyPlayableHere(facts) : undefined;
   const enqueue = useCallback((mediaId?: string) => {
     setChoosing(false);
     downloadManager.enqueue([item], mediaId ? { mediaId } : {});
@@ -47,19 +64,43 @@ export function DownloadButton({ item, compact = false }: { item: MediaSummary; 
     });
   }, [downloadManager, item, router, toast]);
 
+  const unavailable = useCallback(
+    () => toast({ icon: <DownloadIcon size={16} color={colors.textFaint} />, message: `${NOT_AVAILABLE_HERE}.` }),
+    [toast],
+  );
+
+  const start = useCallback(async () => {
+    let current = facts;
+    if (!current) {
+      setChecking(true);
+      current = await playback.facts({ itemId: item.id }).catch(() => undefined);
+      setChecking(false);
+      if (current) setFetched(current);
+    }
+    // Without facts (the node cannot be asked) this is the download as it
+    // was: the manager checks again before it fetches anything.
+    if (current && !anyPlayableHere(current)) unavailable();
+    else if (current && current.length > 1) setChoosing(true);
+    else enqueue();
+  }, [enqueue, facts, item.id, playback, unavailable]);
+
   if (!item.mediaIds.length) return null;
 
   if (!record) {
-    return (
-      <>
-        <Control
-          label={`Download ${item.title}`}
-          onPress={() => (files.length > 1 ? setChoosing(true) : enqueue())}
-          compact={compact}>
+    if (available === false) {
+      return (
+        <Control label={`Download ${item.title}`} hint={`${NOT_AVAILABLE_HERE}.`} disabled onPress={unavailable} compact={compact}>
           <DownloadIcon size={size} color={colors.textFaint} />
         </Control>
-        {files.length > 1 ? (
-          <DownloadChooser visible={choosing} mediaIds={files} onPick={enqueue} onClose={() => setChoosing(false)} />
+      );
+    }
+    return (
+      <>
+        <Control label={`Download ${item.title}`} onPress={() => void start()} compact={compact}>
+          {checking ? <Spinner /> : <DownloadIcon size={size} color={colors.textFaint} />}
+        </Control>
+        {facts && facts.length > 1 ? (
+          <DownloadChooser visible={choosing} files={facts} onPick={enqueue} onClose={() => setChoosing(false)} />
         ) : null}
       </>
     );
@@ -72,6 +113,15 @@ export function DownloadButton({ item, compact = false }: { item: MediaSummary; 
         onPress={() => void downloadManager.remove(record.mediaId)}
         compact={compact}>
         <DownloadedIcon size={size} color={colors.ok} />
+      </Control>
+    );
+  }
+
+  // Refused by the manager, not failed: retrying cannot help.
+  if (record.state === 'failed' && record.error === `${NOT_AVAILABLE_HERE}.`) {
+    return (
+      <Control label={`Download ${item.title}`} hint={`${NOT_AVAILABLE_HERE}.`} disabled onPress={unavailable} compact={compact}>
+        <DownloadIcon size={size} color={colors.textFaint} />
       </Control>
     );
   }
@@ -106,56 +156,55 @@ export function DownloadButton({ item, compact = false }: { item: MediaSummary; 
   );
 }
 
-/** The title's files, one row each; picking one downloads it. */
+function anyPlayableHere(files: readonly PlaybackMediaFacts[]): boolean {
+  const capabilities = deviceCapabilities();
+  const overrides = devicePlaybackOverrides();
+  return files.some((file) => playableHere(file, capabilities, overrides));
+}
+
+/**
+ * The title's files, one row each; picking one downloads it. A file this
+ * device cannot play off the disk is listed, greyed, and says so.
+ */
 function DownloadChooser({
   visible,
-  mediaIds,
+  files,
   onPick,
   onClose,
 }: {
   visible: boolean;
-  mediaIds: readonly string[];
+  files: readonly PlaybackMediaFacts[];
   onPick(mediaId?: string): void;
   onClose(): void;
 }) {
-  const { media, generation } = useMacha();
-  const profiles = useAsync<CatalogueMediaProfile[] | undefined>(
-    async (signal) =>
-      visible
-        ? (await Promise.all(mediaIds.map((mediaId) => media.mediaProfile(mediaId, signal).catch(() => undefined)))).filter(
-            (profile): profile is CatalogueMediaProfile => profile !== undefined,
-          )
-        : undefined,
-    [media, generation, visible, mediaIds.join(' ')],
-  );
-  const choices = profiles.value ? downloadChoices(profiles.value) : [];
+  const choices = downloadChoices(files, deviceCapabilities(), devicePlaybackOverrides());
   return (
     <Sheet visible={visible} title="Download which file?" onClose={onClose}>
-      {profiles.loading ? <Loading /> : null}
       {choices.map((choice) => (
         <SheetOption
           key={choice.mediaId}
           label={choice.label}
           detail={wrapBetweenFields(choice.detail)}
+          disabled={!choice.available}
           onPress={() => onPick(choice.mediaId)}
         />
       ))}
-      {!profiles.loading && choices.length === 0 ? (
-        // The profiles would not load: still let the viewer download, and let
-        // the file be chosen as playback would.
-        <SheetOption label="Download" detail="This title's files could not be described." onPress={() => onPick()} />
-      ) : null}
     </Sheet>
   );
 }
 
 function Control({
   label,
+  hint,
+  disabled = false,
   onPress,
   compact,
   children,
 }: {
   label: string;
+  hint?: string;
+  /** Greyed, but still pressable: a tap on it says why (phones have no hover). */
+  disabled?: boolean;
   onPress(): void;
   compact: boolean;
   children: React.ReactNode;
@@ -164,10 +213,13 @@ function Control({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ disabled }}
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [
         compact ? styles.compact : styles.button,
+        disabled && styles.disabled,
         pressed && styles.pressed,
       ]}>
       {children}
@@ -191,6 +243,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
+  },
+  disabled: {
+    opacity: 0.35,
   },
   progress: {
     minWidth: 26,

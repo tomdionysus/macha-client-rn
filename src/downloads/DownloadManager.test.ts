@@ -70,3 +70,29 @@ describe('DownloadManager.cancel', () => {
     await vi.waitFor(() => expect(api.stop).toHaveBeenCalled());
   });
 });
+
+describe('DownloadManager, a file this device cannot play', () => {
+  // Tom, 2026-09-28: a file that cannot be played locally cannot be
+  // downloaded. An album's Download queues every track without asking, so
+  // the manager refuses too, before any session or byte.
+  it('fails it as not available here, with no session and no transfer', async () => {
+    const api = playbackApi();
+    const dts = { index: 1, type: 'audio' as const, codec: 'dts', profile: '', language: 'eng', default: true, forced: false };
+    const h264 = { index: 0, type: 'video' as const, codec: 'h264', profile: 'High', language: 'eng', default: true, forced: false, width: 1280, height: 720 };
+    api.facts.mockResolvedValue([
+      {
+        mediaId: 'macha:dts',
+        profile: { mediaId: 'macha:dts', format: 'mp4', container: 'mp4', durationMs: 60_000, bitrate: 1_000_000, streams: [h264, dts] },
+        operations: { direct: true },
+      },
+    ] as never);
+    const store = new DownloadStore('test-unplayable');
+    const manager = new DownloadManager(store, api as never, {} as never);
+    manager.enqueue([{ ...film, id: 'tmdb:movie:2', mediaIds: ['macha:dts'] } as MediaSummary]);
+
+    await vi.waitFor(() => expect(store.get('macha:dts')?.state).toBe('failed'));
+    expect(store.get('macha:dts')?.error).toBe('Not available for this device.');
+    expect(api.create).not.toHaveBeenCalled();
+  });
+});
+

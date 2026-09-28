@@ -5,7 +5,7 @@ import type { MediaApi } from '../api/media';
 import type { EndpointRegistry, PlaybackInstruction } from '@machafoundation/core';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { fileToPlay } from '../playback/policy';
-import { downloadTarget } from './choice';
+import { NOT_AVAILABLE_HERE, downloadTarget, playableHere } from './choice';
 import { type TransferObservation, throughputSample } from './throughputSample';
 import type { DownloadRecord, DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
@@ -266,13 +266,19 @@ export class DownloadManager {
       // on a multi-file item. The one the viewer chose, where they did;
       // otherwise the one playback would pick: under Direct, a file this
       // device plays as it is, where there is one.
-      const files =
-        !record.fileChosen && record.media.mediaIds.length > 1
-          ? await this.playbackApi.facts({ itemId: record.media.id }).catch(() => undefined)
-          : undefined;
-      const fileId = record.fileChosen
-        ? mediaId
-        : fileToPlay(files, record.media.mediaIds, deviceCapabilities(), devicePlaybackOverrides());
+      const files = await this.playbackApi.facts({ itemId: record.media.id }).catch(() => undefined);
+      const capabilities = deviceCapabilities();
+      const overrides = devicePlaybackOverrides();
+      const fileId = record.fileChosen ? mediaId : fileToPlay(files, record.media.mediaIds, capabilities, overrides);
+      // A copy always plays off the disk as it is, so a file this device
+      // cannot play is not downloaded at all (Tom, 2026-09-28). The button
+      // says so before a tap; this catches what arrives without one, like an
+      // album's Download. Without facts the download goes ahead, as before.
+      const named = files?.find((file) => file.mediaId === (fileId ?? record.media.mediaIds[0]));
+      if (named && !playableHere(named, capabilities, overrides)) {
+        this.store.patch(mediaId, { state: 'failed', error: `${NOT_AVAILABLE_HERE}.` });
+        return;
+      }
       session = await this.playbackApi.create(record.media, instruction, 0, fileId ? { mediaId: fileId } : undefined);
       fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
