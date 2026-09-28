@@ -8,6 +8,43 @@ Newest first.
 
 ---
 
+## 2026-09-28 — Film downloads with a chooser, a cancel that stops, music out of Continue Watching, a spinner you can see
+
+On `develop`, from Tom's rulings of 2026-09-28 (ACTIVE, *Decisions for
+Tom*). Checked on the A85 on a release build of `develop` at `69d8841`
+(core `c5292df`, dist `f7fd989fe6e8`, installed 18:04:12 local, still
+labelled `versionCode 1000`).
+
+- **Film and episode downloads** (`a669e5a`). Until now nothing downloaded
+  a film or an episode: downloads were music only, since the first commit.
+  Download is now on the film and episode pages and on each episode row. On
+  *The Martian* (three files) it opened "Download which file?" with 4K
+  (about 50.1 GB), 1080p (about 3.3 GB) and 720p (about 1.3 GB), each with
+  core's media line. Picking 720p created a session naming
+  `macha:866a2fbd…`, the 720p file. *2010*, now a single file, skipped the
+  chooser and downloaded at once, as designed.
+- **Cancel stops the transfer** (`c8f03c7`). Found on the first try: a
+  cancelled *2010* (about 6 GB) kept arriving at **2.4 MB/s**, because
+  `cancel()` only set a flag the transfer read when it finished. Stopped
+  that time by `am force-stop`, which **leaves a partial file of a few
+  hundred MB in the app's documents** that nothing will delete (nothing
+  sweeps orphans; a release build cannot be listed). The fix holds the
+  transfer and calls `cancelAsync()`; its test fails without it. **On the
+  A85:** 720p *Martian* at 1063 KB/s, cancel, **0 KB/s** within 2 s, and
+  `session-stopped` for the download session.
+- **Music out of Continue Watching** (`bb4ce14`). A track played past a 5 s
+  checkpoint; Home's Continue Watching still shows only *2010* and
+  *Serenity*.
+- **The Albums "blank" was a spinner nobody could see** (`69d8841`). Timed
+  by screenshots: 815 albums appear about 6.7 s after the tab is tapped,
+  artwork by 8.7 s. Throughout, the shared `Loading` showed a small
+  `textDim` spinner at (370, 420). It is now large and in
+  `colors.progress`, and plainly visible on the A85. The ~6 s load itself
+  is not looked into.
+
+**Not done:** the orphan sweep; downloading a film to completion and
+playing it off the disk; the chooser on an episode row.
+
 ## 2026-09-28 — The reaped session regenerates on its own node: proven on the A85
 
 **The 31-minute run, on the tagged 0.10.0** (`2a314ca`, registry core

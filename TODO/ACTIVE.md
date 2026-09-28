@@ -56,9 +56,10 @@ COMPLETED. The next release follows *Releasing* below.
   46 minutes are missing extents, and the server still lists them as
   playable. Its per-file readability work waits on Tom. Do not test against
   them expecting playback.
-- **The A85 has the tagged 0.10.0** (`versionCode 1000`, installed
-  2026-09-27 22:46 local), built from `main` on registry core 0.20.0. Tom is
-  signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
+- **The A85 has a release build of `develop` at `69d8841`** (core
+  `c5292df`, dist `f7fd989fe6e8`), installed 2026-09-28 18:04:12 local. It is
+  labelled `versionCode 1000` like the tagged 0.10.0, so tell them apart by
+  `lastUpdateTime`. Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
   1920x1080, AV1 to 1280x720. It does not yet show core `29fa878`'s "(4K)" and
   channel count.
 - **Never run `npm run lint`**: `expo lint` installs ESLint into
@@ -83,28 +84,26 @@ COMPLETED. The next release follows *Releasing* below.
    - **Direct on a file whose audio the device cannot decode** (*2010*,
      AC-3 on the A85) **stays offered.** Tom: leave as is. Do not re-raise.
    - **Continue Watching is films and episodes only**; a music track does
-     not belong there. **Built `bb4ce14`**: no track progress is written,
-     and Home drops a stored one. Not yet on the A85.
-   - **The Albums tab gets a loading indicator** for its ~3 s blank load.
-     **Not built: the code already shows one.** `useAsync` clears the value
-     and sets `loading` on a tab change, and the screen renders `<Loading />`
-     for `loading && !value`. So the blank is something else (a slow render
-     of the grid, or artwork), and it has to be watched on the A85 before
-     anything is changed.
+     not belong there. **Done `bb4ce14`**, checked on the A85 (COMPLETED).
+   - **The Albums tab's indicator:** it had one nobody could see. **Done
+     `69d8841`**, large and red now; checked on the A85 (COMPLETED).
    - Still open: **the mobile-data default is core's 720p**, not a ruling;
      and **the secure store's backup side effect:** AsyncStorage (Continue
      Watching, the queue, playlists) leaves Android Auto Backup with the
      token.
-3. **Downloads naming a version**: they still take `fileToPlay`'s file.
+3. **Downloads naming a version.**
    **Tom, 2026-09-28: Download opens a chooser** on a multi-file title,
    listing each file (a download is always a copy of one file, never a
-   transcode). **Nothing had ever downloaded a film or an episode** (music
-   only since the first commit); Tom: add them. **Built `a669e5a`**: Download
-   on the film and episode pages and on episode rows; the chooser lists each
-   file by core's quality label, media line and an estimated size. Not yet
-   on the A85. **Open for Tom:** the chooser offers files this device cannot
-   decode (4K ten-bit HEVC on the A85), and a download always plays off the
-   disk, so such a copy would not play. Mark them, hide them, or leave it?
+   transcode). **Done** (`a669e5a`, and cancel stops the transfer
+   `c8f03c7`), checked on the A85 (COMPLETED 2026-09-28). **Still open:**
+   - **For Tom:** the chooser offers files this device cannot decode (4K
+     ten-bit HEVC on the A85, 50 GB), and a download always plays off the
+     disk. Mark them, hide them, or leave it?
+   - **Orphaned partial files** are never deleted: a download killed with
+     the app (a force-stop, a crash) leaves its bytes in
+     `documentDirectory/macha/media/`. One is on the A85 now, a few hundred
+     MB. A startup sweep of files no record names would clear it.
+   - Not yet run: a film downloaded to completion and played off the disk.
 4. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
 ---
