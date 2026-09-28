@@ -244,6 +244,11 @@ pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
 Deploy with `adb -s <device> install -r android/app/build/outputs/apk/release/app-release.apk`
 after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **Do not skip prebuild after a version bump.** Every command needs `-s`.
+**After a core change, force the JS bundle:** `./gradlew
+:app:createBundleReleaseJsAndAssets --rerun` before `assembleRelease`.
+Through the `file:` link Gradle sees no input change and reuses the old
+bundle (2026-09-28: an APK kept its old timestamp). Check the APK's time,
+and `strings` the bundle for a string only the new core has.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
   Has **`aebbc44`** since 2026-09-27 15:20Z (*Where things stand*). The
