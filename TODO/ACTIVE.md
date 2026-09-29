@@ -15,13 +15,12 @@ Everything finished this week is in COMPLETED under 2026-09-24 to 2026-09-27.
 
 ## Start here
 
-### 0.10.0 is released (2026-09-27)
+### 0.11.0 is released (2026-09-29)
 
-`main` = `2a314ca`, tag `0.10.0`, on published core `^0.20.0`, pushed with
-`develop`. Installed on the A85 at `versionCode 1000` and given the short
-look on 2026-09-28: sign-in kept, a title's page right, *2010* plays. The
-record, with core's integrity hash and the fresh-clone proof, is in
-COMPLETED. The next release follows *Releasing* below.
+`main` = `663f094`, tag `0.11.0`, on published core `^0.20.0` (still npm's
+latest). Installed on the A85 at `versionCode 1100`, not yet looked at on
+screen. The record is in COMPLETED. The next release follows *Releasing*
+below, and after a core change forces the JS bundle (*Devices*).
 
 ### Resume here, after a `/clear`
 
@@ -40,8 +39,7 @@ COMPLETED. The next release follows *Releasing* below.
 
 ### Where things stand
 
-- **`main` is `2a314ca`, tagged `0.10.0`**, pinning published core `^0.20.0`.
-  It plays against server 0.58.0 and later; 0.9.0 cannot.
+- **`main` is `663f094`, tagged `0.11.0`**, pinning published core `^0.20.0`.
 - **`develop`** is well past `main` (`git log --oneline main..develop`), linked to `file:../macha-ts`,
   typecheck clean, **337 tests** against core `29fa878` (dist
   `e2adced47327`).
@@ -56,10 +54,9 @@ COMPLETED. The next release follows *Releasing* below.
   46 minutes are missing extents, and the server still lists them as
   playable. Its per-file readability work waits on Tom. Do not test against
   them expecting playback.
-- **The A85 has a release build of `develop` at `69d8841`** (core
-  `c5292df`, dist `f7fd989fe6e8`), installed 2026-09-28 18:04:12 local. It is
-  labelled `versionCode 1000` like the tagged 0.10.0, so tell them apart by
-  `lastUpdateTime`. Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
+- **The A85 has the tagged 0.11.0** (`versionCode 1100`, installed
+  2026-09-29 11:21:35 local), built from `main` on registry core 0.20.0.
+  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
   1920x1080, AV1 to 1280x720. It does not yet show core `29fa878`'s "(4K)" and
   channel count.
 - **Never run `npm run lint`**: `expo lint` installs ESLint into

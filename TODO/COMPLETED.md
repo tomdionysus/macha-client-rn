@@ -8,6 +8,38 @@ Newest first.
 
 ---
 
+## 2026-09-29 — 0.11.0 released, on core 0.20.0
+
+`main` = `663f094`, tag `0.11.0` (annotated). Tom: "Deploy please". Core
+0.20.0 is still npm's latest; core's develop is well past it and
+unpublished, and nothing built here needs the newer core yet.
+
+- `npm install @machafoundation/core@^0.20.0` on `develop`: not a link,
+  lockfile `resolved`
+  `https://registry.npmjs.org/@machafoundation/core/-/core-0.20.0.tgz`,
+  integrity
+  `sha512-ZyYbjniKY5YXOce1psltt43Ox7fpqewS8Eo/2m6+oWiRFtf3nigJvq1UoYUwPIbwDdCywcrsIm8/YC9kh0ujBg==`.
+- Version 0.11.0 / `versionCode 1100` in `package.json`, `app.json` and the
+  README, in the release commit; prebuild wrote them to `build.gradle`.
+  `version:check` consistent before and after tagging. Typecheck exit 0,
+  359 tests, `expo export --platform android` produced an `.hbc`, all
+  against the registry copy.
+- **Fresh clone** of the tag with no `../macha-ts`: `npm ci`, not a link,
+  typecheck clean, 359 tests.
+- **A85:** `assembleRelease` from `main` with the bundle forced
+  (`createBundleReleaseJsAndAssets --rerun`); the bundle holds no
+  `start_no_progress`, a string only unpublished core has, so it carries
+  npm's 0.20.0. Installed gated on serial and model: `versionCode=1100`,
+  `versionName=0.11.0`, 11:21:35 local. **Not looked at on screen:** Tom
+  was using another app.
+- Back on `develop` (`a6946fb`): `file:../macha-ts`, link confirmed,
+  typecheck clean, 359 tests, `version:check` consistent.
+
+What it carries is in the release commit: film and episode downloads with
+the chooser and the "Not available for this device" rule, cancel that
+stops a transfer, the storage fixes and client-id recovery, Continue
+Watching without music, one spinner, and the title page rearranged.
+
 ## 2026-09-28 evening — One unreadable row emptied the store; recovered. Downloads greyed where they cannot play
 
 On the A85, release builds of `develop`, the last `a089da9` at 20:01:30
