@@ -8,6 +8,33 @@ Newest first.
 
 ---
 
+## 2026-09-29 — 0.12.0 released, on core 0.21.0
+
+`main` = `6c293ad`, tag `0.12.0` (annotated), pushed with `develop`. Tom:
+"0.12.0, and push". Core 0.21.0 confirmed on npm with our own `npm view`:
+`latest` 0.21.0, gitHead `5569ddd`, the build this client said GO on (link
+at `a25a37e`, dist `f1e168298660`). Core's message had asked for main
+without a version number; this repo's rule (a release is a tagged,
+version-bumped commit) was followed instead, with the number from Tom.
+
+- `npm install @machafoundation/core@^0.21.0`: not a link, lockfile
+  `resolved` the registry tarball, integrity
+  `sha512-3N5ZVAAeKU9HfIwrAcbsnfi3VEUOuXHfQSeyltDHRv/NQOeEbb3ev54MDuzp651EvE7nHj8P9WaizZGfNkit7Q==`,
+  matching npm's.
+- 0.12.0 / `versionCode 1200` in the release commit. `version:check`
+  consistent before and after tagging; typecheck exit 0, 359 tests, `expo
+  export` produced an `.hbc`, against the registry copy. **Fresh clone** of
+  the tag: `npm ci`, not a link, typecheck clean, 359 tests.
+- The phone's own code is unchanged since 0.11.0; this is the core upgrade:
+  the play queue saved as a window of 200, async starts followed without
+  progress shown, and node names and `TOO_SLOW_TO_PLAY_CODE` available but
+  unused.
+- `assembleRelease` from `main`, bundle forced; the bundle holds
+  `start_no_progress`, so it carries 0.21.0. **Not installed: the A85 was
+  off ADB** (neither attached nor advertising over mDNS).
+- Back on `develop` (`a512e7b`): the link restored, core `ede402f`,
+  typecheck clean, 359 tests.
+
 ## 2026-09-29 — 0.11.0 released, on core 0.20.0
 
 `main` = `663f094`, tag `0.11.0` (annotated). Tom: "Deploy please". Core
