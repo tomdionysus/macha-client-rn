@@ -13,6 +13,7 @@ import {
 } from '@machafoundation/core';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/policy';
+import type { TranscodeRate } from '../playback/quality';
 import type { SessionLedger } from '../playback/sessionLedger';
 
 // The session model and its wire decoding are core's. This module was a second
@@ -190,6 +191,14 @@ export class ClusterPlaybackApi {
       signal,
     );
   }
+
+  /**
+   * The best rate any node has measured for transcoding this kind of picture
+   * (server 0.70.0), or undefined until a transcode of a minute or more has
+   * finished somewhere. Passed to `playbackVersions` so automatic play skips
+   * a file no node converts at real speed. An arrow, so it can be handed on.
+   */
+  readonly transcodeRate: NonNullable<TranscodeRate> = (source) => this.resolver.transcodeRate(source);
 
   stop(session: PlaybackSession): Promise<void> {
     return this.stopById(session.sessionId);

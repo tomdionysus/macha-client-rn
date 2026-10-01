@@ -1739,7 +1739,7 @@ async function chooseInstruction(
     // A quality the viewer picked: core's instruction for its file, never
     // capped by the ceiling and never re-ranked. Without facts it still
     // names its file and mode; there are just no streams to name.
-    const start = versionStart(version, files ?? [], media.mediaIds, capabilities, overrides, preferences);
+    const start = versionStart(version, files ?? [], media.mediaIds, capabilities, overrides, preferences, playbackApi.transcodeRate);
     return { ...start, ...(files ? { files } : { versions: undefined }) };
   }
 
@@ -1782,10 +1782,10 @@ async function chooseInstruction(
   const named = preferences?.mediaId !== undefined ? files?.filter((file) => file.mediaId === preferences.mediaId) : undefined;
   const candidates = named && named.length > 0 ? named : files;
   const chosen = candidates
-    ? automaticStart(candidates, media.mediaIds, capabilities, overrides, deviceQualityCeiling(), preferences)
+    ? automaticStart(candidates, media.mediaIds, capabilities, overrides, deviceQualityCeiling(), preferences, playbackApi.transcodeRate)
     : undefined;
   if (chosen && candidates !== files && files) {
-    chosen.versions = { ...chosen.versions, steps: playbackVersions(files, capabilities, { overrides, mediaIds: media.mediaIds, offerAll: offerAll() }).steps };
+    chosen.versions = { ...chosen.versions, steps: playbackVersions(files, capabilities, { overrides, mediaIds: media.mediaIds, offerAll: offerAll(), transcodeRate: playbackApi.transcodeRate }).steps };
   }
   if (chosen) {
     if (chosen.versions.limitedBy) {

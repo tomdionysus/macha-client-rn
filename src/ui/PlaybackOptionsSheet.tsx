@@ -4,9 +4,9 @@ import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
 import {
-  ceilingExplanation,
   offersVersions,
   playingStep,
+  qualityChoiceText,
   qualityLabel,
   qualityPreferences,
 } from '../playback/quality';
@@ -82,6 +82,7 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   // and two lists of heights would contradict each other. The node's list
   // stays for an item whose facts never arrived.
   const shownVersions = offersVersions(versions) ? versions : undefined;
+  const choiceText = shownVersions ? qualityChoiceText(shownVersions) : undefined;
   const playing = shownVersions ? playingStep(shownVersions.steps, session) : undefined;
 
   return (
@@ -130,9 +131,9 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
               onPress={() => pick(step)}
             />
           ))}
-          {shownVersions.limitedBy && !playing ? (
+          {choiceText && !playing ? (
             <Text style={{ ...typography.caption, color: colors.textFaint, marginBottom: space.md }}>
-              {ceilingExplanation(shownVersions.limitedBy)}
+              {choiceText}
             </Text>
           ) : null}
         </SheetSection>

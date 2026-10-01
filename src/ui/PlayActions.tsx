@@ -5,9 +5,9 @@ import { playbackVersions, type PlaybackMediaFacts, type VersionStep } from '@ma
 import { useAsync, type AsyncResult } from '../hooks/useAsync';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
-  ceilingExplanation,
   deviceQualityCeiling,
   offersVersions,
+  qualityChoiceText,
   qualityLabel,
   qualityPreferences,
 } from '../playback/quality';
@@ -55,7 +55,7 @@ export function useTitleFacts(item: MediaSummary | undefined): AsyncResult<Playb
 }
 
 export function PlayActions({ item, queue, facts }: Props) {
-  const { continueWatching } = useMacha();
+  const { continueWatching, playback } = useMacha();
   const { start, busy } = usePlayback();
   const router = useRouter();
 
@@ -68,10 +68,12 @@ export function PlayActions({ item, queue, facts }: Props) {
       overrides: devicePlaybackOverrides(),
       mediaIds: item.mediaIds,
       offerAll: everything,
+      transcodeRate: playback.transcodeRate,
       ...(ceiling ? { ceiling } : {}),
     });
-  }, [facts.value, item.mediaIds, everything]);
+  }, [facts.value, item.mediaIds, everything, playback]);
   const versions = offersVersions(all) ? all : undefined;
+  const choice = versions ? qualityChoiceText(versions) : undefined;
   // What the page was drawn from, once per answer: the item's own file list
   // against what the facts route returned. The two can disagree, and only
   // this line tells a missing pill from a missing file.
@@ -113,9 +115,7 @@ export function PlayActions({ item, queue, facts }: Props) {
           disabled={busy}
         />
       ))}
-      {versions.limitedBy ? (
-        <Text style={styles.limited}>{ceilingExplanation(versions.limitedBy)}</Text>
-      ) : null}
+      {choice ? <Text style={styles.limited}>{choice}</Text> : null}
     </>
   ) : null;
 

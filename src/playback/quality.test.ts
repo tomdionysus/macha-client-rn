@@ -6,9 +6,12 @@ import {
   type MediaTechnicalStream,
   type PlaybackCapabilities,
   type PlaybackMediaFacts,
+  type PassedOverVersion,
   type PlaybackSession,
+  type QualityCeiling,
+  type VersionStep,
 } from '@machafoundation/core';
-import { automaticStart, connectionKindOf, offersVersions, playingStep, qualityLabel, versionStart, versionUpdate } from './quality';
+import { automaticStart, connectionKindOf, offersVersions, playingStep, qualityChoiceText, qualityLabel, versionStart, versionUpdate } from './quality';
 
 const phone: PlaybackCapabilities = {
   platform: 'android',
@@ -225,5 +228,84 @@ describe('qualityLabel', () => {
     expect(qualityLabel(2160)).toBe('4K');
     expect(qualityLabel(1440)).toBe('2K');
     expect(qualityLabel(1080)).toBe('1080p');
+  });
+});
+
+/**
+ * Server 0.70.0 measures each node's transcode rate per kind of picture, and
+ * automatic play passes over one no node converts at real speed: fi-1 decodes
+ * 4K HEVC ten-bit at about 0.33x, and choosing it meant a stall at 0:02. The
+ * rate has to reach `playbackVersions` on every path this client starts by.
+ */
+describe('the measured transcode rate', () => {
+  // A phone that decodes neither file, so both convert their picture.
+  const h264Only: PlaybackCapabilities = { ...phone, videoCodecs: ['h264'] };
+  const av1uhd = file('av1uhd', [video('av1', 3840, 2160), audio(1, 'eng', true)]);
+  const av1fhd = file('av1fhd', [video('av1', 1920, 1080), audio(1, 'eng', true)]);
+  const rate = (source: { heightClass: number }) => (source.heightClass === 2160 ? 0.33 : 2);
+
+  it('keeps automatic play off a picture no node converts fast enough', () => {
+    expect(automaticStart([av1uhd, av1fhd], ['av1uhd', 'av1fhd'], h264Only, undefined, undefined)?.versions.automatic?.quality).toBe(2160);
+    const start = automaticStart([av1uhd, av1fhd], ['av1uhd', 'av1fhd'], h264Only, undefined, undefined, {}, rate);
+    expect(start?.versions.automatic?.quality).toBe(1080);
+    expect(start?.mediaId).toBe('av1fhd');
+    expect(start?.versions.passedOver?.reasons).toContain('transcode-below-real-time');
+  });
+
+  it("states it on a viewer's pick too, which it never changes", () => {
+    const picked = playbackVersions([av1uhd, av1fhd], h264Only, { mediaIds: ['av1uhd', 'av1fhd'] }).steps[0]!;
+    const start = versionStart(picked, [av1uhd, av1fhd], ['av1uhd', 'av1fhd'], h264Only, undefined, {}, rate);
+    expect(start.mediaId).toBe('av1uhd');
+    expect(start.versions.passedOver?.reasons).toContain('transcode-below-real-time');
+  });
+});
+
+// The web client's cases for `qualityChoiceText` (web `e543e0e`), word for
+// word: the sentence is the same on every client.
+describe('why Play chooses the file it does, as one sentence from every fact', () => {
+  const instruction = (video: 'copy' | 'transcode', audio: 'copy' | 'transcode') =>
+    ({ mode: video === 'transcode' || audio === 'transcode' ? 'transcode' : 'direct', video, audio, reasons: [], assumed: [] }) as VersionStep['instruction'];
+  const versionFile = (quality: VersionStep['quality'], video: 'copy' | 'transcode' = 'copy', audio: 'copy' | 'transcode' = 'copy') =>
+    ({ quality, instruction: instruction(video, audio), index: 0 });
+  // The Martian: a 4K file (HEVC, TrueHD), a 1080p file (HEVC, E-AC-3) and a 720p file (H.264, AAC).
+  const files = [versionFile(2160, 'copy', 'transcode'), versionFile(1080, 'copy', 'transcode'), versionFile(720)];
+  const automatic = (quality: VersionStep['quality'], video: 'copy' | 'transcode' = 'copy', audio: 'copy' | 'transcode' = 'copy') =>
+    ({ quality, source: 'file', mediaId: 'm', instruction: instruction(video, audio) }) as VersionStep;
+  const passedOver = (quality: VersionStep['quality'], video: boolean, audio: boolean): PassedOverVersion =>
+    ({ quality, converts: { video, audio }, reasons: [] });
+
+  it('builds one sentence when a ceiling and a conversion both kept Play off a larger file', () => {
+    expect(qualityChoiceText({ files, automatic: automatic(720), limitedBy: { quality: 1080, reason: 'ceiling-display' }, passedOver: passedOver(1080, false, true) }))
+      .toBe('Play chooses 720p, which plays without converting. 1080p needs its audio converted, and 4K is more than this screen shows. Pick a quality to play another.');
+  });
+
+  it('names only the conversion, where no ceiling applies (the 4K television)', () => {
+    expect(qualityChoiceText({ files, automatic: automatic(1080), passedOver: passedOver(2160, false, true) }))
+      .toBe('Play chooses 1080p, which plays without converting. 4K needs its audio converted. Pick a quality to play another.');
+    expect(qualityChoiceText({ files, automatic: automatic(1080), passedOver: passedOver(2160, true, true) }))
+      .toBe('Play chooses 1080p, which plays without converting. 4K needs its video and audio converted. Pick a quality to play another.');
+  });
+
+  it('names only the ceiling, with its reason, and the largest file it kept out', () => {
+    const only = (reason: QualityCeiling['reason']) => qualityChoiceText({ files, automatic: automatic(1080), limitedBy: { quality: 1080, reason } });
+    expect(only('ceiling-display')).toBe('Play chooses 1080p. 4K is more than this screen shows. Pick a quality to play another.');
+    expect(only('ceiling-device')).toBe('Play chooses 1080p. 4K is more than this device plays. Pick a quality to play another.');
+    expect(only('ceiling-cellular')).toBe('Play chooses 1080p. 4K is more than Play uses on mobile data. Pick a quality to play another.');
+    expect(only('ceiling-preference')).toBe('Play chooses 1080p. 4K is more than the most set in Settings. Pick a quality to play another.');
+  });
+
+  it("says where the conversion is not only needed but too slow for any node to keep up with (server 0.70.0's rates)", () => {
+    const slow: PassedOverVersion = { quality: 2160, converts: { video: true, audio: true }, reasons: ['transcode-below-real-time'] };
+    expect(qualityChoiceText({ files, automatic: automatic(1080), passedOver: slow }))
+      .toBe("Play chooses 1080p, which plays without converting. 4K needs its video and audio converted, which the server can't do fast enough. Pick a quality to play another.");
+  });
+
+  it('never claims the chosen file plays as it is when it does not', () => {
+    expect(qualityChoiceText({ files, automatic: automatic(1080, 'copy', 'transcode'), passedOver: passedOver(2160, true, true) }))
+      .toBe('Play chooses 1080p. 4K needs its video and audio converted. Pick a quality to play another.');
+  });
+
+  it('says nothing when Play chooses the largest file there is', () => {
+    expect(qualityChoiceText({ files, automatic: automatic(2160) })).toBeUndefined();
   });
 });

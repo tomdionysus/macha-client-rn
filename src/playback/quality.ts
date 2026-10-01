@@ -14,6 +14,7 @@ import {
   type PlaybackSession,
   type PlaybackUpdate,
   type PlaybackVersions,
+  type PlaybackVersionsOptions,
   type QualityCeiling,
   type QualityClass,
   type VersionStep,
@@ -72,17 +73,48 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
 /** How a step reads on a button or in the sheet: core's label ("4K", "2K", "1080p"). */
 export { qualityLabel } from '@machafoundation/core';
 
+/** "its video", "its audio", "its video and audio", or undefined for neither. */
+function convertedStreams(video: boolean, audio: boolean): string | undefined {
+  return video && audio ? 'its video and audio' : video ? 'its video' : audio ? 'its audio' : undefined;
+}
+
 /**
- * Why Play will not choose the largest file, for the viewer (Tom: automatic
- * play capped "with context to the user as to why"). The web client's
- * sentences word for word (`qualityLimitText`), so every client says it alike.
+ * Why Play chooses the file it does, as one sentence built from every fact
+ * core gives: the file chosen, a larger one passed over because it would need
+ * converting (`passedOver`), and a ceiling that kept a larger one out
+ * (`limitedBy`, with its reason). Tom: automatic play is capped "with context
+ * to the user as to why". The web client's `qualityChoiceText` word for word
+ * (web `e543e0e`), so every client says it alike.
+ *
+ * "Which plays without converting" is said only when a larger file was passed
+ * over for needing it, since only then is it the reason. Undefined when Play
+ * is choosing the largest file there is, which needs no explaining.
  */
-export function ceilingExplanation(ceiling: QualityCeiling): string {
-  const label = qualityLabel(ceiling.quality);
-  if (ceiling.reason === 'ceiling-display') return `Play chooses up to ${label}, the most this screen shows. Pick a quality to play another.`;
-  if (ceiling.reason === 'ceiling-device') return `Play chooses up to ${label}, the most this device plays. Pick a quality to play another.`;
-  if (ceiling.reason === 'ceiling-cellular') return `Play chooses up to ${label} on mobile data. Pick a quality to play another.`;
-  return `Play chooses up to ${label}, as set in Settings. Pick a quality to play another.`;
+export function qualityChoiceText(versions: Pick<PlaybackVersions, 'files' | 'automatic' | 'limitedBy' | 'passedOver'>): string | undefined {
+  const { automatic, limitedBy, passedOver } = versions;
+  if (!automatic) return undefined;
+  const clauses: string[] = [];
+  const converted = passedOver && convertedStreams(passedOver.converts.video, passedOver.converts.audio);
+  // A node's measured rate for this kind of picture (server 0.70.0): the
+  // conversion is not only needed but too slow to watch.
+  const tooSlow = passedOver?.reasons.includes('transcode-below-real-time');
+  if (passedOver && converted) {
+    clauses.push(`${qualityLabel(passedOver.quality)} needs ${converted} converted${tooSlow ? ', which the server can\'t do fast enough' : ''}`);
+  }
+  const above = limitedBy
+    ? Math.max(...versions.files.map((file) => file.quality).filter((quality) => quality > limitedBy.quality))
+    : Number.NEGATIVE_INFINITY;
+  if (limitedBy && Number.isFinite(above)) {
+    const larger = qualityLabel(above as QualityClass);
+    clauses.push(limitedBy.reason === 'ceiling-display' ? `${larger} is more than this screen shows`
+      : limitedBy.reason === 'ceiling-device' ? `${larger} is more than this device plays`
+        : limitedBy.reason === 'ceiling-cellular' ? `${larger} is more than Play uses on mobile data`
+          : `${larger} is more than the most set in Settings`);
+  }
+  if (clauses.length === 0) return undefined;
+  const plays = automatic.instruction.video !== 'transcode' && automatic.instruction.audio !== 'transcode';
+  const chosen = `Play chooses ${qualityLabel(automatic.quality)}${passedOver && converted && plays ? ', which plays without converting' : ''}.`;
+  return `${chosen} ${clauses.join(', and ')}. Pick a quality to play another.`;
 }
 
 /**
@@ -90,6 +122,14 @@ export function ceilingExplanation(ceiling: QualityCeiling): string {
  * the device on all clients, with a setting on all clients to turn it off).
  * Kept in core's store with the ceilings.
  */
+/**
+ * The best rate any node has measured for transcoding a kind of picture
+ * (server 0.70.0), as the resolver answers it. Automatic play passes over a
+ * file no node converts at real speed; the coordinator passes it on every
+ * `playbackVersions` call, and so does everything here.
+ */
+export type TranscodeRate = PlaybackVersionsOptions['transcodeRate'];
+
 export function offerAll(): boolean {
   return qualityPreferences.get().offerAll === true;
 }
@@ -136,8 +176,9 @@ export function automaticStart(
   overrides: PlaybackPolicyOverrides | undefined,
   ceiling: QualityCeiling | undefined,
   preferences: PlaybackPreferencesUpdate = {},
+  transcodeRate?: TranscodeRate,
 ): StartChoice | undefined {
-  const versions = playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll(), ...(ceiling ? { ceiling } : {}) });
+  const versions = playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll(), transcodeRate, ...(ceiling ? { ceiling } : {}) });
   const step = versions.automatic;
   if (!step) return undefined;
   return { ...stepStart(step, files, preferences), versions };
@@ -154,10 +195,11 @@ export function versionStart(
   capabilities: PlaybackCapabilities,
   overrides: PlaybackPolicyOverrides | undefined,
   preferences: PlaybackPreferencesUpdate = {},
+  transcodeRate?: TranscodeRate,
 ): StartChoice {
   return {
     ...stepStart(step, files, preferences),
-    versions: playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll() }),
+    versions: playbackVersions(files, capabilities, { overrides, mediaIds, offerAll: offerAll(), transcodeRate }),
   };
 }
 
