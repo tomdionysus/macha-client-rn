@@ -64,6 +64,7 @@ export default function PlayerScreen() {
     durationMs,
     bufferedMs,
     error,
+    tooSlow,
     queue,
     queueIndex,
     busy,
@@ -225,6 +226,10 @@ export default function PlayerScreen() {
           <Text style={styles.failureDetail}>{error ?? 'The node could not serve this item.'}</Text>
           <View style={styles.failureActions}>
             <Button label="Try again" onPress={() => void retry()} busy={busy} />
+            {/* A quality no node converts fast enough: another may play. */}
+            {tooSlow ? (
+              <Button label="Choose another quality" variant="secondary" onPress={() => setOptionsOpen(true)} disabled={busy} />
+            ) : null}
             <Button label="Stop" variant="secondary" onPress={endAndLeave} />
           </View>
         </View>
@@ -458,6 +463,8 @@ const styles = StyleSheet.create({
   },
   failureActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: space.md,
     marginTop: space.md,
   },

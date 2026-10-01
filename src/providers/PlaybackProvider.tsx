@@ -55,6 +55,7 @@ import {
   transformFor,
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
+import { qualitySteppedDownText, tooSlowToPlay, tooSlowToPlayText, type EarlyStalls } from '../playback/tooSlow';
 import type { MediaApi } from '../api/media';
 import { playbackFailureCode, progressFor } from '@machafoundation/core';
 import { PLAY_COUNT_THRESHOLD_MS } from '../state/musicLibrary';
@@ -84,6 +85,11 @@ export interface PlaybackState {
    * the disk, and where the node gave no facts.
    */
   versions?: PlaybackVersions;
+  /**
+   * The failure is a quality no node converts at real speed: the failure
+   * screen offers another quality beside Try again. See `playback/tooSlow.ts`.
+   */
+  tooSlow?: boolean;
 }
 
 export interface StartOptions {
@@ -332,6 +338,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    */
   const choiceRef = useRef<PlaybackChoice>({ chosenByViewer: false });
   const filesRef = useRef<readonly PlaybackMediaFacts[] | undefined>(undefined);
+  /** The playing item's qualities, highest first, for a step down; see `tooSlowToPlay`. */
+  const stepsRef = useRef<readonly VersionStep[]>([]);
+  /** Early failures counted against one file, mode and cap; see `tooSlowToPlay`. */
+  const earlyStallsRef = useRef<EarlyStalls>({ count: 0 });
 
   useEffect(() => () => player.release(), [player]);
 
@@ -419,6 +429,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       countedPlayRef.current = undefined;
       versionRef.current = options.version;
       filesRef.current = undefined;
+      stepsRef.current = [];
+      earlyStallsRef.current = { count: 0 };
       presentedRef.current = false;
       positionRef.current = 0;
       // A new item starts its regeneration bound afresh, as core's does.
@@ -452,6 +464,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           bufferedMs: 0,
           buffering: true,
           error: undefined,
+          tooSlow: undefined,
           queue: [...items],
           queueIndex: index,
           versions: undefined,
@@ -535,6 +548,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           setState((current) => ({
             ...current,
             status: 'ready',
+            tooSlow: undefined,
             session: undefined,
             durationMs: media.durationMs ?? current.durationMs,
             positionMs: seekMs,
@@ -564,7 +578,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         if (!choiceRef.current.chosenByViewer && versions?.automatic) {
           choiceRef.current = { chosenByViewer: false, quality: versions.automatic.quality };
         }
-        if (versions) setState((current) => ({ ...current, versions }));
+        if (versions) {
+          stepsRef.current = versions.steps;
+          setState((current) => ({ ...current, versions }));
+        }
         const session = await createSession(playbackApi, media, instruction, seekMs, {
           ...startPreferences,
           // A height cap and the streams named, for the file chosen.
@@ -603,6 +620,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({
           ...current,
           status: 'ready',
+          tooSlow: undefined,
           session,
           durationMs,
           positionMs: session.mode === 'direct' ? seekMs : session.seekMs,
@@ -850,6 +868,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({
           ...current,
           status: 'ready',
+          tooSlow: undefined,
           session: next,
           positionMs: next.seekMs,
           bufferedMs: next.seekMs,
@@ -989,7 +1008,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
         if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
         player.play();
-        setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
+        setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined, tooSlow: undefined }));
         return true;
       } catch (error) {
         // Includes the node having left the registry
@@ -1065,6 +1084,48 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     const recovery = recoveryAfterProbe(outcome, positionRef.current, lastRegenerationPositionRef.current);
     console.log('[macha] [playback] session-probe', { outcome, recovery, positionMs: positionRef.current });
     if (recovery === 'regenerate' && (await regenerateSource(session, media))) return true;
+    // A second early failure on the same file, mode and cap is a quality no
+    // node converts at real speed, and another node would fail the same way;
+    // see `tooSlowToPlay`. Asked before the budget, as core asks it before
+    // its failover.
+    const slow = tooSlowToPlay(
+      earlyStallsRef.current,
+      session,
+      presentedRef.current ? generationLocalMs(session, positionRef.current) : undefined,
+      choiceRef.current,
+      stepsRef.current,
+    );
+    earlyStallsRef.current = slow.stalls;
+    if (slow.verdict.kind !== 'keeps-up') {
+      const quality = choiceRef.current.quality;
+      console.log('[macha] [playback] too-slow-to-play', {
+        mediaId: session.mediaId,
+        mode: session.mode,
+        quality,
+        steppingDownTo: slow.verdict.kind === 'step-down' ? slow.verdict.step.quality : undefined,
+        viewerChose: choiceRef.current.chosenByViewer,
+      });
+      if (slow.verdict.kind === 'step-down') {
+        // One at a time, as a failover is: the failed player repeats its
+        // error until the lower quality is on it.
+        failoverInFlightRef.current = true;
+        try {
+          await stepDownRef.current(slow.verdict.step);
+        } finally {
+          failoverInFlightRef.current = false;
+        }
+        return true;
+      }
+      player.pause();
+      setState((current) => ({
+        ...current,
+        status: 'failed',
+        buffering: false,
+        error: tooSlowToPlayText(quality, session.transform),
+        tooSlow: true,
+      }));
+      return true;
+    }
     // Playback that has been fine for a while earns a fresh budget: the limit
     // is there to stop a broken title cycling nodes, not to ration recovery
     // across a whole film.
@@ -1112,7 +1173,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // direct one is the whole file and has to be told where to resume.
       if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
       player.play();
-      setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined }));
+      setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined, tooSlow: undefined }));
       return true;
     } catch (error) {
       // The account is at its session cap. No node refused us and none would
@@ -1199,6 +1260,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({
           ...current,
           status: 'ready',
+          tooSlow: undefined,
           session: next,
           durationMs,
           buffering: !sourceUnchanged,
@@ -1262,6 +1324,26 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     },
     [sendUpdate],
   );
+
+  // Play's own choice, stepped down to a quality a node keeps up with: still
+  // Play's choice, and said so where notices show, where it stays.
+  const stepDown = useCallback(
+    async (step: VersionStep) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) {
+        choiceRef.current = { chosenByViewer: false, quality: step.quality };
+        setState((current) => ({ ...current, error: qualitySteppedDownText(step.quality) }));
+      }
+    },
+    [sendUpdate],
+  );
+  // The failover above is declared before `sendUpdate`, so it reaches this
+  // through a ref, as the player's listeners reach the failover.
+  const stepDownRef = useRef(stepDown);
+  useEffect(() => {
+    stepDownRef.current = stepDown;
+  }, [stepDown]);
 
   const retry = useCallback(async () => {
     const { items, index } = queueRef.current;

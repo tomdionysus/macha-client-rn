@@ -74,7 +74,7 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
 export { qualityLabel } from '@machafoundation/core';
 
 /** "its video", "its audio", "its video and audio", or undefined for neither. */
-function convertedStreams(video: boolean, audio: boolean): string | undefined {
+export function convertedStreams(video: boolean, audio: boolean): string | undefined {
   return video && audio ? 'its video and audio' : video ? 'its video' : audio ? 'its audio' : undefined;
 }
 
