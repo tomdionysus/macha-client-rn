@@ -8,21 +8,13 @@ Ranked P1 (do next) down to P3. There is no P0. **An inherited claim is not
 evidence**: where a peer's claim was checked against source or a device, it
 says so; where it was taken on trust, it says that too.
 
-**Last rationalised 2026-09-27, for a session starting cold after a `/clear`.**
-Everything finished this week is in COMPLETED under 2026-09-24 to 2026-09-27.
+**Last rationalised 2026-10-01, for a session starting cold after a `/clear`.**
+Everything finished is in COMPLETED under its date; releases 0.10.0, 0.11.0
+and 0.12.0 are there under 2026-09-27 and 2026-09-29.
 
 ---
 
 ## Start here
-
-### 0.12.0 is released (2026-09-29)
-
-`main` = `6c293ad`, tag `0.12.0`, on published core `^0.21.0`. **Not yet on
-the A85**, which was off ADB at release; the APK built from `main` sits at
-`android/app/build/outputs/apk/release/app-release.apk` until the next
-build overwrites it. The record is in COMPLETED. The next release follows
-*Releasing* below, and after a core change forces the JS bundle
-(*Devices*).
 
 ### Resume here, after a `/clear`
 
@@ -37,30 +29,36 @@ build overwrites it. The record is in COMPLETED. The next release follows
 6. `ListAgents` for the peers. Act on a peer's news only after reading core's
    source or `dist`, never on the message alone. **Commit before messaging a
    peer about a change, and quote the SHA git printed** (memory
-   *never-guess-commit-ids*): twice on 2026-09-27 a guessed id went out.
+   *never-guess-commit-ids*).
+7. **This session never pushes** (memory *never-push*): hand Tom the command.
 
-### Where things stand
+### Where things stand (checked 2026-10-01)
 
-- **`main` is `6c293ad`, tagged `0.12.0`**, pinning published core `^0.21.0`.
-- **`develop`** is well past `main` (`git log --oneline main..develop`), linked to `file:../macha-ts`,
-  typecheck clean, **337 tests** against core `29fa878` (dist
-  `e2adced47327`).
-- **The server is 0.64.x on both nodes** (fi-1, the LAN node
-  `http://10.35.1.50:7438`, and gbni-1, `https://macnessa.macha.network`).
-  Changes since 0.58.0 have been torrents, repair and diagnostics; status and
-  playback are unchanged. **fi-1 holds little of the library** and fetches
-  extents from gbni-1 over the WAN, so its transcode starts can overrun core's
-  19 s budget; core walks to macnessa, which then serves.
+- **`main` is `6c293ad`, tagged `0.12.0`**, on published core `^0.21.0` (the
+  newest on npm). Releases since 0.9.0: 0.10.0 and 0.11.0 on core 0.20.0,
+  0.12.0 on 0.21.0; each record is in COMPLETED.
+- **`develop`** is two record-keeping commits past `main` and fully pushed,
+  linked to `file:../macha-ts` at core `1217429` (dist `d861fac1147a`):
+  typecheck clean, **359 tests**. The phone's own code is unchanged since
+  0.11.0.
+- **The A85 runs the tagged 0.11.0** (`versionCode 1100`, installed
+  2026-09-29 11:21:35 local). **0.12.0 was built but never installed**: the
+  phone was off ADB at release. The APK from `main` may still be at
+  `android/app/build/outputs/apk/release/app-release.apk`, but any build since
+  overwrites it; rebuild from `main` (bundle forced) rather than trust it.
+  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
+  1920x1080, AV1 to 1280x720.
+- **The server:** 0.70.0 was confirmed live on both nodes at 17:09Z
+  2026-09-28 (operator names "Corvus FI-1" and "Corvus GBNI-1"); core's link
+  now models up to 0.73.0 (inter-node traffic). Ask core or the server what
+  is live before measuring against it. **fi-1** (`http://10.35.1.50:7438`)
+  holds little of the library and fetches from **gbni-1**
+  (`https://macnessa.macha.network`) over the WAN, so its transcode starts
+  can overrun core's budget; core walks to macnessa.
 - **Lost data, the server's to fix:** *The Cannonball Run*, *28 Days Later*,
   *Event Horizon*, *GoodFellas*, *Cowboys & Aliens*, and *Dark* S01E06 past
-  46 minutes are missing extents, and the server still lists them as
-  playable. Its per-file readability work waits on Tom. Do not test against
-  them expecting playback.
-- **The A85 has the tagged 0.11.0** (`versionCode 1100`, installed
-  2026-09-29 11:21:35 local), built from `main` on registry core 0.20.0.
-  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
-  1920x1080, AV1 to 1280x720. It does not yet show core `29fa878`'s "(4K)" and
-  channel count.
+  46 minutes are missing extents and still listed as playable. Its per-file
+  readability work waits on Tom. Do not test against them expecting playback.
 - **Never run `npm run lint`**: `expo lint` installs ESLint into
   `package.json` unasked.
 - **The laws are `docs/principles-and-laws.md`**: 1 control, 2 viewer, 3
@@ -68,7 +66,20 @@ build overwrites it. The record is in COMPLETED. The next release follows
 
 ### Open, in order
 
-1. **What the device runs have not reached**, each needing Tom or a second
+1. **Install 0.12.0 on the A85** when it is on ADB: rebuild from `main` with
+   the bundle forced (*Devices*), gate on serial and model, confirm
+   `versionCode 1200`, and add the install to COMPLETED's 0.12.0 entry.
+2. **Match the web: four items, now unblocked.** The web committed all of
+   the wording (web `macha-client` HEAD `e543e0e`; `startProgressText`,
+   `qualityChoiceText`, `tooSlowToPlayText`, `qualitySteppedDownText` in
+   `src/text/viewerText.ts`, `preparingStreamText` and node naming in
+   `src/screens/PlayerScreen.tsx`). **Copy the words from that source, not
+   from the notes below**, which were written before it was committed. The
+   two P2s below hold the design: *Three cross-client items to match the
+   web* (too slow to play, the sentence under the quality buttons, node
+   names, avoiding a transcode no node keeps up with) and *Start progress*
+   (server `start=async`).
+3. **What the device runs have not reached**, each needing Tom or a second
    viewer: failover mid-play and the container restatement (a node taken
    down, only on Tom's word); a switch back into transcode refused
    `resource_limit` (a second viewer holding the slot); the mobile-data
@@ -79,41 +90,24 @@ build overwrites it. The record is in COMPLETED. The next release follows
    **Not built:** the proactive half of the reaped-session recovery (asking
    when `AppState` returns with an old session). The reactive half is
    proven on the A85 (COMPLETED 2026-09-28).
-2. **Decisions for Tom, from the A85 runs.** Ruled 2026-09-28:
-   - **Direct on a file whose audio the device cannot decode** (*2010*,
-     AC-3 on the A85) **stays available in the sheet, but is never the
-     default.** Tom, 2026-09-28: "The phone should always transcode if it
-     needs to (the audio won't work) - principle of least astonishment,
-     phone clients should 'just work'. If the user forces direct, that's on
-     them." **Already true, checked in source:** automatic play takes its
-     audio list from `MediaCodecList` (`capabilities.ts`, which drops `ac3`
-     and `eac3` on the A85), so *2010* plays with its audio transcoded, as
-     it did on the A85 on 2026-09-28. Pinned by `capabilities.test.ts` (no
-     unprobed `ac3`/`eac3` claim) and `policy.test.ts` (`audioCopyable`). A
-     resume restores Direct only where the viewer chose it. Do not grey it
-     out, and do not make it the default.
-   - **Continue Watching is films and episodes only**; a music track does
-     not belong there. **Done `bb4ce14`**, checked on the A85 (COMPLETED).
-   - **The Albums tab's indicator:** it had one nobody could see. **Done
-     `69d8841`**, large and red now; checked on the A85 (COMPLETED).
-   - Still open: **the mobile-data default is core's 720p**, not a ruling;
-     and **the secure store's backup side effect:** AsyncStorage (Continue
-     Watching, the queue, playlists) leaves Android Auto Backup with the
-     token.
-3. **Downloads naming a version.**
-   **Tom, 2026-09-28: Download opens a chooser** on a multi-file title,
-   listing each file (a download is always a copy of one file, never a
-   transcode). **Done** (`a669e5a`, and cancel stops the transfer
-   `c8f03c7`), checked on the A85 (COMPLETED 2026-09-28). **Still open:**
+4. **Downloads, still open** (the chooser itself is done, COMPLETED
+   2026-09-28):
    - **For Tom:** the chooser offers files this device cannot decode (4K
      ten-bit HEVC on the A85, 50 GB), and a download always plays off the
-     disk. Mark them, hide them, or leave it?
+     disk. Mark them, hide them, or leave it? (Files the device cannot play
+     are already greyed, `b4d2c1b`; check whether that settles it before
+     asking.)
    - **Orphaned partial files** are never deleted: a download killed with
-     the app (a force-stop, a crash) leaves its bytes in
-     `documentDirectory/macha/media/`. One is on the A85 now, a few hundred
-     MB. A startup sweep of files no record names would clear it.
+     the app leaves its bytes in `documentDirectory/macha/media/`. A startup
+     sweep of files no record names would clear it.
    - Not yet run: a film downloaded to completion and played off the disk.
-4. **The media3 segment-500 contradiction** (P1 below), and the P2s.
+5. **Waiting on Tom:** the mobile-data default is core's 720p, not a ruling;
+   and the secure store's backup side effect (AsyncStorage leaves Android
+   Auto Backup with the token). **Ruled 2026-09-28, do not reopen:** Direct
+   on a file whose audio the device cannot decode stays available in the
+   sheet but is never the default ("If the user forces direct, that's on
+   them"); already true in source and on the A85.
+6. **The media3 segment-500 contradiction** (P1 below), and the P2s.
 
 ---
 
@@ -202,9 +196,10 @@ by a person:** the QR scanner. **Never run on hardware at all:** the gate's
 `no-session` branch, which needs `allow_anonymous` off to reach, and the
 node-row paste path, which `adb shell input text` cannot emulate.
 
-**None of it has been re-verified on a tagged build.** Everything measured on
-2026-09-21 was on a dev build of the 0.8.0 tree. The tagged 0.8.0 was only
-seen to install and start, and 0.9.0 has not been installed anywhere.
+**Tagged builds on hardware:** 0.10.0 and 0.11.0 were installed on the A85
+and looked at (COMPLETED 2026-09-27 and 2026-09-29); 0.12.0 has not been
+installed. The 2026-09-21 measurements above were on a dev build of the
+0.8.0 tree.
 
 **`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat
 -v UTC | grep ReactNativeJS` shows core's routing, health and registry logs
@@ -250,10 +245,9 @@ bundle (2026-09-28: an APK kept its old timestamp). Check the APK's time,
 and `strings` the bundle for a string only the new core has.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
-  Has **`aebbc44`** since 2026-09-27 15:20Z (*Where things stand*). The
-  wireless ADB port rotates on every enable (`34471`, `43777`, `41479` on
-  2026-09-27 alone). The port rotates, so
-  rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
+  Has the tagged **0.11.0** (*Where things stand*). The wireless ADB port
+  rotates on every enable (`34471`, `43777`, `41479` on 2026-09-27 alone),
+  so rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
   succeeds. It drops when the phone sleeps — a screenshot of a sleeping phone
   is solid black; check `dumpsys power` for `mWakefulness` and send
@@ -338,10 +332,12 @@ default above is what runs.
 
 ---
 
-## P2 — Three cross-client items to match the web (not built)
+## P2 — Four cross-client items to match the web (not built; unblocked)
 
-Each one is Tom's direction that all clients show the same. Take the words
-from the web's source once committed, not from these notes.
+Each one is Tom's direction that all clients show the same. **The web has
+committed its words** (checked 2026-10-01 at web `e543e0e`): take them from
+`src/text/viewerText.ts` and `src/screens/PlayerScreen.tsx` there, not from
+these notes, which predate the commits.
 
 - **A transcode too slow to keep up** (core `d1069d2`, pushed). The
   coordinator fails over an early stall (before 15 s of a transformed
@@ -373,7 +369,7 @@ from the web's source once committed, not from these notes.
   name "corvus-fi-1"), falling back to the URL's hostname (no scheme, no
   port).
   **The web's rules for 0.70.0** (Tom: "show the names the server sends";
-  web working tree, uncommitted): wherever a status node is shown,
+  web, since committed): wherever a status node is shown,
   `node_name` trimmed, else the host, else a short id, with the host kept
   wherever an address is needed; node pickers use core's
   `endpointRegistry.nodeName(endpointId)` for any of the node's endpoints,
@@ -393,24 +389,24 @@ from the web's source once committed, not from these notes.
   audio converted, which the server can't do fast enough."); where reasons
   are listed one by one, "the server cannot convert this picture fast
   enough to play". The
-  phone calls `playbackVersions` in four places, all to change together:
-  `PlayActions.tsx:67`, `quality.ts:140` and `:160`, and
-  `PlaybackProvider.tsx:1788`. Checked 2026-09-28: the link at `fb96757`
+  phone calls `playbackVersions` in several places, all to change together:
+  `PlayActions.tsx`, `quality.ts` (twice) and `PlaybackProvider.tsx`
+  (`grep -n playbackVersions src` for the current lines). Checked 2026-09-28: the link at `fb96757`
   typechecks and passes 359 tests unchanged.
 
 ---
 
 ## P2 — Start progress (server 0.69.0 `start=async`): match the web word for word
 
-**Not built. Server 0.69.0 is live on both nodes since 16:01Z 2026-09-28**
+**Not built; unblocked: the web's words are committed** (`startProgressText`,
+`preparingStreamText`, checked 2026-10-01 at web `e543e0e`). **Server 0.69.0 is live on both nodes since 16:01Z 2026-09-28**
 (core's word), both advertising `start=async` with
 `startup_no_progress_ms` 15000. **The link already follows async starts:**
 `../macha-ts` at `ec608c3` (dist `4ba99e5e4911`) contains `00ff3eb`, and
 typecheck and 352 tests pass against it. So a build of `develop` waits out
 an async start inside `resolve`/`update` as before, and shows no progress.
 Word a stalled start from core's `START_NO_PROGRESS_CODE` (`ec608c3`), not
-the string. **Waits on the web's version being committed** (uncommitted on
-the web's develop when asked), so the words are copied from its source. Core `00ff3eb` (develop, pushed) puts it in
+the string, and copy the words from the web's committed source. Core `00ff3eb` (develop, pushed) puts it in
 `ClusterPlaybackResolver`, which is what this client drives:
 `resolve(media, caps, seekMs, prefs, { onStartProgress })` and `update(id,
 update, signal, { onStartProgress })`. Both still resolve to the ready
@@ -423,7 +419,7 @@ sessions, downloads among them, never go pending.
 
 **The web's design, from the web client session, 2026-09-28. Match the words
 exactly.** The web's text is `startProgressText` in its
-`src/text/viewerText.ts`; read it once committed rather than copying from
+`src/text/viewerText.ts`, now committed; read it there rather than copying from
 this note.
 - **planning:** start "Preparing the stream on <node>"; change "Preparing
   new stream on <node>…".
@@ -447,7 +443,7 @@ this note.
   picture plays on.
 - **A replacement built behind a playing picture** (the web client,
   2026-09-28, found live on fi-1; its `preparingStreamText` in
-  `PlayerScreen.tsx`, uncommitted). A failover arrives as a *start* (a new
+  `PlayerScreen.tsx`, since committed). A failover arrives as a *start* (a new
   session), not a change, so a line that knew only changes showed no
   stages. In that line any progress is worded as a change: a change names
   the serving node ("Starting the new stream on fi-1: 30%"); a start (a
@@ -859,10 +855,8 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
   was wrong (see COMPLETED). The Android TV client is the first that can
   promote a standby and will report what actually happens. **Do not re-file
   without that result.**
-- **Core `0.20.0` is being cut** (2026-09-27) for the release above; `0.19.0`
-  (2026-09-24T17:42Z) is the newest on npm at the rationalisation, and 0.9.0
-  pins it. Before
-  it, `0.18.0` (2026-09-21T19:31Z) was pinned by 0.8.0. `0.15.0`
+- **Core `0.21.0` is the newest on npm** and 0.12.0 pins it; 0.10.0 and
+  0.11.0 pinned `0.20.0`, 0.9.0 pinned `0.19.0`. Before them, `0.18.0` (2026-09-21T19:31Z) was pinned by 0.8.0. `0.15.0`
   and `0.16.0` were superseded and will never be published; `0.17.0` was
   tagged and overtaken. Everything they carried — the walk fix, the bounded
   recovery, the encoder-speed reading, the three accessors, and the breaking
