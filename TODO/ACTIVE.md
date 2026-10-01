@@ -16,10 +16,33 @@ and 0.12.0 are there under 2026-09-27 and 2026-09-29.
 
 ## Start here
 
+### Work only on `experiment/object-ledger` (Tom, 2026-10-01)
+
+**Every change goes on `experiment/object-ledger`**, or a branch cut from
+it, never on `develop` or `main`: no commits to, merges into or pushes of
+either. Tom's instruction, relayed by the server session and confirmed with
+Tom directly. The branch was cut from `develop` at `d9929e6`. It matches the
+server's experiment of the same name (step branches
+`experiment/object-ledger-t0` .. `-t2`; server `develop` frozen at
+`75e6f98`). API changes on that line are announced to core and every client
+before the server ships them: check everything this client depends on.
+
+- **So far:** Status `threads` gained `observation` (T0, server 0.74.0),
+  which reaches this client only through core.
+- **Decided, not built:** the whole API becomes RESTful. The first case is
+  the identity resets (`POST /api/v1/manage/identity-resets` and `GET
+  .../identity-resets/{id}`). **This client calls neither old route** and
+  uses none of core's manage API (checked 2026-10-01, answered to the
+  server).
+- **The releases and the 0.12.0 install** in *Open, in order* are on hold
+  under this rule: a release is a tag on `main`. Ask Tom before any of it.
+- `develop` still needed a push of `d9929e6` when the branch was cut; that
+  push is Tom's.
+
 ### Resume here, after a `/clear`
 
 1. Read *Start here*, then *Open, in order*.
-2. `git status --short` shows only `.claude/settings.json`,
+2. `git branch --show-current` is `experiment/object-ledger`. `git status --short` shows only `.claude/settings.json`,
    `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
 3. `test -L node_modules/@machafoundation/core` succeeds on `develop`.
 4. Core moves several times a day: `git -C ../macha-ts log --oneline -1`,
