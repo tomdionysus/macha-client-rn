@@ -1,5 +1,6 @@
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { Text } from 'react-native';
+import { sessionNodeName } from '../api/nodeNames';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import { directUnavailableReason, remuxUnavailableReason } from '../playback/policy';
@@ -197,7 +198,9 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
         ) : null}
       </SheetSection>
 
-      <SheetSection title={endpointLabel(session) ?? 'Source'}>
+      {/* Where the stream comes from, named as every client names a node; the
+          description underneath says what is being served. */}
+      <SheetSection title={sessionNodeName(session) ?? 'Source'}>
         <Text style={{ ...typography.caption, color: colors.textFaint, lineHeight: 18 }}>
           {[
             session.sourceInfo.format?.toUpperCase(),
@@ -247,24 +250,6 @@ function streamLabel(stream: PlaybackStreamInfo): string {
 function stepDetail(step: VersionStep): string {
   if (step.source === 'transcode') return 'Transcoded down from a larger file';
   return `Its own file · ${MODE_LABELS[step.instruction.mode]}`;
-}
-
-/**
- * Which node is serving this, as the section heading.
- *
- * The stream description underneath says what is being served; naming the
- * endpoint says where it is coming from, which is the thing you actually want
- * when a cluster has more than one node and one of them is behaving oddly.
- *
- * The scheme is dropped because `SheetSection` uppercases its title and
- * `HTTP://` is noise in a heading whose whole job is to identify a host. A
- * session that names no endpoint keeps the generic heading rather than showing
- * an empty one.
- */
-function endpointLabel(session: PlaybackSession): string | undefined {
-  const base = session.endpoint?.baseUrl?.trim();
-  if (!base) return undefined;
-  return base.replace(/^https?:\/\//i, '') || undefined;
 }
 
 /** What is actually coming down the wire, preferred over the muxer's name for it. */

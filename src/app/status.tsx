@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { statusNodeName } from '../api/nodeNames';
 import type { ByteUsage, ClusterHealth, ClusterNodeStatus } from '../api/status';
 import { useAsync } from '../hooks/useAsync';
 import { useMacha } from '../providers/MachaProvider';
@@ -99,7 +100,7 @@ function NodeCard({ node }: { node: ClusterNodeStatus }) {
     <View style={styles.node}>
       <View style={styles.nodeHeader}>
         <Text numberOfLines={1} style={styles.nodeId}>
-          {node.id}
+          {statusNodeName(node)}
         </Text>
         <View
           style={[
