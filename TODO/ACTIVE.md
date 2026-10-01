@@ -282,6 +282,16 @@ and `strings` the bundle for a string only the new core has.
   checks `mCurrentFocus` in the same invocation, and `ui.sh` deletes the old
   dump first (a failed `uiautomator dump` otherwise reads back the previous
   screen).
+- **A second Blackview A85**, serial `A85EEA0000005398`, at `10.35.1.195`
+  over wireless debugging (`36999` on 2026-10-01; it will rotate). Paired
+  with this Mac by Tom on 2026-10-01; the first A85 above (`...5410`) is a
+  different phone. **Installed 2026-10-01 20:03:50 local**: a fresh install
+  (nothing there before) of `experiment/object-ledger` at `9e9d937`,
+  `versionName 0.12.0` / `versionCode 1200` on the core link (dist
+  `d861fac1147a`), bundle forced and checked for the new sentences. The
+  process started with no crash in logcat; the phone was asleep behind its
+  lock screen, so nothing on screen was seen, and no endpoints are known to
+  be configured on it.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
   **0.4.0** and **no endpoints configured**, so it opens on the connect screen
   — the right device for first-run and QR in one pass.
