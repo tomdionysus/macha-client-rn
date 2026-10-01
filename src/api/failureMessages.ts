@@ -1,5 +1,5 @@
 import { playbackFailureDetail, playbackFailureStatus } from '@machafoundation/core';
-import { isUnreachable } from './errors';
+import { isUnreachable, NO_NODE_ANSWERED_TEXT, noNodeAnswered } from './errors';
 
 /**
  * Viewer text for every failure outside playback, which has its own in
@@ -39,6 +39,7 @@ function explain(error: unknown, lead: string): string {
   if (status === 403) return NOT_ALLOWED;
   if (status === 429) return quoted('The server is busy right now. Try again in a few minutes.', error);
   if (status !== undefined && status >= 500) return quoted(`${lead} The server had a problem; try again in a moment.`, error);
+  if (noNodeAnswered(error)) return NO_NODE_ANSWERED_TEXT;
   if (isUnreachable(error)) return UNREACHABLE;
   return quoted(`${lead} Try again.`, error);
 }

@@ -1,4 +1,5 @@
 import {
+  MachaClusterRouteError,
   MachaConnectionError,
   playbackFailureCode,
   playbackFailureStatus,
@@ -63,6 +64,19 @@ export function isUnreachable(error: unknown): boolean {
   if (playbackFailureStatus(error) !== undefined || playbackFailureCode(error) !== undefined) return false;
   return unreachableEndpointFailure(error);
 }
+
+/**
+ * Every node the route could try was tried, and none was reached: refused a
+ * connection, gone, or slower than core waits for one. Core's own field says
+ * so (`MachaClusterRouteError.unreachable`); the web asks it the same way.
+ */
+export function noNodeAnswered(error: unknown): boolean {
+  return error instanceof MachaClusterRouteError && error.unreachable;
+}
+
+/** The web's sentence for it (web `043fd81`): usually a passing slowness, so try again comes first. */
+export const NO_NODE_ANSWERED_TEXT =
+  'No Macha server answered. Try again in a moment; if it keeps happening, check that the servers are running.';
 
 /**
  * Whether the request was never made because the session manager is not

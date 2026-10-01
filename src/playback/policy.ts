@@ -1,3 +1,4 @@
+import { NO_NODE_ANSWERED_TEXT, noNodeAnswered } from '../api/errors';
 import { deviceCapabilities } from './capabilities';
 import {
   chooseAmongFiles,
@@ -408,6 +409,7 @@ export function createFailureMessage(error: unknown): string {
   if (status === 429) return quoted('The server is busy with other streams right now. Try again in a few minutes.');
   if (status === 400) return quoted('The server could not prepare this title for this device.');
   if (status !== undefined && status >= 500) return quoted('The server could not start this stream. Try again in a moment.');
+  if (noNodeAnswered(error)) return NO_NODE_ANSWERED_TEXT;
   if (status === undefined && playbackFailureCode(error) === undefined && unreachableEndpointFailure(error)) {
     return 'Could not reach the server. Check your connection and try again.';
   }

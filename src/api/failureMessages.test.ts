@@ -70,7 +70,6 @@ describe('failure messages are keyed on what happened', () => {
     for (const error of [
       new MachaConnectionError('fetch failed'),
       wrapped(new MachaConnectionError('fetch failed')),
-      new MachaClusterRouteError(['a', 'b'], true, new MachaConnectionError('fetch failed')),
       new TypeError('Network request failed'),
     ]) {
       expect(loadFailureMessage(error)).toMatch(/Could not reach the server/);
@@ -78,6 +77,16 @@ describe('failure messages are keyed on what happened', () => {
     // A wrapped refusal is kind `transport` too, because `endpointFailure`
     // defaults there for any status it does not name. The status decides.
     expect(loadFailureMessage(wrapped(new MachaApiError('x', 403, 'forbidden')))).not.toMatch(/Could not reach/);
+  });
+
+  // The web's sentence (web `043fd81`): every node was tried and none
+  // answered, refused, gone or slower than core waits for one. Usually a
+  // passing slowness, so it says to try again before it says to check.
+  it('says no server answered when the route tried every node and reached none', () => {
+    const exhausted = new MachaClusterRouteError(['a', 'b'], true, new MachaConnectionError('fetch failed'));
+    expect(loadFailureMessage(exhausted)).toBe(
+      'No Macha server answered. Try again in a moment; if it keeps happening, check that the servers are running.',
+    );
   });
 
   it('reads the status through every wrapper', () => {

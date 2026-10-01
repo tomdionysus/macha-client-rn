@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endpointFailure, MachaApiError, MachaPlaybackError, START_NO_PROGRESS_CODE } from '@machafoundation/core';
+import { endpointFailure, MachaApiError, MachaClusterRouteError, MachaPlaybackError, START_NO_PROGRESS_CODE } from '@machafoundation/core';
 import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, seekRefusalMessage, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not the catalogue's
@@ -196,6 +196,13 @@ describe('createFailureMessage', () => {
   it('says the server could not be reached when nothing answered', () => {
     expect(createFailureMessage(node(new TypeError('Network request failed')))).toBe(
       'Could not reach the server. Check your connection and try again.',
+    );
+  });
+
+  it('says no server answered when every node was tried and none was reached (web `043fd81`)', () => {
+    const exhausted = new MachaClusterRouteError(['a', 'b'], true, node(new TypeError('Network request failed')));
+    expect(createFailureMessage(exhausted)).toBe(
+      'No Macha server answered. Try again in a moment; if it keeps happening, check that the servers are running.',
     );
   });
 
