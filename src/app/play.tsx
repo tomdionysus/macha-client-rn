@@ -12,6 +12,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { sessionNodeName } from '../api/nodeNames';
+import { preparingStreamText, startProgressText, startWaitNotice } from '../playback/startProgress';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Spinner } from '../ui/Status';
 import { Artwork } from '../ui/Artwork';
@@ -65,6 +67,9 @@ export default function PlayerScreen() {
     bufferedMs,
     error,
     tooSlow,
+    startProgress,
+    startedAtMs,
+    preparing,
     queue,
     queueIndex,
     busy,
@@ -78,6 +83,29 @@ export default function PlayerScreen() {
   } = usePlayback();
 
   const [chromeVisible, setChromeVisible] = useState(true);
+  // The wait notice counts seconds, so a start redraws once a second while
+  // it lasts, and not otherwise.
+  const [now, setNow] = useState(() => Date.now());
+  const starting = status === 'loading';
+  useEffect(() => {
+    if (!starting) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [starting]);
+  const node = session ? sessionNodeName(session) : undefined;
+  // Under the spinner: a start that is taking a while, with what the node
+  // says it is doing; or a new stream being built behind the one playing,
+  // named as a change. The web's words (`startProgress.ts`).
+  const spinnerNote = starting
+    ? startWaitNotice(
+        true,
+        startedAtMs === undefined ? 0 : now - startedAtMs,
+        startProgress?.kind === 'start' ? startProgressText(startProgress, node) : undefined,
+      )
+    : preparing
+      ? preparingStreamText(startProgress, node)
+      : undefined;
   const [optionsOpen, setOptionsOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastTap = useRef<{ at: number; side: 'left' | 'right' } | undefined>(undefined);
@@ -217,6 +245,7 @@ export default function PlayerScreen() {
       {buffering && status !== 'failed' ? (
         <View style={styles.spinner} pointerEvents="none">
           <Spinner size="large" />
+          {spinnerNote ? <Text style={styles.spinnerNote}>{spinnerNote}</Text> : null}
         </View>
       ) : null}
 
@@ -428,6 +457,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: space.md,
+    paddingHorizontal: space.xxl,
+  },
+  spinnerNote: {
+    ...typography.caption,
+    color: colors.textDim,
+    textAlign: 'center',
   },
   notice: {
     position: 'absolute',

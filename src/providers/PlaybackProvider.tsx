@@ -1,7 +1,7 @@
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import type { ClusterPlaybackApi, PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate } from '../api/playback';
+import type { ClusterPlaybackApi, PlaybackPreferencesUpdate, PlaybackSession, PlaybackUpdate, StartProgressListener } from '../api/playback';
 import type { PlaybackMode } from '../types';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
 import {
@@ -13,6 +13,7 @@ import {
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
   type PlaybackMediaFacts,
+  type PlaybackStartProgress,
   type PlaybackVersions,
   type StreamInstruction,
   type VersionStep,
@@ -90,6 +91,18 @@ export interface PlaybackState {
    * screen offers another quality beside Try again. See `playback/tooSlow.ts`.
    */
   tooSlow?: boolean;
+  /**
+   * What the node reports a start or change is doing (server 0.69.0
+   * `start=async`), while it does it; see `playback/startProgress.ts`.
+   */
+  startProgress?: PlaybackStartProgress;
+  /** When the item now loading was asked for, for the wait notice's count. */
+  startedAtMs?: number;
+  /**
+   * A new stream is being built behind the one playing: a change, a
+   * failover, or a reaped session regenerated.
+   */
+  preparing?: boolean;
 }
 
 export interface StartOptions {
@@ -316,6 +329,19 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
   /**
+   * A start or change's progress onto the state, for the generation that
+   * asked for it only; gone once it is ready or has failed.
+   */
+  const reportStartProgress = useCallback(
+    (generation: number): StartProgressListener =>
+      (progress) => {
+        if (generationRef.current !== generation) return;
+        const shown = progress.stage === 'ready' || progress.stage === 'failed' ? undefined : progress;
+        setState((current) => ({ ...current, startProgress: shown }));
+      },
+    [],
+  );
+  /**
    * The quality the viewer picked for this item, so a retry replays their
    * choice rather than automatic play; and the item's file facts, so a
    * switch to another file can name that file's streams.
@@ -465,6 +491,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           buffering: true,
           error: undefined,
           tooSlow: undefined,
+          startProgress: undefined,
+          startedAtMs: Date.now(),
+          preparing: false,
           queue: [...items],
           queueIndex: index,
           versions: undefined,
@@ -589,7 +618,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           // The file the chooser picked, sent as the session's `media_id`.
           // Core restates it on every replacement generation.
           ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
-        });
+        }, reportStartProgress(myGeneration));
         if (generationRef.current !== myGeneration) {
           // A late lease belonging to a superseded generation is never activated.
           await releaseSession(session);
@@ -642,10 +671,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           error: createFailureMessage(error),
         }));
       } finally {
-        if (generationRef.current === myGeneration) setBusy(false);
+        if (generationRef.current === myGeneration) {
+          setBusy(false);
+          setState((current) => ({ ...current, startProgress: undefined }));
+        }
       }
     },
-    [continueWatching, player, playbackApi, releaseSession],
+    [continueWatching, player, playbackApi, releaseSession, reportStartProgress],
   );
 
   const start = useCallback(
@@ -847,13 +879,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       if (!session || !media) return;
       const myGeneration = ++generationRef.current;
       setBusy(true);
-      setState((current) => ({ ...current, buffering: true, error: undefined }));
+      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
       // From here the node may supersede the generation the player is still
       // reading, and a fragment of it answers 410. That is our doing, not the
       // node's, and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
-        const next = await playbackApi.update(session, { seekMs: targetMs });
+        const next = await playbackApi.update(session, { seekMs: targetMs }, undefined, reportStartProgress(myGeneration));
         if (generationRef.current !== myGeneration) return;
         sessionRef.current = next;
         applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
@@ -882,10 +914,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // own deadline rather than left open.
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
-        if (generationRef.current === myGeneration) setBusy(false);
+        if (generationRef.current === myGeneration) {
+          setBusy(false);
+          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+        }
       }
     },
-    [mediaApi, player, playbackApi],
+    [mediaApi, player, playbackApi, reportStartProgress],
   );
 
   /**
@@ -999,6 +1034,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const myGeneration = ++generationRef.current;
       const resumeMs = positionRef.current;
       lastRegenerationPositionRef.current = resumeMs;
+      setState((current) => ({ ...current, preparing: true, startProgress: undefined }));
       console.log('[macha] [playback] regenerate-attempt', { on: session.endpoint?.baseUrl, resumeMs });
       try {
         const next = await playbackApi.regenerate(session, media, resumeMs);
@@ -1017,7 +1053,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         return generationRef.current !== myGeneration;
       } finally {
         failoverInFlightRef.current = false;
-        if (generationRef.current === myGeneration) setBusy(false);
+        if (generationRef.current === myGeneration) {
+          setBusy(false);
+          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+        }
       }
     },
     [mediaApi, player, playbackApi],
@@ -1163,8 +1202,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       attempt: failoverAttemptsRef.current,
       resumeMs,
     });
+    setState((current) => ({ ...current, preparing: true, startProgress: undefined }));
     try {
-      const next = await playbackApi.failover(session, media, resumeMs);
+      const next = await playbackApi.failover(session, media, resumeMs, reportStartProgress(myGeneration));
       console.log('[macha] [playback] failover-result', { to: next.endpoint?.baseUrl });
       if (generationRef.current !== myGeneration) return true;
       sessionRef.current = next;
@@ -1209,9 +1249,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // Same guard as every other owner: a recovery that has itself been
       // superseded must not clear the flag out from under whatever replaced
       // it. See the note beside the `setBusy(true)` above.
-      if (generationRef.current === myGeneration) setBusy(false);
+      if (generationRef.current === myGeneration) {
+        setBusy(false);
+        setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+      }
     }
-  }, [mediaApi, player, playbackApi, regenerateSource, reportIfStillFailed]);
+  }, [mediaApi, player, playbackApi, regenerateSource, reportIfStillFailed, reportStartProgress]);
 
   // Held in a ref so the player's listeners never have to resubscribe when the
   // services object is rebuilt.
@@ -1234,14 +1277,19 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const myGeneration = ++generationRef.current;
       const resumeMs = positionRef.current;
       setBusy(true);
-      setState((current) => ({ ...current, buffering: true, error: undefined }));
+      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
       // From here the node may supersede the generation the player is still
       // reading, and a fragment of it answers 410. That is our doing, not the
       // node's, and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
         const positioned = positionedUpdate(update, session, resumeMs);
-        const next = await playbackApi.update(session, stated ? positioned : statedUpdate(positioned, session));
+        const next = await playbackApi.update(
+          session,
+          stated ? positioned : statedUpdate(positioned, session),
+          undefined,
+          reportStartProgress(myGeneration),
+        );
         if (generationRef.current !== myGeneration) return false;
         sessionRef.current = next;
         const sourceUnchanged = next.source.url === session.source.url;
@@ -1277,10 +1325,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // own deadline rather than left open.
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
-        if (generationRef.current === myGeneration) setBusy(false);
+        if (generationRef.current === myGeneration) {
+          setBusy(false);
+          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+        }
       }
     },
-    [mediaApi, player, playbackApi],
+    [mediaApi, player, playbackApi, reportStartProgress],
   );
 
   const applyUpdate = useCallback(
@@ -1915,12 +1966,13 @@ async function createSession(
   instruction: PlaybackInstruction,
   seekMs: number | undefined,
   preferences: PlaybackPreferencesUpdate | undefined,
+  onStartProgress?: StartProgressListener,
 ): Promise<PlaybackSession> {
   let attempt: PlaybackInstruction | undefined = instruction;
   let refusal: unknown;
   while (attempt) {
     try {
-      return await playbackApi.create(media, attempt, seekMs, preferences);
+      return await playbackApi.create(media, attempt, seekMs, preferences, onStartProgress);
     } catch (error) {
       // Only a refusal degrades. An unreachable node or a server fault says
       // nothing about the instruction, and asking for less would not help.

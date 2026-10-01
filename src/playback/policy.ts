@@ -9,6 +9,7 @@ import {
   restatePreferencesClearedByMode,
   SERVER_SEGMENT_HOLD_MS,
   SESSION_PROVENANCE_UNKNOWN_CODE,
+  START_NO_PROGRESS_CODE,
   containerIsPlayable,
   technicalProfileFromSession,
   videoStreamObjection,
@@ -395,6 +396,9 @@ export function accountSessionLimitMessage(error: unknown): string {
  */
 export function createFailureMessage(error: unknown): string {
   if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
+  // Core's own code for a start that stopped reporting progress (server
+  // 0.69.0): a 504 with no server sentence behind it, worded as the web does.
+  if (playbackFailureCode(error) === START_NO_PROGRESS_CODE) return 'The node stopped making progress starting this stream.';
   const status = playbackFailureStatus(error);
   const detail = playbackFailureDetail(error);
   const quoted = (lead: string) => (detail ? `${lead} (${detail})` : lead);

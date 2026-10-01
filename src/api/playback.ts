@@ -9,6 +9,7 @@ import {
   type PlaybackMediaFacts,
   type PlaybackPreferencesUpdate,
   type PlaybackSession,
+  type PlaybackStartProgress,
   type PlaybackUpdate,
 } from '@machafoundation/core';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
@@ -33,6 +34,13 @@ export type {
   PlaybackTransform,
   PlaybackUpdate,
 } from '@machafoundation/core';
+
+/**
+ * What a start or change is doing while a node prepares it (server 0.69.0
+ * `start=async`): core long-polls the node and reports each stage, and still
+ * resolves to the ready session. Direct sessions never go pending.
+ */
+export type StartProgressListener = (progress: PlaybackStartProgress) => void;
 
 /**
  * Playback sessions across the cluster.
@@ -82,6 +90,7 @@ export class ClusterPlaybackApi {
     instruction: PlaybackInstruction,
     seekMs?: number,
     preferences?: PlaybackPreferencesUpdate,
+    onStartProgress?: StartProgressListener,
   ): Promise<PlaybackSession> {
     return this.resolver
       .resolve(media, deviceCapabilities(), seekMs, {
@@ -90,7 +99,7 @@ export class ClusterPlaybackApi {
         video: instruction.video,
         audio: instruction.audio,
         ...(instruction.container ? { container: instruction.container } : {}),
-      })
+      }, { onStartProgress })
       .then((session) => this.held(session));
   }
 
@@ -114,6 +123,7 @@ export class ClusterPlaybackApi {
     session: PlaybackSession,
     media: MediaSummary,
     seekMs: number,
+    onStartProgress?: StartProgressListener,
   ): Promise<PlaybackSession> {
     return this.resolver
       .failover(
@@ -127,6 +137,8 @@ export class ClusterPlaybackApi {
           session.preferences.mode,
           audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
         ),
+        undefined,
+        { onStartProgress },
       )
       .then((next) => {
         // Core releases the session it replaced; this one is now the holding.
@@ -184,11 +196,17 @@ export class ClusterPlaybackApi {
    * streams, restating the ones already playing. It is what the coordinator
    * does on its own updates, and it leaves a seek-only update untouched.
    */
-  update(session: PlaybackSession, update: PlaybackUpdate, signal?: AbortSignal): Promise<PlaybackSession> {
+  update(
+    session: PlaybackSession,
+    update: PlaybackUpdate,
+    signal?: AbortSignal,
+    onStartProgress?: StartProgressListener,
+  ): Promise<PlaybackSession> {
     return this.resolver.update(
       session.sessionId,
       preparePlaybackPatch(update, session, deviceCapabilities(), devicePlaybackOverrides()),
       signal,
+      { onStartProgress },
     );
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endpointFailure, MachaApiError, MachaPlaybackError } from '@machafoundation/core';
+import { endpointFailure, MachaApiError, MachaPlaybackError, START_NO_PROGRESS_CODE } from '@machafoundation/core';
 import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, seekRefusalMessage, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not the catalogue's
@@ -222,6 +222,13 @@ describe('createFailureMessage', () => {
     expect(createFailureMessage(node(server('unsupported transform', 400)))).toBe(
       'The server could not prepare this title for this device. (unsupported transform)',
     );
+  });
+
+  it('says a start stopped progressing in the web\'s words, from core\'s code rather than its 504', () => {
+    // Raised by core itself (server 0.69.0 `start=async`): there is no server
+    // sentence behind it, and "could not start" would blame the server.
+    const stalled = new MachaPlaybackError('Macha playback start made no progress for 17000 ms.', 504, START_NO_PROGRESS_CODE);
+    expect(createFailureMessage(node(stalled))).toBe('The node stopped making progress starting this stream.');
   });
 
   it('still says something true when nothing is known', () => {
