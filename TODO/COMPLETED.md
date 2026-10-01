@@ -8,6 +8,51 @@ Newest first.
 
 ---
 
+## 2026-10-01 — The four web-matching items and start progress, built on `experiment/object-ledger`
+
+Built from the web's committed source (web `e543e0e`), its words copied
+from `src/text/viewerText.ts` and `src/screens/PlayerScreen.tsx` and its
+test cases ported word for word. On `experiment/object-ledger` under Tom's
+rule, against core link `1217429` (dist `d861fac1147a`). Typecheck exit 0;
+**393 tests** (359 before). **None of it has run on a device**: the A85
+still runs 0.11.0.
+
+- **The sentence under the quality buttons** (`6494c66`): `qualityChoiceText`
+  in `playback/quality.ts` replaces the ceiling-only `ceilingExplanation`, on
+  the detail screen and in the player's sheet.
+- **A transcode no node keeps up with** (`6494c66`): `resolver.transcodeRate`
+  reaches `playbackVersions` on all four paths (detail screen, automatic
+  start, a viewer's pick, the steps drawn during play), as
+  `ClusterPlaybackApi.transcodeRate`. Proven: the two rate tests fail with
+  the option removed from `quality.ts`.
+- **Node names** (`032f8f6`): `api/nodeNames.ts`. Status cards show
+  `node_name` trimmed, else host, else a 12-character id (they showed the raw
+  id); the sheet's source heading shows core's `endpoint.name`, else the
+  hostname, else the address without its scheme. This tree's RN `URL.js`
+  checked: `hostname` is a regex over `http(s)://` and answers `''`, never
+  throws. This client has no node picker, and the connect and settings
+  screens show addresses because addresses are what they are about.
+- **Too slow to play** (`eeadb64`): `playback/tooSlow.ts` mirrors core's
+  `tooSlowToPlay` in our failover, after the reaped-session check and before
+  the budget. A viewer's quality stops with the web's sentence and **Choose
+  another quality** beside Try again; Play's choice steps down a step with
+  the stepped-down notice. **Unmeasured:** whether a 0.33x transcode ever
+  reaches `failoverSource` on media3, which has no stall watchdog here (P2
+  *Stall detection*). If it only buffers for ever, this rule never fires.
+- **Start progress** (`305f5ee`): `playback/startProgress.ts`. The listener
+  goes to every create, failover, update and rebuilding seek, scoped to the
+  generation that asked. Under the spinner: a start after 5 s with a seconds
+  count, a change (including a seek) at once, a failover or regenerate as a
+  new stream on no node. `START_NO_PROGRESS_CODE` reads "The node stopped
+  making progress starting this stream." (test written first, failed against
+  the old code, which said the server could not start it). **Decided, not
+  left open:** no failover decision of ours is needed for it, because
+  core's `retryableEndpointFailure` walks any 5xx, so create and failover
+  already move to the next node (checked in `endpointFailure.ts`). A
+  regenerate that stalls falls to our failover as any failed regenerate does.
+  `closePendingForPageExit` is not called: a start abandoned by leaving runs
+  to ready and is then released, as before.
+
 ## 2026-09-29 — 0.12.0 released, on core 0.21.0
 
 `main` = `6c293ad`, tag `0.12.0` (annotated), pushed with `develop`. Tom:

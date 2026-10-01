@@ -64,6 +64,9 @@ before the server ships them: check everything this client depends on.
   linked to `file:../macha-ts` at core `1217429` (dist `d861fac1147a`):
   typecheck clean, **359 tests**. The phone's own code is unchanged since
   0.11.0.
+- **`experiment/object-ledger`** carries the web-matching work past
+  `develop` (COMPLETED 2026-10-01): typecheck clean, **393 tests**, nothing
+  pushed.
 - **The A85 runs the tagged 0.11.0** (`versionCode 1100`, installed
   2026-09-29 11:21:35 local). **0.12.0 was built but never installed**: the
   phone was off ADB at release. The APK from `main` may still be at
@@ -92,16 +95,12 @@ before the server ships them: check everything this client depends on.
 1. **Install 0.12.0 on the A85** when it is on ADB: rebuild from `main` with
    the bundle forced (*Devices*), gate on serial and model, confirm
    `versionCode 1200`, and add the install to COMPLETED's 0.12.0 entry.
-2. **Match the web: four items, now unblocked.** The web committed all of
-   the wording (web `macha-client` HEAD `e543e0e`; `startProgressText`,
-   `qualityChoiceText`, `tooSlowToPlayText`, `qualitySteppedDownText` in
-   `src/text/viewerText.ts`, `preparingStreamText` and node naming in
-   `src/screens/PlayerScreen.tsx`). **Copy the words from that source, not
-   from the notes below**, which were written before it was committed. The
-   two P2s below hold the design: *Three cross-client items to match the
-   web* (too slow to play, the sentence under the quality buttons, node
-   names, avoiding a transcode no node keeps up with) and *Start progress*
-   (server `start=async`).
+2. **Match the web: built, not yet on a device** (COMPLETED 2026-10-01,
+   `6494c66` .. `305f5ee`). On the A85 when Tom allows an install: the
+   sentence under the quality buttons, node names on the status screen and
+   in the sheet, the start-progress line under the spinner (a transcode
+   start on fi-1 is slow enough to show it), and whether a too-slow
+   transcode reaches the failover at all.
 3. **What the device runs have not reached**, each needing Tom or a second
    viewer: failover mid-play and the container restatement (a node taken
    down, only on Tom's word); a switch back into transcode refused
@@ -352,138 +351,6 @@ signal here rather than the stronger one. Core has been told this is a
 bytecode reading rather than a result, and that the experiment belongs on this
 end. **expo-video installs no `LoadErrorHandlingPolicy` of its own**, so the
 default above is what runs.
-
----
-
-## P2 — Four cross-client items to match the web (not built; unblocked)
-
-Each one is Tom's direction that all clients show the same. **The web has
-committed its words** (checked 2026-10-01 at web `e543e0e`): take them from
-`src/text/viewerText.ts` and `src/screens/PlayerScreen.tsx` there, not from
-these notes, which predate the commits.
-
-- **A transcode too slow to keep up** (core `d1069d2`, pushed). The
-  coordinator fails over an early stall (before 15 s of a transformed
-  generation) once; if the replacement stalls too, it stops. For a quality
-  the viewer chose: `TOO_SLOW_TO_PLAY_CODE` (`'too_slow_to_play'`). For
-  core's own choice it steps down to the next lower version, with a
-  `quality-stepped-down` notice. **This client runs its own failover, so it
-  has to mirror the rule in its recovery path.** Web wording (working tree,
-  `tooSlowToPlayText` / `qualitySteppedDownText`): "Macha can't play
-  <quality> because the server can't convert <its video and audio | its
-  video | its audio | it> fast enough to keep up." with **Try again** and
-  **Choose another quality**; the stepped-down notice is "Switched to <new
-  quality>: the server can't convert a higher quality fast enough." (falls
-  back to "a lower quality"), shown where notices show, and it stays.
-- **The sentence under the quality buttons** (web `f512cdc`,
-  `qualityChoiceText(versions)`), replacing "Play chooses up to <q>, the
-  most this screen shows...". It is built from `versions.automatic`,
-  `passedOver` (core `03b0bdb`) and `limitedBy`: "Play chooses <q>", plus ",
-  which plays without converting" only when a larger file was passed over
-  for converting and the chosen one converts nothing. Clauses: "<q> needs
-  its video / its audio / its video and audio converted"; "<q> is more than
-  this screen shows / this device plays / Play uses on mobile data / the
-  most set in Settings". Joined with ", and ", then ". Pick a quality to
-  play another." No sentence when no clause applies. Example: "Play chooses
-  720p, which plays without converting. 1080p needs its audio converted,
-  and 4K is more than this screen shows. Pick a quality to play another."
-- **Naming nodes:** core's `session.endpoint.name`, from server 0.70.0 the
-  operator's name ("Corvus FI-1", core `fb96757`; `7819d37` had the cluster
-  name "corvus-fi-1"), falling back to the URL's hostname (no scheme, no
-  port).
-  **The web's rules for 0.70.0** (Tom: "show the names the server sends";
-  web, since committed): wherever a status node is shown,
-  `node_name` trimmed, else the host, else a short id, with the host kept
-  wherever an address is needed; node pickers use core's
-  `endpointRegistry.nodeName(endpointId)` for any of the node's endpoints,
-  else the hostname; the player's status line uses `endpointName`. **React
-  Native's `URL` returns `''` for a hostname it cannot read rather than
-  throwing** (the TV found it; check this tree's `URL.js`), so treat `''` as
-  unread and show the address as it is. Web `e4eae8f`, TV `1c872c5`.
-- **Avoid a transcode no node keeps up with** (server 0.70.0, core
-  `fb96757`). **Server 0.70.0 is live on both nodes since 17:09Z
-  2026-09-28**, `node_name` "Corvus FI-1" and "Corvus GBNI-1". Rates fill
-  in only as transcodes of a minute or more finish, so
-  `resolver.transcodeRate` answers `undefined` until then. Pass `{ transcodeRate: (source) => resolver.transcodeRate(source) }`
-  to `playbackVersions` and automatic play skips a file no node transcodes
-  at real speed, with `passedOver.reasons` including
-  `'transcode-below-real-time'`. The web's wording: the passed-over clause
-  gains ", which the server can't do fast enough" ("4K needs its video and
-  audio converted, which the server can't do fast enough."); where reasons
-  are listed one by one, "the server cannot convert this picture fast
-  enough to play". The
-  phone calls `playbackVersions` in several places, all to change together:
-  `PlayActions.tsx`, `quality.ts` (twice) and `PlaybackProvider.tsx`
-  (`grep -n playbackVersions src` for the current lines). Checked 2026-09-28: the link at `fb96757`
-  typechecks and passes 359 tests unchanged.
-
----
-
-## P2 — Start progress (server 0.69.0 `start=async`): match the web word for word
-
-**Not built; unblocked: the web's words are committed** (`startProgressText`,
-`preparingStreamText`, checked 2026-10-01 at web `e543e0e`). **Server 0.69.0 is live on both nodes since 16:01Z 2026-09-28**
-(core's word), both advertising `start=async` with
-`startup_no_progress_ms` 15000. **The link already follows async starts:**
-`../macha-ts` at `ec608c3` (dist `4ba99e5e4911`) contains `00ff3eb`, and
-typecheck and 352 tests pass against it. So a build of `develop` waits out
-an async start inside `resolve`/`update` as before, and shows no progress.
-Word a stalled start from core's `START_NO_PROGRESS_CODE` (`ec608c3`), not
-the string, and copy the words from the web's committed source. Core `00ff3eb` (develop, pushed) puts it in
-`ClusterPlaybackResolver`, which is what this client drives:
-`resolve(media, caps, seekMs, prefs, { onStartProgress })` and `update(id,
-update, signal, { onStartProgress })`. Both still resolve to the ready
-session, and core long-polls. `PlaybackStartProgress` is `{ kind:
-'start'|'change', stage: 'planning'|'preroll'|'encoding'|'ready'|'failed',
-progressSeq, elapsedMs, sourceBytesRead?, prerollDecodedMs?, prerollTotalMs?,
-outputMediaMs?, firstFragmentMs? }`, counters and never estimates.
-`resolver.closePendingForPageExit()` closes pending starts on exit. Direct
-sessions, downloads among them, never go pending.
-
-**The web's design, from the web client session, 2026-09-28. Match the words
-exactly.** The web's text is `startProgressText` in its
-`src/text/viewerText.ts`, now committed; read it there rather than copying from
-this note.
-- **planning:** start "Preparing the stream on <node>"; change "Preparing
-  new stream on <node>…".
-- **preroll:** start "Finding the start point: 40%"; change "Finding the
-  start point on <node>: 40%".
-- **encoding:** start "Starting the stream: 60%"; change "Starting the new
-  stream on <node>: 60%".
-- **ready / failed:** nothing.
-- A start names the node only while planning; a change names it
-  throughout. <node> is the endpoint name the stream-status line shows.
-- **Percentages are only ever measured:** preroll is
-  `floor(prerollDecodedMs / prerollTotalMs * 100)`, encoding is
-  `floor(outputMediaMs / firstFragmentMs * 100)`, clamped to 0-100. With a
-  figure absent or a total of 0, show the sentence with no percentage:
-  never 0%, never a guess. The phone may draw that fraction as a bar (the
-  web shows text only). `sourceBytesRead` and `elapsedMs` are not shown.
-- **A start:** the note under the spinner, after the same 5 s delay (a
-  quick start is not announced), with a seconds count: "Starting the
-  stream: 60% — 9s". **A change:** in place of the "Preparing new stream on
-  <node>…" line, with "…" when there is no percentage, while the current
-  picture plays on.
-- **A replacement built behind a playing picture** (the web client,
-  2026-09-28, found live on fi-1; its `preparingStreamText` in
-  `PlayerScreen.tsx`, since committed). A failover arrives as a *start* (a new
-  session), not a change, so a line that knew only changes showed no
-  stages. In that line any progress is worded as a change: a change names
-  the serving node ("Starting the new stream on fi-1: 30%"); a start (a
-  failover) names none, since the node the line holds is the one being
-  replaced ("Preparing new stream…", "Finding the start point: 50%",
-  "Starting the new stream…"); with no progress, "Preparing new stream on
-  <node>…" or "Preparing new stream…". The note under the spinner is
-  unchanged. This client's reaped-session regenerate and its failover both
-  build a replacement this way, so both use it.
-- **Failure:** core's `start_no_progress` has no server sentence; the web
-  says "The node stopped making progress starting this stream." A node's
-  failed stage arrives as `playback_pipeline_start_failed` (or its own
-  code) with the server's sentence, shown like any other failure.
-- **Ours to decide:** the coordinator tries another node before the
-  failure screen; this client drives the resolver, so whether a
-  `start_no_progress` fails over is our call. The reaped-session recovery
-  (`recoveryAfterProbe`) is the place to decide it.
 
 ---
 
