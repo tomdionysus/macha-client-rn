@@ -1,7 +1,7 @@
 {
   "name": "macha-client-rn",
   "main": "index.js",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "dependencies": {
     "@machafoundation/core": "file:../macha-ts",
     "@react-native-async-storage/async-storage": "2.2.0",

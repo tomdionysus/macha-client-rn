@@ -2,7 +2,7 @@
   "expo": {
     "name": "Macha",
     "slug": "macha-client-rn",
-    "version": "0.13.0",
+    "version": "0.13.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "macha",
@@ -34,7 +34,7 @@
         "android.permission.CAMERA"
       ],
       "predictiveBackGestureEnabled": false,
-      "versionCode": 1300
+      "versionCode": 1301
     },
     "web": {
       "output": "static",
