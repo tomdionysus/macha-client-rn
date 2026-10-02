@@ -43,7 +43,6 @@ import {
   recoveryAfterProbe,
   restoredVolume,
   seekRefusalMessage,
-  seekRequiresReposition,
   seekStillPending,
   selfSupersededGeneration,
   supersededErrorCheck,
@@ -56,6 +55,7 @@ import {
   transformFor,
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
+import { observeSeek, seekBase, seekPlan, UNCACHED_SEEK_DEBOUNCE_MS, type SeekIntent } from '../playback/seekIntent';
 import { qualitySteppedDownText, tooSlowToPlay, tooSlowToPlayText, type EarlyStalls } from '../playback/tooSlow';
 import type { MediaApi } from '../api/media';
 import { playbackFailureCode, progressFor } from '@machafoundation/core';
@@ -325,6 +325,25 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * lands leaving the position frozen for good.
    */
   const pendingSeekRef = useRef<{ targetMs: number; atMs: number } | undefined>(undefined);
+  /**
+   * The viewer's seek target, pinned until the stream that serves it is on
+   * the player and tracking; see `playback/seekIntent.ts`. The bar shows it,
+   * and a further seek builds on it, as the web client's does.
+   */
+  const seekIntentRef = useRef<SeekIntent | undefined>(undefined);
+  /** The last position the player actually reported, for a seek that never lands. */
+  const observedPositionRef = useRef(0);
+  /** A seek waiting `UNCACHED_SEEK_DEBOUNCE_MS` for the next before asking the node. */
+  const seekDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** The node request for a seek in flight, aborted when the viewer seeks again. */
+  const seekRequestRef = useRef<AbortController | undefined>(undefined);
+  /**
+   * The picture held while the node builds the generation a seek needs, and
+   * whether to play once it is on: the web holds the frame at the instant the
+   * viewer asks, rather than letting the old stream play on from where they
+   * left. Play and Pause pressed meanwhile change only `resume`.
+   */
+  const seekHoldRef = useRef<{ resume: boolean } | undefined>(undefined);
   const failoverAttemptsRef = useRef(0);
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
@@ -457,6 +476,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       filesRef.current = undefined;
       stepsRef.current = [];
       earlyStallsRef.current = { count: 0 };
+      clearTimeout(seekDebounceRef.current);
+      seekDebounceRef.current = undefined;
+      seekRequestRef.current?.abort();
+      seekRequestRef.current = undefined;
+      seekIntentRef.current = undefined;
+      seekHoldRef.current = undefined;
       presentedRef.current = false;
       positionRef.current = 0;
       // A new item starts its regeneration bound afresh, as core's does.
@@ -851,6 +876,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       );
       return;
     }
+    // While a seek holds the picture, Play and Pause decide what happens
+    // when the new generation is on, not the outgoing stream.
+    const hold = seekHoldRef.current;
+    if (hold) {
+      hold.resume = !hold.resume;
+      setState((current) => ({ ...current, playing: hold.resume }));
+      return;
+    }
     if (player.playing) player.pause();
     else player.play();
   }, [player]);
@@ -873,49 +906,76 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * fetching — otherwise this trades an instant 500 for an instant 404.
    */
   const repositionTo = useCallback(
-    async (targetMs: number) => {
+    async () => {
       const session = sessionRef.current;
       const media = mediaRef.current;
-      if (!session || !media) return;
+      const intent = seekIntentRef.current;
+      if (!session || !media || !intent) return;
+      // The latest target at the moment of asking, as core binds a queued
+      // seek to the intent when it dispatches it.
+      const targetMs = intent.targetMs;
       const myGeneration = ++generationRef.current;
-      setBusy(true);
-      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
+      const request = new AbortController();
+      seekRequestRef.current = request;
       // From here the node may supersede the generation the player is still
       // reading, and a fragment of it answers 410. That is our doing, not the
       // node's, and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
+      console.log('[macha] [playback] seek-needs-generation', {
+        sessionId: session.sessionId,
+        targetMs,
+        generationStartMs: session.seekMs,
+      });
       try {
-        const next = await playbackApi.update(session, { seekMs: targetMs }, undefined, reportStartProgress(myGeneration));
+        const next = await playbackApi.update(session, { seekMs: targetMs }, request.signal, reportStartProgress(myGeneration));
         if (generationRef.current !== myGeneration) return;
         sessionRef.current = next;
         applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
-        player.play();
-        // The node's answer is authoritative: a transformed generation begins at
-        // the nearest random-access point, rarely the millisecond asked for.
-        // Believing our own target would leave the bar disagreeing with the
-        // picture for as long as the difference lasts.
-        positionRef.current = next.seekMs;
+        const resume = seekHoldRef.current?.resume ?? true;
+        seekHoldRef.current = undefined;
+        if (resume) player.play();
+        // The stream that serves the target is on; the target stays pinned
+        // until the player reaches it or is seen tracking near it (a
+        // transformed generation begins at a random-access point, rarely the
+        // millisecond asked for). See `observeSeek`.
+        const pinned = seekIntentRef.current;
+        if (pinned) seekIntentRef.current = { targetMs: pinned.targetMs, presented: true };
         bufferedRef.current = next.seekMs;
-        pendingSeekRef.current = undefined;
         setState((current) => ({
           ...current,
           status: 'ready',
           tooSlow: undefined,
           session: next,
-          positionMs: next.seekMs,
+          playing: resume,
           bufferedMs: next.seekMs,
           buffering: true,
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        setState((current) => ({ ...current, buffering: false, error: seekRefusalMessage(error) }));
+        // The seek never landed: put the bar back where the player really
+        // is, and the picture back as it was. A pin left in place would hold
+        // the bar at a position playback never reached (core's
+        // `rollbackUnfulfilledSeek`).
+        seekIntentRef.current = undefined;
+        pendingSeekRef.current = undefined;
+        positionRef.current = observedPositionRef.current;
+        const resume = seekHoldRef.current?.resume ?? false;
+        seekHoldRef.current = undefined;
+        if (resume) player.play();
+        setState((current) => ({
+          ...current,
+          positionMs: observedPositionRef.current,
+          playing: resume,
+          buffering: false,
+          error: seekRefusalMessage(error),
+        }));
       } finally {
+        if (seekRequestRef.current === request) seekRequestRef.current = undefined;
         // Settled, success or failure: the tail is then bounded by the node's
         // own deadline rather than left open.
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) {
-          setBusy(false);
           setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
         }
       }
@@ -966,7 +1026,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
   useEffect(() => () => clearTimeout(supersedeCheckRef.current), []);
+  useEffect(() => () => clearTimeout(seekDebounceRef.current), []);
 
+  /**
+   * A seek, as the web client's coordinator makes it (`seekIntent.ts`): the
+   * bar moves to the target at once and stays there; the player is told
+   * directly when the generation it holds covers the target, and otherwise
+   * the picture is held and the node asked for a new generation, once per
+   * burst of presses, for the last of them.
+   */
   const seekTo = useCallback(
     (positionMs: number) => {
       // Whole milliseconds: a lock-screen or headset seek arrives as seconds
@@ -975,27 +1043,46 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const bounded = Math.round(Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs)));
       positionRef.current = bounded;
       pendingSeekRef.current = { targetMs: bounded, atMs: Date.now() };
+      setState((current) => ({ ...current, positionMs: bounded }));
       if (engineRef.current === 'audio') {
         // The music path has the same exposure and is deliberately not fixed
         // here: a seek beyond production on a transformed track is still
         // refused. Correcting it means reloading the track at the new URL
         // rather than writing a position, which is separate work.
         void TrackPlayer.seekTo(bounded / 1000);
-      } else if (seekRequiresReposition(sessionRef.current, bounded, bufferedRef.current)) {
-        void repositionTo(bounded);
         return;
-      } else {
-        // Back onto the player's timeline: a title-absolute value written to a
-        // generation that began an hour in asks for a point far past anything
-        // the node has produced.
-        player.currentTime = generationLocalMs(sessionRef.current, bounded) / 1000;
       }
-      setState((current) => ({ ...current, positionMs: bounded }));
+      // Once a new generation is on its way, every seek in the burst goes the
+      // same way: the generation on the player is about to be replaced.
+      const negotiating = seekDebounceRef.current !== undefined || seekRequestRef.current !== undefined;
+      const plan = negotiating ? { kind: 'reposition' as const } : seekPlan(sessionRef.current, bounded, bufferedRef.current);
+      if (plan.kind === 'local') {
+        seekIntentRef.current = { targetMs: bounded, presented: true };
+        player.currentTime = plan.localMs / 1000;
+        return;
+      }
+      seekIntentRef.current = { targetMs: bounded, presented: false };
+      if (!seekHoldRef.current) {
+        seekHoldRef.current = { resume: player.playing };
+        player.pause();
+      }
+      // A newer target supersedes the request in flight, as core aborts it.
+      seekRequestRef.current?.abort();
+      seekRequestRef.current = undefined;
+      clearTimeout(seekDebounceRef.current);
+      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
+      seekDebounceRef.current = setTimeout(() => {
+        seekDebounceRef.current = undefined;
+        void repositionTo();
+      }, UNCACHED_SEEK_DEBOUNCE_MS);
     },
     [player, repositionTo],
   );
 
-  const seekBy = useCallback((deltaMs: number) => seekTo(positionRef.current + deltaMs), [seekTo]);
+  const seekBy = useCallback(
+    (deltaMs: number) => seekTo(seekBase(seekIntentRef.current, positionRef.current) + deltaMs),
+    [seekTo],
+  );
 
   /**
    * A source-generation change: mode, quality ceiling, audio stream, subtitle
@@ -1421,6 +1508,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         // target below and checkpointed the wrong resume position.
         if (currentTime > 0) progressedRef.current = true;
         const positionMs = titlePositionMs(sessionRef.current, Math.round(currentTime * 1000));
+        observedPositionRef.current = positionMs;
+        // A seek the viewer made pins the bar to its target until the stream
+        // that serves it is on and tracking; see `observeSeek`.
+        const intent = seekIntentRef.current;
+        if (intent) {
+          const next = observeSeek(intent, positionMs);
+          seekIntentRef.current = next;
+          if (next) return;
+          pendingSeekRef.current = undefined;
+          console.log('[macha] [playback] seek-settled', { targetMs: intent.targetMs, positionMs });
+        }
         const pendingSeek = pendingSeekRef.current;
         if (pendingSeek) {
           if (seekStillPending(sessionRef.current, pendingSeek, positionMs, Date.now())) return;
@@ -1465,6 +1563,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('playingChange', ({ isPlaying }) => {
         // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
+        // A picture held for a seek is not the viewer pausing; see `seekHoldRef`.
+        if (seekHoldRef.current) return;
         setState((current) => ({ ...current, playing: isPlaying }));
       }),
       player.addListener('statusChange', ({ status, error }) => {
