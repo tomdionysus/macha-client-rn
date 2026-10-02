@@ -29,8 +29,8 @@ the web-matching items.
   three of the release's new strings. **Installed on the A85 (`...5410`)
   2026-10-02 16:39:22, `versionCode 1300`.**
 - Back on `experiment/object-ledger`, linked: core `f794364`, typecheck
-  clean, 403 tests. That core's `dist` (`f239550e1484`) does not yet hold its
-  ranking change.
+  clean, 403 tests, against `dist` `f239550e1484`, which holds core's
+  `lapsed` ranking change (under `dist/cluster/`).
 
 ## 2026-10-02 — Seek works as the web client's does, proven on the A85
 
