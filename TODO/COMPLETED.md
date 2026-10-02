@@ -8,6 +8,50 @@ Newest first.
 
 ---
 
+## 2026-10-02 — Seek works as the web client's does, proven on the A85
+
+Tom: "The seek on the phone still ignores direction then jumps. The seek
+needs to work exactly the same way as the web client." Built as core's
+coordinator seeks (`seek`, `seekBy`, `onPlayerEvent`), which is what the web
+uses: `playback/seekIntent.ts`, wired in `PlaybackProvider` (`61ba533`,
+`2f47532`). 403 tests, typecheck clean.
+
+**Why it went wrong, three causes:** a seek needing a new generation returned
+before moving the bar, so the bar followed the outgoing stream (still playing
+on) until the node answered, then jumped; `seekBy` built on that outgoing
+position, so presses did not add up; and a seek back past a transformed
+generation's origin was clamped to the origin, i.e. forward.
+
+**Now:** the target is pinned at once and shown until the stream serving it
+is presented and tracking (within 1.5 s, or two moving reports after
+presentation); presses build on it; a seek outside the generation in either
+direction asks the node; 300 ms debounce and a newer target aborts the one in
+flight (its generation retired first); the picture is held meanwhile and
+Play/Pause during the hold sets what happens after.
+
+**Measured on the A85 (`...5410`), *Bicentennial Man*, Transcode on fi-1:**
+- Seven backs: bar 1:39:31 to 1:38:22 at once, held; node built at exactly
+  1:38:22 (`seekMs 5902165`), settled, no jump.
+- Three forwards then five backs: 1:38:22, 1:38:52, 1:38:02; node at 1:38:02.
+- Two backs, a pause, six backs (after both fixes): 1:39:19, 1:38:59, 1:37:59;
+  node at exactly 1:37:59; playing and at 1:38:30 half a minute later.
+- Drag on the bar: 1:38:49 to 1:13:57 on release, held; node at exactly
+  1:13:57 (`seekMs 4437007`); playing at 1:14:04 ten seconds later.
+
+**Two defects found by driving it, both fixed in `2f47532`:** the hold read
+`player.playing` to decide whether to resume, which is false while ExoPlayer
+buffers, so the film stayed paused after a seek made just after another (now
+`viewerPausedRef`); and aborting a superseded request made it reject into the
+never-landed rollback, which dropped the new target to the outgoing
+position, so two backs then six moved 40 s, not 60 (generation now retired
+before the abort).
+
+**Not built, seen:** some seeks inside the playing generation went to the
+node rather than the player, probably `bufferedPosition` reading 0 just after
+a seek so the buffered end equals the origin. The result is right, only
+slower. And `toggle` still reads `player.playing`, so Pause pressed while
+buffering may call play. Neither measured further.
+
 ## 2026-10-01 — The four web-matching items and start progress, built on `experiment/object-ledger`
 
 Built from the web's committed source (web `e543e0e`), its words copied

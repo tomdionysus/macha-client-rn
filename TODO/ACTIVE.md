@@ -400,45 +400,15 @@ changes; see *Deferred by Tom*.
 
 ---
 
-## P2 — The seek control: it works, and two things around it make it feel broken
+## P2 — The seek control: what is left after the web-matching rework
 
-**Driven on the A85 2026-09-21, app 0.6.0, against the live cluster.** Raised
-by Tom as "the Seek control is still broken".
-
-**The scrubber does seek, and that was verified twice.** Dragging to the
-midpoint while paused moved the bar to 57:53 and playback resumed at the HAL
-9000 scene, about 58 minutes in; dragging while playing landed in a different
-scene again. `canSeek: true` in the session, and `seekTo` is reached.
-
-**Fault one: a seek while paused does not repaint the frame.** The bar updates
-to the new time and stays there, and the picture holds the *old* frame until
-playback resumes. Measured: paused at 11:14, dragged to 57:53, the video
-region was unchanged across captures at +1 s, +4 s and +8 s; on resume the
-film continued from 57:53. So the seek is applied and only the presentation is
-stale. Whether that is expo-video's behaviour on `player.currentTime` while
-paused or something this client does is **not yet established** — that is the
-next step, and it wants checking against expo-video's source rather than
-guessed.
-
-**Fault two, and it is the one that makes the control feel dead:** chrome
-hides `CONTROLS_HIDE_DELAY_MS = 3_500` after the last touch, and the first
-touch afterwards is consumed re-showing it. So any gesture aimed at the bar
-more than 3.5 s after the last one does nothing at all. A viewer who looks at
-the screen, decides where to drag, and then drags, loses the first attempt
-every time.
-
-**A measurement hazard worth recording, because it cost most of this session's
-device time.** Observe-then-act does not work on this screen: reading a
-screenshot takes longer than 3.5 s, so the chrome has always hidden by the
-time the next command lands, and a tap that should have hit the pause button
-only revealed the chrome. Three "faults" were recorded and then withdrawn that
-way. **Drive this screen with the whole sequence in one `adb shell`
-invocation**, capturing to `/sdcard` between steps and pulling afterwards.
-Also lock rotation first: the app forces landscape in fullscreen and portrait
-coordinates then land somewhere else entirely.
-
-**None of this is verified against the current tree.** It was driven on 0.6.0,
-before the seek-window work in 0.7.0 and everything since.
+The rework is in COMPLETED 2026-10-02, proven on the A85. Still open from
+the 2026-09-21 notes, not re-checked since: **a seek while paused may not
+repaint the frame**, and **the first touch after the chrome hides only
+reveals it**. New, seen and not measured: some seeks inside the playing
+generation go to the node (probably `bufferedPosition` reading 0 just after
+a seek), and `toggle` reads `player.playing`, which is false while
+buffering.
 
 ---
 
