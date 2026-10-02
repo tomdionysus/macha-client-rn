@@ -7,9 +7,9 @@
  * provider. It calls through this module-level handler instead; the runtime
  * installs its own implementation on mount.
  *
- * Skip is the reason this exists: the notification's next/previous buttons must
- * run *our* queue logic — shuffle order, repeat, and negotiating a fresh Macha
- * session per track — not the native player's own single-item queue.
+ * Skip is the reason this exists: remote next/previous must run *our* queue
+ * logic (shuffle order, repeat, and negotiating a fresh Macha session per
+ * track), not the native player's single-item queue.
  */
 export interface AudioRemoteHandlers {
   play(): void;

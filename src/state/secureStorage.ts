@@ -13,8 +13,8 @@ import type { StorageLike } from '@machafoundation/core';
  * **Removal overwrites, synchronously.** SecureStore can only delete
  * asynchronously, and core expects `removeItem` to take effect at once. A
  * fire-and-forget delete issued by a logout could land after the login that
- * followed it and erase the new token, so the next launch came up anonymous.
- * Writing `''` is synchronous and removes the secret at once, and `getItem`
+ * followed it and erase the new token. Writing `''` is synchronous and
+ * removes the secret at once, and `getItem`
  * reads `''` as absent. The key itself stays, holding nothing.
  *
  * Keys must be alphanumeric plus `.`, `-` and `_`. Core's one key here is

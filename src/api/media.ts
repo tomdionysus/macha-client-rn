@@ -10,9 +10,9 @@ export { newestCatalogueFirst } from '@machafoundation/core';
 /**
  * The UI-facing catalogue facade, with offline fallback.
  *
- * The live path is core's `MachaMediaApi` — the catalogue calls and the mapping
- * from wire items to the model, which this file used to reimplement. What stays
- * here is the part core has no business knowing about: being away from your own
+ * The live path is core's `MachaMediaApi`: the catalogue calls and the mapping
+ * from wire items to the model. What stays here is the part core has no
+ * business knowing about: being away from your own
  * network is ordinary for a phone, so an unreachable node is a state to serve
  * around rather than an error to show.
  */
@@ -63,10 +63,10 @@ export class MediaApi {
       // child effects before parent effects, so a screen's first load fires
       // before the provider's effect has started the session manager.
       //
-      // This sits *ahead* of the branch below because core `0.12.0` made
-      // `SessionNotStartedError` extend `MachaConnectionError` — which is what
-      // keeps this fallback working for hosts that do nothing, but would
-      // otherwise route it through `reportUnreachable()`. That would mark a
+      // This sits *ahead* of the branch below because `SessionNotStartedError`
+      // extends `MachaConnectionError`, which keeps this fallback working for
+      // hosts that do nothing but would otherwise route it through
+      // `reportUnreachable()`. That would mark a
       // cluster that is up and answering as offline, and `shouldProbe()` then
       // suppresses real requests for twenty seconds, so a viewer on a healthy
       // node gets their downloads instead of their library on every launch.
@@ -102,8 +102,8 @@ export class MediaApi {
    * Where to load an artwork object from, best first.
    *
    * Each entry states whether it needs the anonymous session's Authorization
-   * header: a signed
-   * capability URL does not, the per-node object URLs do. Callers filter on
+   * header: a signed capability URL does not, the per-node object URLs do.
+   * Callers filter on
    * that rather than counting positions, so a path that cannot set headers
    * cannot silently 401 on a fallback.
    */

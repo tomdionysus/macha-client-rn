@@ -3,9 +3,9 @@ import { resumePreferences, type MediaSummary, type PlaybackSession } from '@mac
 import { belongsInContinueWatching, progressOf } from './resume';
 
 /**
- * Tom, 2026-09-27: Continue Watching stores "both the item id AND the media
- * ID", and the mode, resolution, subtitle settings "and all other data
- * needed to resume as if you'd never left". This client drives the resolver
+ * Continue Watching stores the item id and the media id, the mode, the
+ * resolution, the subtitle settings and everything else needed to resume as
+ * if the viewer never left. This client drives the resolver
  * directly, so it builds what core's coordinator would; these check that
  * core's `resumePreferences` reads it back as the viewer left it.
  */
@@ -35,9 +35,9 @@ describe('progressOf', () => {
   });
 
   /**
-   * On the A85 (2026-09-27) Remux on *2010* is carried as transcode with the
-   * video copied, because the device cannot decode its AC-3. The entry saved
-   * the session's `transcode`, and the resume re-encoded the picture.
+   * Remux on a file whose AC-3 the device cannot decode is carried as
+   * transcode with the video copied. Saving the session's `transcode` would
+   * make the resume re-encode the picture.
    */
   it('resumes the mode the viewer picked, not the one the node was asked for', () => {
     const entry = progressOf(film, 60_000, 6_000_000, session('transcode', { audio: 2 }), { chosenByViewer: true, mode: 'remux' });
@@ -59,10 +59,6 @@ describe('progressOf', () => {
   });
 });
 
-/**
- * Tom, 2026-09-28: Continue Watching is films and episodes only. A music
- * track appeared there on the A85 beside the films.
- */
 describe('belongsInContinueWatching', () => {
   it('keeps films and episodes', () => {
     expect(belongsInContinueWatching({ kind: 'movie' })).toBe(true);

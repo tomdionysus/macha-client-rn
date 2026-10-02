@@ -191,15 +191,12 @@ export class OfflineLibrary {
 }
 
 /**
- * Search over what is downloaded, on the same terms as the live search.
- *
- * Tom's rulings, relayed by core and confirmed here 2026-09-24: "the", "a" and
- * "an" are never searched on, at least `MIN_SEARCH_TERM_LENGTH` characters must
- * be left, and the category toggles narrow the result — an empty list means
- * nothing, absent means everything. Core applies all three inside
- * `MachaMediaApi.search`; this is the offline path, which applied none, so the
- * same query answered differently in airplane mode. The rules are core's
- * functions, used as they are.
+ * Search over what is downloaded, on the same terms as core's live search in
+ * `MachaMediaApi.search`: "the", "a" and "an" are never searched on, at least
+ * `MIN_SEARCH_TERM_LENGTH` characters must be left, and the category toggles
+ * narrow the result — an empty list means nothing, absent means everything.
+ * The rules are core's functions, used as they are, so the same query answers
+ * the same way offline.
  */
 export function searchOffline(
   haystack: readonly MediaSummary[],

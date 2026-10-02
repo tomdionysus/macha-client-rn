@@ -10,14 +10,12 @@ import { clientStore } from './storage';
  */
 describe('ClientStore.hydrate', () => {
   it('restores what belongs to Macha and nothing else', async () => {
-    // Core's session cache. The key is hyphenated — `macha-session` — and a
-    // filter of `macha.` silently excluded it, so the signed-in token was
-    // written on every launch and never read back. Signing in therefore lasted
-    // exactly as long as the process did. Nothing errored and nothing logged,
-    // because an anonymous session re-mints in milliseconds and hides it; the
-    // only symptom was a *person* being signed out on every cold start.
+    // Core's session cache. The key is hyphenated, `macha-session`, so a
+    // filter of `macha.` would exclude it: the signed-in token would be written
+    // every launch and never read back, and the viewer signed out on every cold
+    // start with nothing logged.
     await AsyncStorage.setItem('macha-session', '{"token":"t","expiresAtMs":1}');
-    // This client's own convention, which always worked.
+    // This client's own convention.
     await AsyncStorage.setItem('macha.endpoints.v1', '{"version":1,"urls":[]}');
     // Keys this client owns that core's `isMachaStorageKey` registry does not
     // list. They are here so that swapping core's helper in for `owned()` —
@@ -30,12 +28,11 @@ describe('ClientStore.hydrate', () => {
     await AsyncStorage.setItem('macha.downloads.v1.client-1', '{"version":1,"items":[]}');
     await AsyncStorage.setItem('macha.musicLibrary.v1.client-1', '{"favourites":[],"plays":{},"recent":[]}');
     await AsyncStorage.setItem('macha.progress.v1:client-1', '{"version":1,"items":[]}');
-    // Core's *own* pre-0.10.0 Continue Watching key, which its
+    // Core's legacy Continue Watching key, which its
     // `ContinueWatchingStore.read()` adopts when the current key is empty. Core
     // reads through this store (`configureMachaHost({ storage: clientStore })`)
     // and `getItem` answers only from the hydrated cache, so failing to hydrate
-    // this would silently defeat core's own migration on any device that ran a
-    // build of this client from before core 0.10.0.
+    // this would silently defeat core's own migration.
     await AsyncStorage.setItem('macha-client-progress:client-1', '[]');
     // Anchored on purpose: another library's key that merely begins with the
     // same letters must not be pulled into this cache.

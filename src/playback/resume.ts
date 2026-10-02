@@ -9,8 +9,8 @@ import {
 } from '@machafoundation/core';
 
 /**
- * Continue Watching that resumes "as if you'd never left" (Tom, 2026-09-27,
- * via the television): the title, the file, and how it was playing. Core
+ * Continue Watching that resumes as if the viewer never left: the title, the
+ * file, and how it was playing. Core
  * builds this from its coordinator's snapshot; this client drives the
  * resolver directly and has no snapshot, so it builds the same
  * `PlaybackResumeState` from its own session and what it knows the viewer
@@ -26,8 +26,8 @@ export interface PlaybackChoice {
   /**
    * The mode the viewer picked, where they picked one. Not the session's:
    * Remux on a file whose audio this device cannot decode is carried as
-   * transcode with the video copied, and resuming the session's mode
-   * re-encoded the picture (*2010* on the A85, 2026-09-27).
+   * transcode with the video copied, and resuming the session's mode would
+   * re-encode the picture.
    */
   mode?: PlaybackMode;
 }
@@ -57,8 +57,8 @@ export function resumeStateOf(session: PlaybackSession, choice: PlaybackChoice):
 }
 
 /**
- * Whether a title belongs in Continue Watching: films and episodes only
- * (Tom, 2026-09-28). Music resumes from its own queue. An entry saved
+ * Whether a title belongs in Continue Watching: films and episodes only.
+ * Music resumes from its own queue. An entry saved
  * without its media cannot be shown, so it does not belong either.
  */
 export function belongsInContinueWatching(media: Pick<MediaSummary, 'kind'> | undefined): boolean {

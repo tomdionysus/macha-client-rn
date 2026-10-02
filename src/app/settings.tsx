@@ -74,7 +74,7 @@ export default function SettingsScreen() {
                 // Playback stops first: after the token changes, a session
                 // created under the old identity can no longer be closed, and
                 // the node holds it against `max_video_transcodes` for thirty
-                // minutes. The same reason the login screen stops first.
+                // minutes.
                 await stop();
                 await signOut();
               } catch (error) {
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
 }
 
 /**
- * The ceilings on automatic play, kept on this device (Tom, 2026-09-25).
+ * The ceilings on automatic play, kept on this device.
  * Unset, Wi-Fi plays up to the screen's own resolution and mobile data up to
  * core's default. A quality picked on a detail screen or in the player is
  * never capped by either.

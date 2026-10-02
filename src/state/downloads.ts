@@ -14,8 +14,8 @@ export interface DownloadRecord {
   /** Catalogue id, for linking back into the library when it is reachable. */
   itemId: string;
   /**
-   * The viewer named this file in the download chooser (Tom, 2026-09-28),
-   * so `mediaId` is the file to copy. Otherwise the download takes the file
+   * The viewer named this file in the download chooser, so `mediaId` is the
+   * file to copy. Otherwise the download takes the file
    * playback would pick.
    */
   fileChosen?: boolean;

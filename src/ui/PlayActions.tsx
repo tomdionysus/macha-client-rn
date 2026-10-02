@@ -32,7 +32,7 @@ interface Props {
  * as the primary action with Play from start beside it, so neither choice is
  * ever hidden behind a menu.
  *
- * Beside them, one button per quality the item offers (Tom, 2026-09-25):
+ * Beside them, one button per quality the item offers:
  * Play decides, and a quality button is the viewer deciding, never capped.
  * They start where the primary button would. Nothing above this device is
  * offered unless the viewer turned on "Offer everything" (core's

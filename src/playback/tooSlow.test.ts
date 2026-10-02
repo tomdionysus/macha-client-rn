@@ -53,7 +53,7 @@ describe('a quality no node produces at real speed (The Martian at 0:02)', () =>
   });
 });
 
-// The web's sentences (web `e543e0e`), word for word.
+// The web's sentences, word for word.
 describe('saying so', () => {
   it('names the quality and the streams being converted', () => {
     expect(tooSlowToPlayText(2160, { video: 'transcode', audio: 'transcode' }))

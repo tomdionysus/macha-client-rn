@@ -4,16 +4,15 @@ import type { MediaAccess } from '../account/access';
  * What is standing between this device and the cluster's media, as a list
  * rather than a flag.
  *
- * One boolean cannot carry this. "Offline" was doing the work of at least four
+ * One boolean cannot carry this. "Offline" would cover at least four
  * different situations — no network, a node that will not answer, a cluster
  * that wants an account, an account that may not view — and they are not the
  * same to whoever is holding the phone: two of them pass on their own and two
  * need somebody to do something.
  *
- * Deliberately no "no internet". This client already decided to ignore
- * `isInternetReachable`, because a LAN with no route to the internet is a
- * perfectly good home for a Macha cluster, and re-deriving it here would put
- * that mistake back by a different door.
+ * Deliberately no "no internet". This client ignores `isInternetReachable`,
+ * because a LAN with no route to the internet is a perfectly good home for a
+ * Macha cluster.
  */
 export type ProblemKind =
   | 'no-endpoints'
@@ -108,10 +107,10 @@ export function describeProblems(facts: ProblemFacts): Problem[] {
 /**
  * Whether media the cluster serves can be relied on right now.
  *
- * The question Continue Watching has to ask. It used to ask "are we offline",
- * which is only one of the ways the answer is no — a cluster that refuses this
- * viewer is perfectly reachable and still cannot play them anything, so the
- * rail went on offering items that fail when tapped.
+ * The question Continue Watching has to ask. "Are we offline" is only one of
+ * the ways the answer is no: a cluster that refuses this viewer is perfectly
+ * reachable and still cannot play them anything, so the rail would offer
+ * items that fail when tapped.
  */
 export function clusterMediaUnavailable(problems: readonly Problem[]): boolean {
   return problems.length > 0;

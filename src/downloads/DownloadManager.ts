@@ -16,7 +16,7 @@ const ARTWORK_DIR = `${FileSystem.documentDirectory}macha/artwork/`;
 /**
  * One at a time, deliberately.
  *
- * A node advertises `max_sessions` (8 on the tested cluster) and every download
+ * A node advertises `max_sessions` and every download
  * holds a real playback session while it runs. Fanning out an album would eat
  * the whole budget and compete with someone actually watching something.
  */
@@ -58,9 +58,9 @@ export class DownloadManager {
   private active: string | undefined;
   private cancelled = new Set<string>();
   /**
-   * The transfer in flight, so a cancel can stop it. A flag alone was read
-   * only when the transfer finished: on the A85 (2026-09-28) a cancelled
-   * film kept arriving at 2.4 MB/s, all of it to be deleted at the end.
+   * The transfer in flight, so a cancel can stop it. A flag alone is read
+   * only when the transfer finishes, so a cancelled film would keep arriving,
+   * all of it to be deleted at the end.
    */
   private transfer: { mediaId: string; task: FileSystem.DownloadResumable } | undefined;
   /** In-flight byte counts, held in memory rather than written to storage. */
@@ -112,8 +112,6 @@ export class DownloadManager {
    * counter is only reactive if the reader keeps it: a hook that subscribes and
    * discards the result has no input the React Compiler can see, so it caches
    * the derived records against the store singletons and never recomputes them.
-   * That is what left the download button, "Clear" and removing a single item
-   * all showing whatever was true when the screen was first drawn.
    */
   getSnapshot = (): DownloadProgressSnapshot => {
     this.cached ??= { records: this.store.all(), active: this.active, live: new Map(this.live) };
@@ -271,9 +269,9 @@ export class DownloadManager {
       const overrides = devicePlaybackOverrides();
       const fileId = record.fileChosen ? mediaId : fileToPlay(files, record.media.mediaIds, capabilities, overrides);
       // A copy always plays off the disk as it is, so a file this device
-      // cannot play is not downloaded at all (Tom, 2026-09-28). The button
-      // says so before a tap; this catches what arrives without one, like an
-      // album's Download. Without facts the download goes ahead, as before.
+      // cannot play is not downloaded at all. The button says so before a
+      // tap; this catches what arrives without one, like an album's Download.
+      // Without facts the download goes ahead.
       const named = files?.find((file) => file.mediaId === (fileId ?? record.media.mediaIds[0]));
       if (named && !playableHere(named, capabilities, overrides)) {
         this.store.patch(mediaId, { state: 'failed', error: `${NOT_AVAILABLE_HERE}.` });
@@ -360,22 +358,19 @@ export class DownloadManager {
   /**
    * Tell the registry what this download measured, when it measured anything.
    *
-   * Attribution is by URL because that is the seam core `0.12.0` exposes:
-   * `recordTransferByUrl` matches the URL against the registry's endpoints and
-   * files the sample against whichever one served it. A sample filed against
-   * the wrong node would be worse than none, since ranking would act on it, so
-   * a URL core cannot match is silently dropped rather than guessed at.
-   *
-   * `session.endpoint?.id` is the more direct attribution and this used to use
-   * it. It is not available through the public surface any more, and the URL
-   * match is equivalent while media is served from the node's own base URL.
+   * Attribution is by URL, the seam core exposes: `recordTransferByUrl`
+   * matches the URL against the registry's endpoints and files the sample
+   * against whichever one served it. A sample filed against the wrong node
+   * would be worse than none, since ranking would act on it, so a URL core
+   * cannot match is silently dropped rather than guessed at. The match holds
+   * while media is served from the node's own base URL.
    *
    * Every sample here comes from whichever node the registry already preferred,
    * because that is the node the session resolver picked. Throughput therefore
    * accumulates on the incumbent and rarely on a challenger, so it will mostly
    * confirm a ranking rather than overturn one. That is a known limit of
-   * sampling from downloads and is recorded in `TODO/ACTIVE.md`; it is not a
-   * reason to record nothing.
+   * sampling from downloads, recorded in `TODO/ACTIVE.md`; it is not a reason
+   * to record nothing.
    */
   private recordThroughput(session: PlaybackSession, observed: TransferObservation | undefined): void {
     if (!this.registry || !observed) return;
@@ -396,8 +391,8 @@ export class DownloadManager {
       await FileSystem.makeDirectoryAsync(ARTWORK_DIR, { intermediates: true }).catch(() => undefined);
       const target = `${ARTWORK_DIR}${safeName(mediaId)}.img`;
       // This downloader sends no Authorization header, so only a
-      // self-authenticating source can be stored. Artwork failing is not a
-      // download failure, so an item with no signed URL simply keeps no cover.
+      // self-authenticating source can be stored; an item with no signed URL
+      // simply keeps no cover.
       const source = this.mediaApi.artworkUrls(ref).find((candidate) => !candidate.requiresAuthorization);
       if (!source) return undefined;
       const result = await FileSystem.downloadAsync(source.url, target);

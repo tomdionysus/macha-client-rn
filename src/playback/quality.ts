@@ -23,8 +23,7 @@ import { clientStore } from '../state/storage';
 import { displayPixels } from './capabilities';
 
 /**
- * Per-quality play and the ceilings on automatic play (Tom, 2026-09-25; the
- * design is in TODO/ACTIVE.md).
+ * Per-quality play and the ceilings on automatic play.
  *
  * The judgement is core's: `playbackVersions` says which qualities an item
  * has and what automatic play takes, `qualityCeiling` what caps it. This
@@ -82,9 +81,8 @@ export function convertedStreams(video: boolean, audio: boolean): string | undef
  * Why Play chooses the file it does, as one sentence built from every fact
  * core gives: the file chosen, a larger one passed over because it would need
  * converting (`passedOver`), and a ceiling that kept a larger one out
- * (`limitedBy`, with its reason). Tom: automatic play is capped "with context
- * to the user as to why". The web client's `qualityChoiceText` word for word
- * (web `e543e0e`), so every client says it alike.
+ * (`limitedBy`, with its reason). The web client's `qualityChoiceText` word for
+ * word, so every client says it alike.
  *
  * "Which plays without converting" is said only when a larger file was passed
  * over for needing it, since only then is it the reason. Undefined when Play
@@ -95,8 +93,8 @@ export function qualityChoiceText(versions: Pick<PlaybackVersions, 'files' | 'au
   if (!automatic) return undefined;
   const clauses: string[] = [];
   const converted = passedOver && convertedStreams(passedOver.converts.video, passedOver.converts.audio);
-  // A node's measured rate for this kind of picture (server 0.70.0): the
-  // conversion is not only needed but too slow to watch.
+  // A node's measured transcode rate for this kind of picture: the conversion
+  // is not only needed but too slow to watch.
   const tooSlow = passedOver?.reasons.includes('transcode-below-real-time');
   if (passedOver && converted) {
     clauses.push(`${qualityLabel(passedOver.quality)} needs ${converted} converted${tooSlow ? ', which the server can\'t do fast enough' : ''}`);
@@ -118,18 +116,14 @@ export function qualityChoiceText(versions: Pick<PlaybackVersions, 'files' | 'au
 }
 
 /**
- * Whether the viewer turned off the device limit (Tom, 2026-09-25: limit to
- * the device on all clients, with a setting on all clients to turn it off).
- * Kept in core's store with the ceilings.
- */
-/**
- * The best rate any node has measured for transcoding a kind of picture
- * (server 0.70.0), as the resolver answers it. Automatic play passes over a
+ * The best rate any node has measured for transcoding a kind of picture, as
+ * the resolver answers it. Automatic play passes over a
  * file no node converts at real speed; the coordinator passes it on every
  * `playbackVersions` call, and so does everything here.
  */
 export type TranscodeRate = PlaybackVersionsOptions['transcodeRate'];
 
+/** Whether the viewer turned off the device limit. Kept in core's store with the ceilings. */
 export function offerAll(): boolean {
   return qualityPreferences.get().offerAll === true;
 }
@@ -249,8 +243,8 @@ export function versionUpdate(
   const audioLanguage = languageOf(session.selected.audioStream);
   const subtitleLanguage = languageOf(session.selected.subtitleStream);
   // The kind of subtitles playing, too: a forced track (foreign dialogue
-  // only) stays forced and a full one full. The Martian's 4K file flags its
-  // forced English track default (core `7a79d49`, found on the television).
+  // only) stays forced and a full one full, since a file may flag its forced
+  // track as the default.
   const subtitleForced = subtitleLanguage
     ? session.sourceInfo.streams.find((stream) => stream.index === session.selected.subtitleStream)?.forced
     : undefined;

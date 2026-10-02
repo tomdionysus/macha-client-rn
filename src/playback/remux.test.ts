@@ -4,16 +4,12 @@ import { directUnavailableReason, remuxUnavailableReason } from './policy';
 
 /**
  * Remux copies the video, so it is only real when this device can decode it.
+ * Otherwise the decoder refuses the copy as `NO_EXCEEDS_CAPABILITIES` and the
+ * viewer gets a black screen: *Dark* S01E01, ten-bit HEVC Main 10 in
+ * Matroska, on a device with no Main 10 and `videoBitDepth` 8, is the case
+ * modelled here.
  *
- * **Seen on the A85 2026-09-23 on the tagged 0.8.0.** *Dark* S01E01 is ten-bit
- * HEVC Main 10 in Matroska; the device's probe reported HEVC `[1, 4]`, no Main
- * 10, and `videoBitDepth` 8. Remux sent `video: 'copy'`, the decoder refused
- * it as `NO_EXCEEDS_CAPABILITIES`, and the viewer got a black screen.
- * `transformFor` checked the audio and said outright that it did not check
- * the video.
- *
- * Tom's call, 2026-09-23: keep Remux in the menu and say why it is
- * unavailable. The judgement is core's `videoStreamObjection` — the same one
+ * Remux stays in the menu and says why it is unavailable. The judgement is core's `videoStreamObjection` — the same one
  * that chose transcode for this title on create — asked of the stream the
  * session is presenting.
  */
@@ -96,12 +92,9 @@ describe('remuxUnavailableReason', () => {
 });
 
 /**
- * Direct play, greyed out on the same terms — Tom, 2026-09-24.
- *
- * `transformFor`'s docblock had argued the opposite: a viewer who names Direct
- * gets what they asked for. On the A85 what they got was a decoder refusal —
- * a black screen before the guard fix, an honest failure after it — for a mode
- * the menu offered without comment. Direct delivers the original file, so it
+ * Direct play, greyed out on the same terms: otherwise a viewer who names it
+ * gets a decoder refusal for a mode the menu offered without comment. Direct
+ * delivers the original file, so it
  * is judged against the direct-play decoders (not the HLS list Remux uses) and
  * against the container, which Remux replaces and Direct does not.
  */

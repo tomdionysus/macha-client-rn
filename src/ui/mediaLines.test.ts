@@ -5,12 +5,8 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 const mediaProfileSummary = (profile: CatalogueMediaProfile) => fileLines([profile])[0];
 
 /**
- * The phone's lines over core's facts (`technicalSummary`, core `5622020`,
- * with the class and channel count added in `29fa878`: Tom, 2026-09-27, "add
- * a (4K), (2K), (1080p) etc after the physical resolution. Also add a channel
- * count after the audio codec").
- * These pinned the phone's own copy of the web's rules before core took them,
- * and now pin that core's facts and the phone's layout read exactly the same.
+ * The phone's lines over core's facts (`technicalSummary`): these pin that
+ * core's facts and the phone's layout read exactly as the web client's do.
  */
 function stream(partial: Partial<CatalogueMediaStreamProfile>): CatalogueMediaStreamProfile {
   return {
@@ -23,7 +19,7 @@ function profile(durationMs: number, bitrate: number, streams: CatalogueMediaStr
   return { schema_version: 3, media_id: 'm', format: 'matroska,webm', duration_ms: durationMs, bitrate, streams };
 }
 
-// The Martian's two files as the A85 read them, 2026-09-27.
+// Two real files of one film, at 4K and 1080p.
 const martian4k = profile(9_060_000, 47_400_000, [
   stream({ index: 0, codec: 'hevc', width: 3840, height: 2160 }),
   stream({ index: 1, type: 'audio', codec: 'truehd', channels: 8, default: true }),
@@ -66,14 +62,13 @@ describe('fileLines', () => {
     expect(fileLines([martian1080, { ...martian1080, media_id: 'other' }])).toEqual(['2h 31m · 1920×1080 (1080p) · HEVC · E-AC-3 · 5.1 · 3.1 Mbps']);
   });
 
-  /** Tom, 2026-09-27 (via the television): highest resolution first. */
   it('lists the largest picture first, whatever the stored order', () => {
     expect(fileLines([martian1080, martian4k]).map((line) => line.split(' · ')[1])).toEqual(['3840×2160 (4K)', '1920×1080 (1080p)']);
   });
 });
 
 describe('wrapBetweenFields', () => {
-  /** The A85's music player broke "926 kbps" across two lines. */
+  /** A narrow column must not break "926 kbps" across two lines. */
   it('leaves a break only between fields', () => {
     const wrapped = wrapBetweenFields('6:43 · FLAC · 16-bit · 44.1 kHz · Stereo · 926 kbps');
     expect(wrapped).toBe('6:43 · FLAC · 16-bit · 44.1\u00A0kHz · Stereo · 926\u00A0kbps');

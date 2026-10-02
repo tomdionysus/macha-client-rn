@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 /**
- * The Macha palette, carried over from the web client's `styles/base.css`:
+ * The Macha palette, matching the web client's `styles/base.css`:
  * a near-black neutral ground with a highly saturated, very dark crimson
  * accent. Phone screens are viewed in the dark far more often than a TV, so
  * the client is dark-only rather than following the system scheme.

@@ -8,8 +8,7 @@ import { getClientId } from './connection';
  * `ClientStore` answers only from a cache hydrated once at startup — so before
  * hydration an *existing* id reads as no id at all. Anything calling it early
  * mints a fresh identity and writes it, silently orphaning everything keyed
- * under the previous one. That is the fault core spent 0.12.0 removing from its
- * own bandwidth store.
+ * under the previous one.
  *
  * `MachaProvider` hands core's `EndpointBandwidth` a lazy id guarded on
  * `clientStore.isHydrated` for exactly this reason: core resolves it at write

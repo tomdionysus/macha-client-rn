@@ -67,9 +67,9 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
   const artwork = media.artwork?.poster ?? media.artwork?.thumbnail ?? media.musicContext?.artwork;
   const artist = media.musicContext?.artist?.title;
   const album = media.musicContext?.album.title;
-  // Tom, 2026-09-24: artist, album, year and track below the artwork. Each line
-  // shows only what the item carries: a track stored before `musicContext`
-  // existed has no album or artist until it is re-added.
+  // Artist, album, year and track below the artwork. Each line shows only what
+  // the item carries: a stored track without `musicContext` has no album or
+  // artist until it is re-added.
   const albumLine = media.musicContext ? albumLabel(media.musicContext.album) : undefined;
   const trackLine = trackNumberLabel(media);
   const RepeatGlyph = repeat === 'one' ? RepeatOneIcon : RepeatIcon;
@@ -119,7 +119,7 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
               </Text>
             ) : null}
             {trackLine ? <Text style={styles.track}>{trackLine}</Text> : null}
-            {/* The track's file, as every client shows it (Tom, 2026-09-27):
+            {/* The track's file, as every client shows it:
                 "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps". */}
             <MediaLines mediaIds={media.mediaIds} />
           </View>

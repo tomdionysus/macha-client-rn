@@ -3,14 +3,11 @@ import type { PlaybackSession } from '@machafoundation/core';
 import { generationLocalMs, generationOriginMs, titlePositionMs } from './policy';
 
 /**
- * The timelines this client was conflating, measured on the A85 2026-09-21.
- *
- * Every case below is a real reading from that run, not an invented one. The
- * headline: *Avatar*, transcode, scrubbed to 1:44:35 — the node built the
- * generation at `seekMs 6275725` and the player then reported ~13 s, which the
- * bar printed as `0:13`. Before the fix `positionMs` was `currentTime * 1000`
- * with no origin added, so it returned 13_000 for that case and every
- * assertion here that adds an origin fails.
+ * The title's timeline and a generation's are different. A transformed
+ * generation begins at the node's `seekMs`, and the player reports positions
+ * from that origin: *Avatar*, transcoded and scrubbed to 1:44:35, is built at
+ * `seekMs 6275725` and then reports about 13 s, which read as a title
+ * position would put the bar at `0:13`.
  */
 
 const transformed = (seekMs: number) =>
@@ -27,9 +24,8 @@ describe('generationOriginMs', () => {
   });
 
   it('is zero for direct play, which is the whole file', () => {
-    // Measured: a scrub on 28 Weeks Later landed at 44:33 and reported it
-    // correctly, because for direct the two timelines coincide. Adding an
-    // origin here would move a position that was already right.
+    // For direct the two timelines coincide. Adding an origin here would move
+    // a position that is already right.
     expect(generationOriginMs(direct(2_673_964))).toBe(0);
   });
 
@@ -44,8 +40,8 @@ describe('generationOriginMs', () => {
 
 describe('titlePositionMs', () => {
   it('puts the measured Avatar reading back on the title timeline', () => {
-    // The defect exactly: 0:13 into a generation that begins at 1:44:35.7 is
-    // 1:44:48.7 of the film, not 13 seconds.
+    // 0:13 into a generation that begins at 1:44:35.7 is 1:44:48.7 of the
+    // film, not 13 seconds.
     expect(titlePositionMs(transformed(6_275_725), 13_000)).toBe(6_288_725);
   });
 

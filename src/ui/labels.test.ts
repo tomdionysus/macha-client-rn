@@ -11,10 +11,8 @@ import {
 } from './labels';
 
 /**
- * Every word a viewer reads is this client's — Tom's ruling, 2026-09-24, given
- * to core directly: core composes no viewer text and hands over structured
- * data only. Core cut its label helpers and `MediaSummary.subtitle` the same
- * day, so these are the client's own, worded as the other clients word them.
+ * Core composes no viewer text and hands over structured data only, so these
+ * labels are the client's own, worded as the other clients word them.
  */
 
 const episode = (over: Partial<MediaSummary> = {}) =>
@@ -73,9 +71,8 @@ describe('sort and category wording', () => {
     expect(CATEGORY_LABELS).toEqual({ movies: 'Movies', shows: 'TV Shows', music: 'Music' });
   });
 
-  // Core stores an unnamed playlist as '' — the list it adopts from the old
-  // store, and any name that trims to nothing. A row reading blank looked like
-  // a rendering fault.
+  // Core stores an unnamed playlist as ''. A row reading blank looks like a
+  // rendering fault.
   it('gives an unnamed playlist a placeholder', () => {
     expect(playlistName({ name: '' })).toBe('Untitled playlist');
     expect(playlistName({ name: 'Road trip' })).toBe('Road trip');

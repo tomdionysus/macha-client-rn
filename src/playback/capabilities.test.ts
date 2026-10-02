@@ -19,9 +19,8 @@ const onPlatform = <T,>(os: 'ios' | 'android', run: () => T): T => {
 
 describe('deviceCapabilities', () => {
   it.each(['ios', 'android'] as const)('never claims HDR on %s', (os) => {
-    // Over-claiming HDR is a washed-out or black picture on a phone that is not
-    // a reference display. Under-claiming costs a transcode nobody needed,
-    // which is the failure worth having.
+    // With no native module to ask, nothing is claimed: under-claiming costs a
+    // transcode, over-claiming a black or washed-out picture.
     expect(onPlatform(os, deviceCapabilities).hdr).toEqual([]);
   });
 
@@ -35,10 +34,9 @@ describe('deviceCapabilities', () => {
   });
 
   /**
-   * The screen is never the device's limit. It was stated as one on
-   * 2026-09-25 and the A85's 720x1612 panel then refused every 1080p file a
-   * Direct Play its decoders manage. The limit is the decoders' own
-   * (`decoderSizeLimit`), and with no probe there is none.
+   * The screen is never the device's limit: a panel smaller than 1080p would
+   * refuse Direct Play of files its decoders manage. The limit is the
+   * decoders' own (`decoderSizeLimit`), and with no probe there is none.
    */
   it.each(['ios', 'android'] as const)('states no size limit from the screen on %s', (os) => {
     const saved = Dimensions.screen;
@@ -59,30 +57,21 @@ describe('deviceCapabilities', () => {
 });
 
 /**
- * The codec claim that made two films silent, measured on the A85 2026-09-21.
- *
- * `dumpsys media.player` on that device lists no `audio/ac3` and no
- * `audio/eac3`, yet this module claimed both. The node took the claim at face
- * value, Direct Played *2010* (AC3 5.1) and *Avatar: Fire and Ash* (EAC3 5.1),
- * and media3 selected no audio track at all — picture fine, audio output in
- * standby for over a minute, nothing logged anywhere. Every AAC title in the
- * same run had sound.
+ * An audio codec claimed without a decoder makes the node Direct Play, and
+ * media3 then selects no audio track: picture fine, silence, nothing logged.
  */
 describe('deviceCapabilities audio claims', () => {
   it('does not claim ac3 or eac3 on android when the device cannot be asked', () => {
-    // These are declared in the module and removed again by the probe, which
-    // is aliased away under vitest — so this is the unprobed path, and the
-    // assertion is that an unanswerable probe refuses them rather than
-    // letting the declaration through. `codecProbe.test.ts` covers the case
-    // where a device answers, in both directions.
+    // The native module is aliased away under vitest, so this is the unprobed
+    // path: an unanswerable probe refuses them. `codecProbe.test.ts` covers a
+    // device that answers.
     const { audioCodecs } = onPlatform('android', deviceCapabilities);
     expect(audioCodecs).not.toContain('ac3');
     expect(audioCodecs).not.toContain('eac3');
   });
 
   it('still claims the android codecs that were measured working', () => {
-    // Removing the false claims must not quietly narrow the rest into
-    // transcodes nobody needed.
+    // Refusing ac3 and eac3 must not narrow the rest into needless transcodes.
     const { audioCodecs } = onPlatform('android', deviceCapabilities);
     expect(audioCodecs).toContain('aac');
     expect(audioCodecs).toContain('mp3');
@@ -91,10 +80,8 @@ describe('deviceCapabilities audio claims', () => {
   });
 
   it('keeps ac3 and eac3 on ios, which AVFoundation decodes', () => {
-    // Deliberate asymmetry, and this test exists so it stays chosen rather
-    // than drifted into: the silence was an Android decoder absence, and
-    // dropping these on iOS on the strength of an Android reading would be the
-    // same over-reach in the other direction.
+    // Deliberate asymmetry with Android: iOS has no probe, and AVFoundation
+    // decodes both.
     const { audioCodecs } = onPlatform('ios', deviceCapabilities);
     expect(audioCodecs).toContain('ac3');
     expect(audioCodecs).toContain('eac3');

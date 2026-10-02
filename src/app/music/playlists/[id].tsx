@@ -100,7 +100,6 @@ export default function PlaylistScreen() {
                   <Text numberOfLines={1} style={[styles.title, nowPlaying?.id === item.id && styles.playing]}>
                     {item.title}
                   </Text>
-                  {/* The album, then the artist below it (Tom, 2026-09-24). */}
                   {item.musicContext ? (
                     <Text numberOfLines={1} style={styles.subtitle}>
                       {albumLabel(item.musicContext.album)}

@@ -18,18 +18,13 @@ import {
  * Keys this client restores at startup.
  *
  * Two prefixes, because two conventions meet here. This client namespaces its
- * own keys `macha.`; core uses both, and its session cache was hyphenated
- * `macha-session` until `0.10.0` retired it to `macha.session.v1`. Both forms
- * are still matched: the dotted one is what core writes today, the hyphenated
- * one is what a device that has not launched since `0.10.0` still has on it.
- *
- * Filtering on `macha.` alone meant the signed-in token was written to disk
- * faithfully on every launch and never read back, so a login survived exactly as
- * long as the process did. Nothing errored and nothing logged: an anonymous
- * session re-mints in milliseconds, so the only symptom was a *person* being
- * signed out every cold start, which is invisible until somebody actually signs
- * in. Anchored rather than a bare `macha` so a third party's `machaSomething`
- * cannot wander into this cache.
+ * own keys `macha.`; core uses both. Core's session cache is
+ * `macha.session.v1`, but core before `0.10.0` wrote it as `macha-session`,
+ * and a device carrying that data still has the hyphenated key. Filtering on
+ * `macha.` alone would leave such a login written and never read back: an
+ * anonymous session re-mints in milliseconds, so the only symptom is a person
+ * signed out on every cold start. Anchored rather than a bare `macha` so a
+ * third party's `machaSomething` cannot wander into this cache.
  *
  * **Do not replace this with core's `isMachaStorageKey`,** whose own doc
  * comment recommends exactly that. It is a registry of the keys *core* owns,
@@ -40,8 +35,7 @@ import {
  * Swapping it in drops all six, and because `macha.clientId.v1` is the
  * namespace the per-client stores are keyed under, a lost client id also
  * orphans Continue Watching, the queue, the playlists and the music library on
- * every cold start — the same silent shape as the incident above, one layer
- * further down. Core's helper is right for a *host clearing Macha's data*,
+ * every cold start. Core's helper is right for a *host clearing Macha's data*,
  * which is not what this is.
  */
 const OWNED_KEY_PREFIXES = ['macha.', 'macha-'] as const;
@@ -64,10 +58,9 @@ class ClientStore {
       for (const [key, value] of entries) if (value !== null) this.cache.set(key, value);
     } catch {
       // One row Android cannot read (over its ~2 MB CursorWindow) fails the
-      // whole `multiGet`. Swallowing that once started the A85 with nothing
-      // (2026-09-28): the Connect screen, and a new client id minted over the
-      // real one, orphaning every per-client store. So read key by key and
-      // lose only what cannot be read, and say which.
+      // whole `multiGet`. Starting empty would mean the Connect screen and a new
+      // client id minted over the real one, orphaning every per-client store.
+      // So read key by key, lose only what cannot be read, and say which.
       for (const key of keys) {
         try {
           const value = await AsyncStorage.getItem(key);
@@ -112,8 +105,7 @@ class ClientStore {
 export const clientStore = new ClientStore();
 
 // Core's helpers, bound to this client's store so callers keep the shorter
-// two-argument signature. The parse-validate-discard logic was duplicated; the
-// convenience of not passing the store at ~20 call sites was not.
+// two-argument signature.
 export function readValidatedJson<T>(key: string, validate: (value: unknown) => value is T): T | undefined {
   return coreReadValidatedJson(clientStore, key, validate);
 }

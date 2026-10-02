@@ -7,11 +7,10 @@
  *   trackplayer://notification.click   the user tapped the now-playing notification
  *   trackplayer://service-bound        the service woke the app itself
  *
- * Neither matches a route, so both previously fell through to the router's
- * unmatched screen — tapping your own notification showed "page not found",
- * and the service waking the app pushed a dead route over whatever was on
- * screen. Handling them here means they never enter the navigation state at
- * all, rather than being caught after the fact.
+ * Neither matches a route. Left to the router, tapping the notification would
+ * show "page not found" and the service waking the app would push a dead route
+ * over whatever is on screen, so they are handled here, before they enter the
+ * navigation state.
  */
 export function redirectSystemPath({ path }: { path: string | null; initial: boolean }): string | null {
   if (!path) return path;

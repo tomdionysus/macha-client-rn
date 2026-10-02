@@ -3,15 +3,14 @@ import { endpointFailure, MachaApiError, MachaClusterRouteError, MachaPlaybackEr
 import { accountSessionLimitMessage, classifyCreateRefusal, createFailureMessage, seekRefusalMessage, spendsFailoverBudget } from './policy';
 
 // Core's resolver raises its own `MachaPlaybackError`, not the catalogue's
-// `MachaApiError` (this client had a class of that name too, deleted
-// 2026-09-24). That is the whole reason this classifier is duck-typed:
+// `MachaApiError`. That is the whole reason this classifier is duck-typed:
 // two classes carry the same four fields, and core itself reads `code` and
 // `reason` off the object rather than testing identity.
 describe('the two error classes on the create path', () => {
   it('proves core\'s playback error is not the api error', () => {
-    // `createSession` tested `error instanceof MachaApiError` before deciding
-    // whether to degrade. Core throws the other class, so that branch could
-    // never be taken and every refusal was fatal.
+    // A create path that tested `error instanceof MachaApiError` before
+    // deciding whether to degrade would never match what core throws, and
+    // every refusal would be fatal.
     expect(new MachaPlaybackError('refused', 400) instanceof MachaApiError).toBe(false);
   });
 });
@@ -22,8 +21,7 @@ describe('classifyCreateRefusal', () => {
     expect(classifyCreateRefusal(new MachaApiError('unsupported transform', 400))).toBe('degrade');
   });
 
-  // The new outcome from the REST-resource change. The cap is a fact about the
-  // account, identical on every node, and it is not about the instruction — so
+  // The cap is a fact about the account, identical on every node, and it is not about the instruction — so
   // asking for less would not help and must not be tried.
   it('names the account session cap and does not call it degradable', () => {
     const capped = new MachaPlaybackError(
@@ -79,8 +77,8 @@ describe('accountSessionLimitMessage', () => {
 
   it('quotes the server through the cluster wrapper, and not the node address with it', () => {
     // The cap is found through `endpointFailure` (see below), so the message
-    // is built from the wrapped error too. Taking off one known prefix left
-    // the other, and the node's address, in front of the viewer.
+    // is built from the wrapped error too. Taking off one known prefix would
+    // leave the other, and the node's address, in front of the viewer.
     const inner = new MachaPlaybackError(
       'Macha playback request failed: account already holds 3 sessions (limit 3)',
       429,
@@ -99,8 +97,7 @@ describe('accountSessionLimitMessage', () => {
 // Core wraps a node's refusal in `MachaEndpointError` before it leaves the
 // resolver, and that wrapper carries no `status` and no `code` of its own —
 // both sit one link down in `cause`. A classifier that reads only the
-// outermost object sees neither and calls everything fatal, which is the same
-// defect as the `instanceof` test, one layer out.
+// outermost object sees neither and calls everything fatal.
 describe('a refusal wrapped by the cluster layer', () => {
   const wrapped = (inner: unknown) => endpointFailure('endpoint-1', 'http://node.example', inner);
 
@@ -129,8 +126,7 @@ describe('a refusal wrapped by the cluster layer', () => {
 
 // The failover budget exists to stop a broken title cycling nodes. An account
 // cap is not a node failing, so spending recovery budget on it leaves a later
-// genuine failure with none — the client-side mirror of core charging every
-// healthy node it walked for an account-scoped refusal.
+// genuine failure with none.
 describe('spendsFailoverBudget', () => {
   it('does not spend the budget on the account cap', () => {
     const capped = new MachaPlaybackError('account already holds 3 sessions (limit 3)', 429, 'account_session_limit');
@@ -152,14 +148,9 @@ describe('spendsFailoverBudget', () => {
 /**
  * What a viewer reads when a title will not start.
  *
- * **Before 2026-09-23 this was `describeError`, which is `.message`** — so
- * every create refusal but the account cap reached the screen as core's log
- * line: *"Macha endpoint https://macnessa.macha.network failed: Macha
- * playback request failed: ..."*, both envelopes and the node's address.
- *
- * Tom's rule, 2026-09-23: it depends on the error, it must be something a
- * person can understand, and it must be honest. So one sentence per kind of
- * failure, saying what is known, and the server's own reason in brackets
+ * Never the error's `.message`, which is core's log line with both envelopes
+ * and the node's address. One sentence per kind of failure, understandable
+ * and honest, saying what is known, with the server's own reason in brackets
  * where it gave one.
  */
 describe('createFailureMessage', () => {
@@ -232,7 +223,7 @@ describe('createFailureMessage', () => {
   });
 
   it('says a start stopped progressing in the web\'s words, from core\'s code rather than its 504', () => {
-    // Raised by core itself (server 0.69.0 `start=async`): there is no server
+    // Raised by core itself (the server's `start=async`): there is no server
     // sentence behind it, and "could not start" would blame the server.
     const stalled = new MachaPlaybackError('Macha playback start made no progress for 17000 ms.', 504, START_NO_PROGRESS_CODE);
     expect(createFailureMessage(node(stalled))).toBe('The node stopped making progress starting this stream.');
@@ -249,8 +240,7 @@ describe('createFailureMessage', () => {
 /**
  * What a viewer reads when a jump to another point was refused.
  *
- * The last playback site that showed `describeError`, and so core's log line
- * with a node address in it. A refused rebuilding seek leaves the node's
+ * A refused rebuilding seek leaves the node's
  * generation as it was and `seekTo` never touched the player's position, so
  * the viewer is still where they were — which may be paused, so the sentence
  * does not claim playback carried on.

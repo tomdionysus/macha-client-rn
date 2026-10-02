@@ -79,9 +79,9 @@ describe('connectionKindOf', () => {
 
 /**
  * A 0.58.0 node refuses a create on a file with several audio streams that
- * names none (`choice_required`). This client used to name the file and no
- * stream, and core's resolver then answered the refusal with the node's first
- * candidate: here the French track, not the default English one.
+ * names none (`choice_required`), and core's resolver answers that refusal
+ * with the node's first candidate: here the French track, not the default
+ * English one. So the streams are named.
  */
 describe('automaticStart', () => {
   it('names the default audio stream of the file it plays', () => {
@@ -148,7 +148,7 @@ describe('versionUpdate', () => {
   /**
    * The Martian's 4K file carries a forced English track (foreign dialogue
    * only) flagged default beside the full one. A switch across files keeps
-   * the kind that was playing (core `7a79d49`, found on the television).
+   * the kind that was playing.
    */
   it('keeps a forced subtitle track forced across files, and a full one full', () => {
     const sub = (index: number, forced: boolean, isDefault: boolean): MediaTechnicalStream =>
@@ -195,7 +195,7 @@ describe('playingStep', () => {
 });
 
 /**
- * Tom, 2026-09-25: a phone cannot play 2160p, so it is not offered; a setting
+ * A phone cannot play 2160p, so it is not offered; a setting
  * offers everything. What is offered is core's, from the screen this phone
  * states as its limit; what is left here is whether it is worth a button.
  */
@@ -232,10 +232,10 @@ describe('qualityLabel', () => {
 });
 
 /**
- * Server 0.70.0 measures each node's transcode rate per kind of picture, and
- * automatic play passes over one no node converts at real speed: fi-1 decodes
- * 4K HEVC ten-bit at about 0.33x, and choosing it meant a stall at 0:02. The
- * rate has to reach `playbackVersions` on every path this client starts by.
+ * The server measures each node's transcode rate per kind of picture, and
+ * automatic play passes over one no node converts at real speed, which would
+ * only stall. The rate has to reach `playbackVersions` on every path this
+ * client starts by.
  */
 describe('the measured transcode rate', () => {
   // A phone that decodes neither file, so both convert their picture.
@@ -260,8 +260,8 @@ describe('the measured transcode rate', () => {
   });
 });
 
-// The web client's cases for `qualityChoiceText` (web `e543e0e`), word for
-// word: the sentence is the same on every client.
+// The web client's cases for `qualityChoiceText`, word for word: the
+// sentence is the same on every client.
 describe('why Play chooses the file it does, as one sentence from every fact', () => {
   const instruction = (video: 'copy' | 'transcode', audio: 'copy' | 'transcode') =>
     ({ mode: video === 'transcode' || audio === 'transcode' ? 'transcode' : 'direct', video, audio, reasons: [], assumed: [] }) as VersionStep['instruction'];

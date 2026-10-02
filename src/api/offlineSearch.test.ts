@@ -3,14 +3,11 @@ import type { MediaSummary } from '../types';
 import { searchOffline } from './offlineLibrary';
 
 /**
- * Search over what is downloaded, held to the same rules as the live search.
- *
- * Tom's rulings, relayed by core and confirmed here 2026-09-24: "the", "a" and
- * "an" never trigger a search and are never matched on, at least two
- * characters must be left, and the Movies / TV Shows / Music toggles narrow
- * the results — none on means nothing. Core applies all of it inside
- * `MachaMediaApi.search`; the offline library is this client's own code and
- * applied none of it, so the same query answered differently in airplane mode.
+ * Search over what is downloaded, held to the same rules as core's live
+ * search in `MachaMediaApi.search`: "the", "a" and "an" never trigger a search
+ * and are never matched on, at least two characters must be left, and the
+ * Movies / TV Shows / Music toggles narrow the results, none on meaning
+ * nothing. Otherwise the same query answers differently offline.
  */
 
 const item = (title: string, kind: MediaSummary['kind'], extra: Partial<MediaSummary> = {}) =>

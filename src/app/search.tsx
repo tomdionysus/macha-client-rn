@@ -27,8 +27,8 @@ const DEBOUNCE_MS = 280;
 
 /**
  * The line for a query that found nothing — including one made only of words
- * that are never searched on, or with every category off. Tom's wording, the
- * same on every client.
+ * that are never searched on, or with every category off. The same wording on
+ * every client.
  */
 const NOTHING_FOUND = 'Nothing found. Try different search terms or filters.';
 

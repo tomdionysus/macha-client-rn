@@ -9,8 +9,7 @@
  * the first and last progress callback measures the transfer and nothing else.
  *
  * This is separated from `DownloadManager` because the decision is the part
- * worth testing and the manager needs `expo-file-system` to exist. Same reason
- * `playback/policy.ts` left the provider.
+ * worth testing and the manager needs `expo-file-system` to exist.
  */
 
 /** Progress callbacks as they arrived, reduced to the four facts that matter. */

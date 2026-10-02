@@ -165,10 +165,9 @@ const styles = StyleSheet.create({
  * carries on working in — the viewer's own downloads play throughout — so this
  * is a thing to notice, not a thing to be interrupted by.
  *
- * It used to mean "offline" and only that. It now stands for whatever is
- * actually wrong, because a viewer does not care which of four internal facts
- * produced a smaller library; they care what it is and whether it is theirs to
- * fix. Tapping it says so.
+ * It stands for whatever is actually wrong, not only "offline": a viewer does
+ * not care which of four internal facts produced a smaller library; they care
+ * what it is and whether it is theirs to fix. Tapping it says so.
  */
 function ProblemBadge({ problems, onPress }: { problems: readonly Problem[]; onPress(): void }) {
   return (

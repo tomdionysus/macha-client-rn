@@ -24,8 +24,8 @@ describe('describeProblems', () => {
     ]);
   });
 
-  // The distinction one boolean could not carry: both used to read "offline",
-  // and only one of them is anything the viewer can act on.
+  // The distinction one boolean cannot carry: only one of them is anything the
+  // viewer can act on.
   it('separates a device with no network from a cluster that will not answer', () => {
     expect(kinds(facts({ networkDown: true }))).toEqual(['network-down']);
     expect(kinds(facts({ clusterUnreachable: true }))).toEqual(['cluster-unreachable']);
@@ -65,8 +65,8 @@ describe('describeProblems', () => {
 });
 
 describe('clusterMediaUnavailable', () => {
-  // Continue watching asked "are we offline", which is one of four ways the
-  // answer is no. A refused cluster answers every request promptly and can
+  // "Are we offline" is only one of four ways the answer is no. A refused
+  // cluster answers every request promptly and can
   // still play this viewer nothing.
   it('is true for a refusal, not only for an outage', () => {
     expect(clusterMediaUnavailable(describeProblems(facts()))).toBe(false);
@@ -111,8 +111,8 @@ describe('describeEmptyLibrary', () => {
 });
 
 describe('a session granted no roles at all', () => {
-  // Tom's instruction, 2026-09-21: say plainly when a session holds nothing.
-  // The distinction is the advice, not the mechanism — "ask for the role" is
+  // Say plainly when a session holds nothing. The distinction is the advice,
+  // not the mechanism — "ask for the role" is
   // the wrong thing to tell someone whose signed-in session was replaced by an
   // anonymous one, which is how this arises.
   const facts = {

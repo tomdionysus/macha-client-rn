@@ -30,16 +30,12 @@ export { MachaConnectionError };
  *
  * This asks whether the cluster has refused *us*, not whether to move off a
  * node — every node will answer identically, because sessions and roles are
- * replicated. A caller
- * with a local library should serve it and let the account notice explain why
- * the rest is missing.
+ * replicated. A caller with a local library should serve it and let the
+ * account notice explain why the rest is missing.
  */
 export function isAuthRefusal(error: unknown): boolean {
-  // Read through core's accessor, never by class. This tested `instanceof` a
-  // local `MachaApiError` until 2026-09-24 — a class nothing in the app threw:
-  // a refusal arrives as core's own `MachaApiError`, sometimes inside a
-  // `MachaEndpointError`, so the branch that serves a refused viewer their
-  // downloads could not fire.
+  // Read through core's accessor, never by class: a refusal arrives as core's
+  // own `MachaApiError`, sometimes inside a `MachaEndpointError`.
   const status = playbackFailureStatus(error);
   return status === 401 || status === 403;
 }
@@ -50,11 +46,9 @@ export function isAuthRefusal(error: unknown): boolean {
  *
  * **Fields, not identity.** A walk that exhausts the cluster throws core's
  * `MachaClusterRouteError`, which is not a `MachaConnectionError`; a pinned or
- * mutation failure is a `MachaEndpointError` of kind `transport`. Until
- * 2026-09-24 `MediaApi` tested `instanceof MachaConnectionError`, which only
- * the bare class passes, so the offline fallback fired in its tests and never
- * in the app. Core's `unreachableEndpointFailure` reads the route error's own
- * `unreachable` field since core `f3cf74c`, raised from here.
+ * mutation failure is a `MachaEndpointError` of kind `transport`. Only the
+ * bare class passes `instanceof MachaConnectionError`. Core's
+ * `unreachableEndpointFailure` reads the route error's own `unreachable` field.
  *
  * Claimed only when no layer stated a status **or** a code:
  * `endpointFailure` files a 401 or 403 under `transport` too, and calling a
@@ -74,7 +68,7 @@ export function noNodeAnswered(error: unknown): boolean {
   return error instanceof MachaClusterRouteError && error.unreachable;
 }
 
-/** The web's sentence for it (web `043fd81`): usually a passing slowness, so try again comes first. */
+/** The web client's sentence for it: usually a passing slowness, so try again comes first. */
 export const NO_NODE_ANSWERED_TEXT =
   'No Macha server answered. Try again in a moment; if it keeps happening, check that the servers are running.';
 

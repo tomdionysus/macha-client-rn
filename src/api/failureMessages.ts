@@ -5,12 +5,9 @@ import { isUnreachable, NO_NODE_ANSWERED_TEXT, noNodeAnswered } from './errors';
  * Viewer text for every failure outside playback, which has its own in
  * `playback/policy.ts`.
  *
- * **These were `describeError` until 2026-09-24, which is `.message`** — and
- * core defined `.message` as log text that day. What reached the screen was
- * *"Macha endpoint https://macnessa.macha.network failed: Macha catalogue
- * request failed: ..."*: two of core's envelopes and a node address, in front
- * of a viewer, at the home refresh line, every load failure, login, logout
- * and a failed download.
+ * Core's `.message` is log text: shown to a viewer it reads *"Macha endpoint
+ * https://macnessa.macha.network failed: Macha catalogue request failed:
+ * ..."*, two of core's envelopes and a node address.
  *
  * The same shape as `createFailureMessage`, for the same reasons: one lead per
  * kind of failure, saying only what is known, keyed on status and code read

@@ -37,8 +37,7 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
   // *during* a drag. `play.tsx` passes an inline arrow, so `onSeek` is a new
   // function on every one of those renders. A fresh `PanResponder` mid-gesture
   // starts a fresh gesture: `dx` resets to zero and the thumb snaps back to
-  // where the finger landed, four times a second, which is what the bar
-  // fighting the viewer actually was.
+  // where the finger landed, several times a second.
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const onSeekRef = useRef(onSeek);

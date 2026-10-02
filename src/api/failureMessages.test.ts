@@ -31,8 +31,6 @@ function wrapped(inner: Error): MachaEndpointError {
 const LOG_TEXT = /Macha endpoint|request failed|macnessa/;
 
 describe('failure messages never show core\'s log text', () => {
-  // Core defined `.message` as log text on 2026-09-24. Every one of these sites
-  // showed it until then.
   const catalogue500 = wrapped(new MachaApiError('Macha catalogue request failed: database is locked', 500, 'internal', 'database is locked'));
   const users401 = wrapped(new MachaUsersApiError('Macha users request failed: invalid credentials', 401, 'unauthorized', 'invalid credentials'));
 
@@ -79,8 +77,8 @@ describe('failure messages are keyed on what happened', () => {
     expect(loadFailureMessage(wrapped(new MachaApiError('x', 403, 'forbidden')))).not.toMatch(/Could not reach/);
   });
 
-  // The web's sentence (web `043fd81`): every node was tried and none
-  // answered, refused, gone or slower than core waits for one. Usually a
+  // The web client's sentence: every node was tried and none answered,
+  // refused, gone or slower than core waits for one. Usually a
   // passing slowness, so it says to try again before it says to check.
   it('says no server answered when the route tried every node and reached none', () => {
     const exhausted = new MachaClusterRouteError(['a', 'b'], true, new MachaConnectionError('fetch failed'));

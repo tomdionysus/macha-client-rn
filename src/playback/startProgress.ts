@@ -1,10 +1,10 @@
 import type { PlaybackStartProgress } from '@machafoundation/core';
 
 /**
- * What a start or a change is doing while the node prepares it (server
- * 0.69.0 `start=async`), worded as the web words it: `startProgressText`,
- * `startWaitNotice` and `preparingStreamText`, word for word (web `e543e0e`),
- * so every client says it alike.
+ * What a start or a change is doing while the node prepares it (the server's
+ * `start=async`), worded as the web words it: `startProgressText`,
+ * `startWaitNotice` and `preparingStreamText`, word for word, so every client
+ * says it alike.
  */
 
 /** How long a start may take before the viewer is told about it: a quick start is not announced. */

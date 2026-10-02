@@ -46,18 +46,8 @@ import { secureStorage } from '../state/secureStorage';
 import { reclaimOrphans, SessionLedger } from '../playback/sessionLedger';
 
 // Core reaches for storage, a clock and an id generator through its host seam
-// rather than a browser global. `ClientStore` already presents the synchronous
+// rather than a browser global. `ClientStore` presents the synchronous
 // `StorageLike` shape core wants, over an AsyncStorage cache hydrated at startup.
-//
-// `ephemeralStorage` used to be listed here as the same store, deliberately: the
-// web's `sessionStorage` ties a session to a tab, and a phone has no tab. Core
-// 0.10.0 removed that seam entirely — there is one session, it is always worth
-// keeping, and it lives in `secureStorage ?? storage`. Dropping the line changes
-// nothing here, because the fallback is this same store.
-//
-// **`secureStorage` is not supplied yet and should be.** Without it the bearer
-// sits in AsyncStorage in plain text, readable on a rooted device or in a
-// backup; `expo-secure-store` is the fix and is not yet a dependency.
 configureMachaHost({
   storage: clientStore,
   // The session token goes here rather than into `storage`, which is
@@ -67,10 +57,9 @@ configureMachaHost({
   uuid: () => Crypto.randomUUID(),
 });
 
-// Before 2026-09-24 the token lived in AsyncStorage for up to 30 days, under
-// this key and, before core 0.10.0, `macha-session`. Both are deleted rather
-// than moved: Macha has not shipped, so the cost is one login on a test phone,
-// and a copy would be one more path that handles the secret.
+// Session tokens kept in plaintext AsyncStorage under these keys are deleted,
+// not moved into `secureStorage`: a copy would be one more path that handles
+// the secret, and the cost is one login.
 clientStore.removeItem('macha.session.v1');
 clientStore.removeItem('macha-session');
 
@@ -158,12 +147,10 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   /**
    * The endpoint registry, with somewhere to keep measured throughput.
    *
-   * Core `0.12.0` took throughput off the constructor: `createMachaServices`
-   * attaches the store for hosts that use it. This client builds its services
-   * by hand, so it attaches its own — and it must, because
-   * `recordTransferByUrl` is a **silent no-op when nothing is attached**. A
-   * hand-building host that skips this looks correctly wired and ranks on
-   * whatever core's own JSON reads happen to see.
+   * `createMachaServices` attaches the store for hosts that use it; this client
+   * builds its services by hand, so it must attach its own.
+   * `recordTransferByUrl` is a silent no-op when nothing is attached, and
+   * ranking then sees only core's own JSON reads.
    *
    * The id is a function on purpose. Core resolves it when the store *writes*,
    * not when it is constructed, so it can be attached here — during the first
@@ -285,17 +272,9 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   /**
    * Cluster membership and endpoint health, on core's loop.
    *
-   * This replaces a single best-effort discovery per connection generation.
    * The monitor discovers members, probes every known node, and records the
-   * latency and capacity that ranking actually runs on — without it the
-   * registry degrades to sticky, then failure count, then configured order,
-   * which is to say the endpoint migration buys nothing until this runs.
-   *
-   * It also gets the scheme right. The old local helper assumed the scheme of
-   * the first configured endpoint; core inherits it from the endpoint that
-   * answered, and discovers nothing rather than defaulting to `http` when
-   * neither an origin nor a scheme-carrying endpoint is available — a silent
-   * downgrade to plaintext being the worse failure.
+   * latency and capacity that ranking runs on; without it the registry
+   * degrades to sticky, then failure count, then configured order.
    *
    * Bound to the foreground: a backgrounded phone has no business probing a
    * cluster on a timer. `stop()` is idempotent, so the teardown path is safe
@@ -344,19 +323,11 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
   /**
    * Reachability is core's answer, mirrored here rather than re-decided.
    *
-   * This was a 60s timer calling `media.status()` and publishing its own
-   * verdict. Two things ended that. It asked `/api/v1/status`, which server
-   * 0.38.5 now gates behind a `view_status` role — so it would have begun
-   * answering 403 and reporting a perfectly healthy cluster as unreachable,
-   * which is the precise failure this client exists to avoid. And core's health
-   * loop already answers the same question every `ENDPOINT_HEALTH_INTERVAL_MS`
-   * (10s), from a liveness route needing no session and no role, so the timer
-   * was a slower second opinion on a settled question.
-   *
-   * Four bugs in this project have been two independently chosen timeouts
-   * colliding. `Connectivity` is now a mirror of core's transitions rather than
-   * an independent judge, so there is one authority on whether the cluster can
-   * be reached.
+   * Core's health loop probes a liveness route that needs no session and no
+   * role, whereas `/api/v1/status` needs `view_status` and would report a
+   * healthy cluster as unreachable. `Connectivity` mirrors core's transitions
+   * rather than judging independently, so there is one authority and no second
+   * timeout to collide with core's.
    */
   useEffect(
     () =>
@@ -389,8 +360,7 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
         if (down) return;
         // A cycle now instead of on the next tick. `probeNow` awaits one already
         // running rather than aborting it, and leaves a monitor stopped for the
-        // background stopped — the `stop()`/`start()` this replaced restarted
-        // polling whenever the radio came back with the app in the background.
+        // background stopped, which `stop()`/`start()` would not.
         void monitorRef.current?.probeNow().catch(() => undefined);
       }),
     [],
@@ -453,8 +423,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
    * The session lifecycle as three facts, kept apart on purpose.
    *
    * `settled` is core's `isReady`: the manager has minted or given up trying.
-   * Before it, nothing below is evidence, and since core `0.12.0` "early"
-   * fails in two different ways. Before `start()` or after `stop()`, `fetch`
+   * Before it, nothing below is evidence, and "early" fails in two different
+   * ways. Before `start()` or after `stop()`, `fetch`
    * throws `SessionNotStartedError` rather than sending anything. Once started,
    * a request made after a *failed* mint still goes out with no token, is
    * answered 401 and is returned unretried — core only re-mints and retries
@@ -558,10 +528,8 @@ export function MachaProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     // Core's `signOut` does the whole job: it forgets the token locally,
-    // unconditionally, and then revokes it on the cluster, throwing if the
-    // revoke fails, because a session that was not revoked stays valid on
-    // every node until it expires. This used to call `users.logout()` first
-    // as well, which revoked the same session twice.
+    // unconditionally, then revokes it on the cluster, throwing if the revoke
+    // fails. Calling `users.logout()` as well would revoke the session twice.
     try {
       await sessions.signOut();
     } finally {

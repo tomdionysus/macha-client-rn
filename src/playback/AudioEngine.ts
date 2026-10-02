@@ -28,18 +28,13 @@ export interface AudioTrackInfo {
 
 let setupPromise: Promise<void> | undefined;
 
-/**
- * The player options, kept as a value because they must be applied more than
- * once. react-native-track-player only pushes the notification controller's
- * available commands when that controller already exists
- * (`mediaNotificationControllerInfo != null`), and at setup time it does not —
- * no notification has been created yet. The result is a notification whose
- * buttons are drawn but dispatch nothing. Re-applying once playback has
- * actually started is what makes them live.
- */
 /** Long enough for the media notification controller to have connected. */
 const NOTIFICATION_CONTROLLER_SETTLE_MS = 1_500;
 
+/**
+ * Kept as a value because it must be applied more than once: see
+ * `loadAudioTrack`.
+ */
 const PLAYER_OPTIONS: UpdateOptions = {
         android: {
           // Dismissing the notification, or swiping the app away, ends
@@ -61,24 +56,15 @@ const PLAYER_OPTIONS: UpdateOptions = {
           Capability.SkipToPrevious,
         ],
         /**
-         * Deliberately no transport buttons.
+         * Deliberately no transport buttons. A press on the notification's own
+         * buttons never reaches JS in this version of
+         * react-native-track-player, so the notification is informational and
+         * the transport lives on the media keys, headset, Bluetooth and the app.
          *
-         * The notification's own buttons do not work in this version of
-         * react-native-track-player: a press never reaches JS at all — proven
-         * by instrumenting the handlers, where a media key fires RemotePause
-         * and a notification press fires nothing. Rather than draw controls
-         * that silently do nothing, the notification is informational —
-         * artwork, title and artist — and the transport lives on the media
-         * keys, headset and Bluetooth, which do work, and in the app itself.
-         *
-         * Only SeekTo is declared: it renders no button, but keeps the
-         * position visible so the system panel can show progress. Buttons come
-         * from PLAY/PAUSE (COMMAND_PLAY_PAUSE), STOP, and the SKIP_TO_*
-         * custom layout, so leaving all of those out is what removes them.
-         *
-         * `capabilities` above stays complete. It governs the session for
-         * non-notification controllers, which is how the media keys keep
-         * working.
+         * SeekTo renders no button but keeps progress visible. Buttons come
+         * from PLAY/PAUSE, STOP and the SKIP_TO_* custom layout, so leaving
+         * those out removes them. `capabilities` above stays complete because
+         * it governs the session for other controllers, such as media keys.
          */
         notificationCapabilities: [Capability.SeekTo],
         progressUpdateEventInterval: 1,
@@ -127,11 +113,11 @@ export async function loadAudioTrack(track: AudioTrackInfo, startAtMs = 0): Prom
   });
   if (startAtMs > 0) await TrackPlayer.seekTo(startAtMs / 1000);
   await TrackPlayer.play();
-  // The notification's controller connects a moment after playback starts, and
-  // the library only pushes restricted commands at a controller that already
-  // exists. Applied once at setup it is too early and the controller keeps
-  // Media3's defaults — which is why transport buttons reappeared. Re-applying
-  // immediately and again shortly after covers both orderings.
+  // The notification's controller connects a moment after playback starts,
+  // and the library only pushes restricted commands to a controller that
+  // already exists; applied only at setup, the controller keeps Media3's
+  // default buttons. Re-applying now and again shortly after covers both
+  // orderings.
   await TrackPlayer.updateOptions(PLAYER_OPTIONS).catch(() => undefined);
   setTimeout(() => {
     void TrackPlayer.updateOptions(PLAYER_OPTIONS).catch(() => undefined);

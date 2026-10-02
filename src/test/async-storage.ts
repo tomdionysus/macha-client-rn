@@ -4,8 +4,7 @@ const values = new Map<string, string>();
 /**
  * Keys whose row Android's SQLite cannot read back: over the ~2 MB
  * CursorWindow, a read that touches one throws `SQLiteBlobTooBigException`,
- * and a `multiGet` fails as a whole (the A85, 2026-09-28). A test adds keys
- * here to reproduce that.
+ * and a `multiGet` fails as a whole. A test adds keys here to reproduce that.
  */
 export const unreadableRows = new Set<string>();
 

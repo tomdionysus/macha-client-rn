@@ -16,12 +16,11 @@ describe('readScannedEndpoint', () => {
     expect(readScannedEndpoint('  192.168.1.20:7438\n')).toBe('http://192.168.1.20:7438');
   });
 
-  // The three the plain coercion gets wrong, measured against it before this
-  // module existed: `macha://pair?token=abc` and `Macha` both become
-  // `http://macha:7438`, and `mailto:tom@example.com` becomes
-  // `http://example.com:7438`. Each is a real-looking endpoint no node answers
-  // on, and the connect attempt that follows reports an unreachable server
-  // rather than a code that was never an address.
+  // The plain coercion turns `macha://pair?token=abc` and `Macha` into
+  // `http://macha:7438`, and `mailto:tom@example.com` into
+  // `http://example.com:7438`: real-looking endpoints no node answers on, so
+  // the connect attempt would report an unreachable server rather than a code
+  // that was never an address.
   it('refuses a scheme this client does not own', () => {
     expect(readScannedEndpoint('macha://pair?token=abc')).toBe('');
     expect(readScannedEndpoint('mailto:tom@example.com')).toBe('');
@@ -31,7 +30,7 @@ describe('readScannedEndpoint', () => {
     expect(readScannedEndpoint('Macha')).toBe('');
   });
 
-  // These the coercion already rejected. Held anyway: they are what a camera
+  // The coercion rejects these too. Held anyway: they are what a camera
   // actually meets, and the screening in front of it must not start letting
   // them past.
   it('refuses the codes a camera meets by accident', () => {
@@ -40,10 +39,9 @@ describe('readScannedEndpoint', () => {
     expect(readScannedEndpoint('')).toBe('');
   });
 
-  // A printed code is machine-produced and carries shapes nobody types. Pinned
-  // because the core session raised normalisation drift as a risk for scanned
-  // payloads specifically: every one of these collapses to a lowercase origin,
-  // because the coercion this ends in returns `new URL(...).origin`.
+  // A printed code is machine-produced and carries shapes nobody types. Every
+  // one of these collapses to a lowercase origin, because the coercion this
+  // ends in returns `new URL(...).origin`.
   it('collapses machine-produced shapes to an origin', () => {
     expect(readScannedEndpoint('HTTP://HOST:7438/')).toBe('http://host:7438');
     expect(readScannedEndpoint('http://a:7438//')).toBe('http://a:7438');

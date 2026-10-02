@@ -29,10 +29,9 @@ function file(mediaId: string, format: string, durationMs: number): PlaybackMedi
 }
 
 /**
- * The client chooses among an item's files and names the one it will play
- * (Tom, 2026-09-24; the shared laws text). This client used to judge the
- * first file and name none, so on a multi-file item the server played its
- * own first choice, whatever the chooser had decided about a different file.
+ * The client chooses among an item's files and names the one it will play.
+ * Naming none lets the server play its own first choice on a multi-file item,
+ * whatever the chooser decided about a different file.
  */
 describe('chooseFile', () => {
   it('plays the file that plays best, and names it', () => {
@@ -56,7 +55,7 @@ describe('chooseFile', () => {
 /**
  * Which file, when something other than the chooser decided the mode: the
  * viewer named one, or a download wants the original. Something still has to
- * pick the file (Tom, 2026-09-25), and the server is to refuse a create on a
+ * pick the file, and the server is to refuse a create on a
  * multi-file item that names none.
  */
 describe('fileToPlay', () => {

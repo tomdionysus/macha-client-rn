@@ -2,10 +2,9 @@ import type { ClusterNodeStatus, PlaybackSession } from '@machafoundation/core';
 
 /**
  * How a node is named to the viewer: the operator's name where the server
- * sends one (server 0.70.0 `node_name`, such as "Corvus FI-1"). Tom: "show the
- * names the server sends". The web client's rules (web `e543e0e`), so every
- * client names a node alike. An address stays an address wherever one is
- * actually needed, as on the connect screen.
+ * sends one (`node_name`, such as "Corvus FI-1"). The web client's rules, so
+ * every client names a node alike. An address stays an address wherever one
+ * is actually needed, as on the connect screen.
  */
 
 /** A status node: its name, else its host, else a short id. */

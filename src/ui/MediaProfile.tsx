@@ -7,8 +7,8 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 import { colors, space, type as typography } from './theme';
 
 /**
- * One line per file, under the title (Tom, 2026-09-27: copy the web's style,
- * formatted for the device; see `mediaLines.ts`). Every `macha:` file of the
+ * One line per file, in the web client's style formatted for the device (see
+ * `mediaLines.ts`). Every `macha:` file of the
  * item is read, and a file whose profile cannot be read is left out rather
  * than failing the others. Lines wrap at the device's width rather than
  * truncate, since every field carries something, and only between fields
@@ -42,8 +42,8 @@ export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
 }
 
 const styles = StyleSheet.create({
-  // Below the synopsis, as the MEDIA section was before 8c800c2: under the
-  // title the lines wrapped awkwardly beside it (Tom, 2026-09-28).
+  // Placed below the synopsis: under the title the lines wrap awkwardly
+  // beside it.
   block: {
     paddingHorizontal: space.lg,
     marginTop: space.xxl,

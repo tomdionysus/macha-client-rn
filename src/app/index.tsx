@@ -52,11 +52,9 @@ export default function HomeScreen() {
    * whenever cluster media is out of reach, with each entry swapped for its
    * stored form so the cover comes off the disk rather than from a node.
    *
-   * **Not keyed on "offline".** That was one of four ways the answer is no, and
-   * the other three left unplayable items on the rail: a cluster that refuses
-   * this viewer answers every request promptly and is not offline by any
-   * measure, yet can play them nothing. `clusterMediaUnavailable` asks the
-   * question this rail actually has, which is not about the network.
+   * **Not keyed on "offline".** Offline is one of four ways the answer is no:
+   * a cluster that refuses this viewer answers every request promptly, yet can
+   * play nothing. `clusterMediaUnavailable` asks the question this rail has.
    */
   const unavailable = clusterMediaUnavailable(problems);
   // Read against the clock at render, with no timer. The window is days wide,

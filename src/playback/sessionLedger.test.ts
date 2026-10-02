@@ -4,16 +4,12 @@ import { reclaimOrphans, SessionLedger, type LedgerStorage } from './sessionLedg
 /**
  * Sessions a dead process left open, closed by the next one.
  *
- * **The inherited claim was that no client fix exists** ("a process that is
- * gone cannot send a `DELETE`"). True of the dead process, not of the next
- * launch: core's `docs/resolver-direct.md` says a host that persists the ids it
- * was handed can close them after a restart, because `stop()` recovers the
- * node from the id and never throws or charges for an untracked one.
- *
- * Measured cost of not doing it, A85 2026-09-23 22:46: the LAN node refused a
- * create `429 resource_limit` "video transcode limit reached", most likely
- * holding sessions from this client's own killed processes — every
- * `install -r` is one.
+ * A process that is gone cannot send a `DELETE`, but the next launch can:
+ * core's `docs/resolver-direct.md` says a host that persists the ids it was
+ * handed can close them after a restart, because `stop()` recovers the node
+ * from the id and never throws or charges for an untracked one. Left open,
+ * they hold the node's transcode slots until reaped, and every killed process
+ * (every `install -r`) leaves some.
  */
 
 const memory = (): LedgerStorage & { raw: Map<string, string> } => {

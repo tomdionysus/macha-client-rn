@@ -4,14 +4,12 @@ import { generationOriginMs, seekRequiresReposition } from './policy';
 /**
  * A seek as the web client makes it, through core's coordinator (`seek`,
  * `seekBy`, `onPlayerEvent`), mirrored here because this client drives the
- * resolver itself. Tom, 2026-10-02: "The seek needs to work exactly the same
- * way as the web client."
+ * resolver itself. It must behave exactly as the web client's does.
  *
  * **The target is pinned the moment the viewer seeks**, and the bar shows it
  * until the stream asked for is on the player and has shown it is tracking.
- * Before this the bar followed the outgoing stream, which plays on from where
- * it was while the node builds the new one, and then jumped when it arrived:
- * a seek back read as a seek forward, then a jump.
+ * The outgoing stream plays on while the node builds the new one, so a bar
+ * that followed it would make a seek back read as a seek forward, then jump.
  *
  * **Successive seeks build on the target, not on the outgoing stream**, so
  * three presses of back-ten go back thirty.
@@ -53,8 +51,7 @@ export function seekBase(intent: SeekIntent | undefined, positionMs: number): nu
  * settle somewhere near the target rather than on it (a transformed
  * generation starts at a random-access point) and the pin must not outlive
  * that. Never on movement before presentation: the outgoing stream is still
- * playing and still moving, and releasing on it snaps the bar back. Core
- * measured exactly that, 65 ms after the request.
+ * playing and still moving, and releasing on it snaps the bar back.
  */
 export function observeSeek(intent: SeekIntent, reportedMs: number): SeekIntent | undefined {
   if (Math.abs(reportedMs - intent.targetMs) <= SEEK_REACHED_TOLERANCE_MS) return undefined;
@@ -69,11 +66,11 @@ export function observeSeek(intent: SeekIntent, reportedMs: number): SeekIntent 
  * new one.
  *
  * **Both directions.** A transformed generation begins where it was asked
- * for, and nothing before that exists in it: a seek back past its origin was
- * clamped to the origin, so the viewer went *forward* to the generation's
- * start. Core's `generationLocalPosition` returns nothing there, and the
- * coordinator asks the node. Ahead, the bound is what the player has
- * buffered, as before (`seekRequiresReposition`).
+ * for, and nothing before that exists in it: a seek back past its origin, clamped
+ * locally, would send the viewer *forward* to the generation's start. Core's
+ * `generationLocalPosition` returns nothing there, and the coordinator asks
+ * the node. Ahead, the bound is what the player has buffered
+ * (`seekRequiresReposition`).
  *
  * No session is a downloaded original, and Direct is a byte range over a
  * complete file: both are always local.

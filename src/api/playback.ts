@@ -17,10 +17,7 @@ import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/poli
 import type { TranscodeRate } from '../playback/quality';
 import type { SessionLedger } from '../playback/sessionLedger';
 
-// The session model and its wire decoding are core's. This module was a second
-// implementation of both — the keystone of the duplication, and the reason the
-// `restatePreferencesClearedByMode` mirror had to exist at all: that helper
-// takes core's session shape, and this client used to decode its own.
+// The session model and its wire decoding are core's.
 export type {
   PlaybackOptions,
   PlaybackOutputInfo,
@@ -36,7 +33,7 @@ export type {
 } from '@machafoundation/core';
 
 /**
- * What a start or change is doing while a node prepares it (server 0.69.0
+ * What a start or change is doing while a node prepares it (the server's
  * `start=async`): core long-polls the node and reports each stage, and still
  * resolves to the ready session. Direct sessions never go pending.
  */
@@ -83,7 +80,7 @@ export class ClusterPlaybackApi {
    * An instruction is a complete transform, so it is spread over the caller's
    * preferences rather than merged under them: naming a mode restates the whole
    * transform, and a stale `video`/`audio` surviving from an earlier preference
-   * is exactly the contradiction the server's 0.34.0 change exists to prevent.
+   * would contradict it.
    */
   create(
     media: MediaSummary,
@@ -115,9 +112,8 @@ export class ClusterPlaybackApi {
    * Deliberately no prepared standby. Core supports one and the web client uses
    * it, but a session's pipeline is reclaimed after about a minute idle, so a
    * standby built on the first sign of trouble is usually dead by the time it
-   * is wanted — measured here as a 3ms promotion followed by a 3s failure,
-   * against 214ms to admit a fresh session. The admission was never the
-   * expensive part; the player reload is.
+   * is wanted. Admitting a fresh session is cheap; the player reload is the
+   * expensive part.
    */
   failover(
     session: PlaybackSession,
@@ -184,15 +180,14 @@ export class ClusterPlaybackApi {
   }
 
   /**
-   * A PATCH, as server 0.58.0 needs it.
+   * A PATCH that names its choices.
    *
-   * A session begun as Direct named no streams, and 0.58.0 holds a PATCH to
-   * the same choices as a create. So a change into Remux or Transcode on a file
-   * with several audio streams was refused `choice_required`. Core's resolver
-   * then retried with the first candidate the node listed: the node's first
-   * container and the file's first audio stream, not this device's container
-   * or the default-flagged stream, after an extra refused round trip. Core's
-   * `preparePlaybackPatch` names the device's segment container and the
+   * A session begun as Direct named no streams, and the server holds a PATCH to
+   * the same choices as a create. Unnamed, a change into Remux or Transcode on
+   * a file with several audio streams is refused `choice_required`, and core's
+   * resolver retries with the node's first container and the file's first
+   * audio stream, not this device's container or the default-flagged stream.
+   * Core's `preparePlaybackPatch` names the device's segment container and the
    * streams, restating the ones already playing. It is what the coordinator
    * does on its own updates, and it leaves a seek-only update untouched.
    */
@@ -211,8 +206,8 @@ export class ClusterPlaybackApi {
   }
 
   /**
-   * The best rate any node has measured for transcoding this kind of picture
-   * (server 0.70.0), or undefined until a transcode of a minute or more has
+   * The best rate any node has measured for transcoding this kind of picture,
+   * or undefined until a transcode of a minute or more has
    * finished somewhere. Passed to `playbackVersions` so automatic play skips
    * a file no node converts at real speed. An arrow, so it can be handed on.
    */

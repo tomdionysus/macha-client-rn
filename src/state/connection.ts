@@ -63,10 +63,9 @@ const PER_CLIENT_PREFIXES = [
 /**
  * The client id to adopt back, where the current one has lost its data.
  *
- * On the A85, 2026-09-28, a failed storage read at startup let
- * `getClientId()` mint a new id over the real one, and every per-client
- * store was left on the disk under the old id. Tom's call: recover it. So
- * where the current id owns nothing and exactly one other id owns
+ * A failed storage read at startup can let `getClientId()` mint a new id over
+ * the real one, leaving every per-client store on the disk under the old id.
+ * So where the current id owns nothing and exactly one other id owns
  * something, that one is ours. Two or more cannot be told apart, and
  * `anonymous` is only what a store is called before hydration.
  */
@@ -118,9 +117,3 @@ export function setDiscoveredEndpoints(urls: readonly string[]): void {
   }
   writeJson<StoredEndpoints>(DISCOVERED_KEY, { version: 1, urls: normalized });
 }
-
-// There is no manual bearer token. Playback sessions are minted anonymously,
-// so nothing a viewer could type into the old Settings field was ever
-// load-bearing, and `macha.apiToken.v1` is left alone rather than swept: Macha
-// has not shipped, so no device has ever had one written to it. If that changes
-// before release, deleting a dead credential is a migration worth writing.

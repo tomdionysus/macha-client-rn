@@ -106,8 +106,8 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
         </>
       ) : track ? (
         <>
-          {/* The album, then the artist below it (Tom, 2026-09-24), each a
-              link; then the track number. The words are this client's. */}
+          {/* The album, then the artist below it, each a link; then the
+              track number. */}
           <Text
             numberOfLines={1}
             accessibilityRole="link"
@@ -132,9 +132,8 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
         </>
       ) : albumArtist ? (
         <>
-          {/* The artist below the album's name, and the year kept (Tom,
-              2026-09-24). Core leaves the artist off albums on the artist's
-              own page, where it would only repeat the page. */}
+          {/* Core leaves the artist off albums on the artist's own page,
+              where it would only repeat the page. */}
           <Text
             numberOfLines={1}
             accessibilityRole="link"
@@ -161,13 +160,11 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
  * An episode named away from its season: the series, then "Season 1 Episode
  * 4", each a link — the series to its page, the label to the season.
  *
- * Tom's ruling, relayed by core and confirmed here 2026-09-23: in search
- * results and Continue Watching an episode reads this way, never `S01E04`.
- * This card is what both draw; a season page draws its own compact rows and
- * keeps them. The label is this client's `episodeLabel` (core writes no viewer
- * text since 2026-09-24), worded as the other clients word it, and the ids are
- * the ones `playbackContext` carries. An episode without that context falls
- * back to the old line rather than guessing at links.
+ * In search results and Continue Watching an episode reads this way on every
+ * client, never `S01E04`; a season page draws its own compact rows. The label
+ * is `episodeLabel` and the ids are the ones `playbackContext` carries. An
+ * episode without that context falls back to a plain line rather than
+ * guessing at links.
  */
 function episodeLinks(
   item: MediaSummary,

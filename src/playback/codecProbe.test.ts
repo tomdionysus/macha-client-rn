@@ -9,16 +9,6 @@ import {
   withProbedAdditions,
 } from './codecProbe';
 
-/**
- * The probe that replaced an assertion, measured on the A85 2026-09-21.
- *
- * The client claimed `ac3` and `eac3` on every Android device; that phone has
- * neither decoder, so the node Direct Played those titles, media3 selected no
- * audio track, and two films played in silence with a healthy picture and
- * nothing logged. Deleting the claims fixed this device and wronged any device
- * that does have the decoder. This asks instead.
- */
-
 const DECLARED = ['aac', 'ac3', 'eac3', 'opus', 'vorbis', 'mp3', 'flac'];
 
 /** What the A85 reports: no ac3, no eac3. */
@@ -41,8 +31,7 @@ describe('decodableCodecs', () => {
   });
 
   it('keeps them on a device that reports them', () => {
-    // The whole point of asking rather than deleting: this device should get
-    // Direct Play rather than a transform it does not need.
+    // This device gets Direct Play rather than a transform it does not need.
     expect(decodableCodecs(DECLARED, WITH_DOLBY)).toEqual(DECLARED);
   });
 
@@ -77,21 +66,15 @@ describe('decodableCodecs when the device cannot be asked', () => {
   it('still refuses ac3 and eac3, which have to be earned', () => {
     // Asymmetric on purpose. Over-claiming these produces a silent film with
     // no error anywhere; under-claiming costs a transform somebody notices.
-    // So if this module is ever dropped from a build, the client falls back to
-    // the safe behaviour rather than regressing to silence.
     expect(decodableCodecs(DECLARED, undefined)).toEqual(['aac', 'opus', 'vorbis', 'mp3', 'flac']);
   });
 });
 
 /**
- * The strings themselves, pinned against Android's own constants.
+ * The strings themselves, pinned against `MediaFormat.MIMETYPE_*`.
  *
- * A misspelling here is invisible on the hardware this project has: the A85
- * decodes no AC-3, so `audio/ac-3` and `audio/ac3` would both simply fail to
- * match and both produce the correct answer on this phone, while the first
- * would silently deny Direct Play to every device that does have the decoder.
- * Verified with `javap -constants` on `android-37/android.jar` — the values of
- * `MediaFormat.MIMETYPE_AUDIO_AC3`, `_EAC3`, `_EAC3_JOC` and the rest.
+ * A misspelling is invisible on a device without the decoder, and silently
+ * denies Direct Play to every device that has it.
  */
 describe('DECODER_MIME_TYPES matches android.media.MediaFormat', () => {
   it.each([
@@ -115,15 +98,7 @@ describe('DECODER_MIME_TYPES matches android.media.MediaFormat', () => {
   });
 });
 
-/**
- * The widening half, measured on the A85 2026-09-21.
- *
- * The device reports `c2.unisoc.av1.decoder`; the declared list never
- * mentioned AV1; and the library's one AV1 title — *The Cannonball Run*,
- * Matroska, AV1 1072p, Opus 5.1 — was planned `{video: transcode, audio:
- * transcode}`, a full 1080p re-encode of a file the phone decodes natively.
- * That is the probe's best use and narrowing alone switched it off.
- */
+/** The widening half: a reported decoder adds a codec no list declares. */
 describe('withProbedAdditions', () => {
   const withAv1 = ['video/avc', 'video/hevc', 'video/x-vnd.on2.vp9', 'video/av01'];
   const withoutAv1 = ['video/avc', 'video/hevc'];
@@ -137,8 +112,8 @@ describe('withProbedAdditions', () => {
   });
 
   it('adds nothing when the device could not be asked', () => {
-    // Same rule as narrowing: absence of a fact is not a fact, and an
-    // unanswerable probe must leave the declaration exactly as written.
+    // Absence of a fact is not a fact: an unanswerable probe leaves the
+    // declaration exactly as written.
     expect(withProbedAdditions(['h264', 'hevc'], undefined)).toEqual(['h264', 'hevc']);
     expect(withProbedAdditions(['h264', 'hevc'], [])).toEqual(['h264', 'hevc']);
   });
@@ -148,26 +123,17 @@ describe('withProbedAdditions', () => {
   });
 
   it('adds only what it is asked to consider', () => {
-    // VP8 has a decoder on this device and is deliberately not a candidate:
-    // there is no VP8 content in the library and nothing has been measured,
-    // so claiming it would be the same unevidenced assertion in a new place.
+    // VP8 is deliberately not a candidate even where a decoder exists.
     expect(withProbedAdditions(['h264'], [...withAv1, 'video/x-vnd.on2.vp8'])).toEqual(['h264', 'av1']);
   });
 });
 
 /**
- * Bit depth, derived instead of asserted.
+ * Bit depth, derived from the decoder profiles. One number covers every codec,
+ * though a device can be ten-bit for one and eight for the others.
  *
- * `videoBitDepth: 8` was hardcoded in the 0.2.0 commit of 2026-09-07 with no
- * comment defending it, and it gates every playback decision through core's
- * `videoStreamObjection`. The A85 shows why one number cannot be right:
- * AV1 advertises Main10HDR10 and Main10HDRPlus, HEVC advertises only Main and
- * MainStill, H.264 has no High10. Ten-bit for one codec, eight for the others.
- *
- * Profile ids are from `MediaCodecInfo$CodecProfileLevel` via javap on
- * android-37/android.jar, and they collide across codecs — 2 is both
- * AV1ProfileMain10 and HEVCProfileMain10 — which is why the table is keyed by
- * MIME type.
+ * Profile ids from `MediaCodecInfo$CodecProfileLevel` collide across codecs
+ * (2 is both AV1ProfileMain10 and HEVCProfileMain10), hence keying by MIME.
  */
 describe('probedVideoBitDepth', () => {
   /** What the A85 actually reports. */
@@ -179,7 +145,6 @@ describe('probedVideoBitDepth', () => {
   };
 
   it('answers eight on the A85, because HEVC there is Main only', () => {
-    // The same number the constant asserted — now derived from the device.
     expect(probedVideoBitDepth(['h264', 'hevc', 'vp9', 'av1'], A85_PROFILES)).toBe(8);
   });
 
@@ -215,17 +180,9 @@ describe('probedVideoBitDepth', () => {
 });
 
 /**
- * HDR, and Dolby Vision, which were a non-claim and a missing line.
- *
- * `hdr: []` was asserted with "a mid-range phone, not a reference display" —
- * an argument about the panel applied to a field about decoding, so every HDR
- * title transcoded. `dolbyVision` was never declared at all, and core reads
- * that as `?? []`, so every DV stream objected because nobody wrote a line.
- *
- * The intersection is the television client's design: decode says what can be
- * read, the display says what can be shown, and only both together is a claim.
- * Display constants are `Display.HdrCapabilities`: 1 DV, 2 HDR10, 3 HLG,
- * 4 HDR10+.
+ * Decode says what can be read, the display says what can be shown, and only
+ * both together is a claim. Display constants are `Display.HdrCapabilities`:
+ * 1 DV, 2 HDR10, 3 HLG, 4 HDR10+.
  */
 describe('probedHdrTransfers', () => {
   const av1Hdr = { 'video/av01': [1, 4096, 8192] };
@@ -237,8 +194,6 @@ describe('probedHdrTransfers', () => {
   });
 
   it('claims nothing when the panel is SDR, however capable the decoder', () => {
-    // The original worry, now enforced by asking rather than by refusing
-    // every HDR title outright.
     expect(probedHdrTransfers(['av1'], av1Hdr, [])).toEqual([]);
   });
 
@@ -260,8 +215,6 @@ describe('probedHdrTransfers', () => {
 
 describe('probedDolbyVisionProfiles', () => {
   it('is an empty measurement when the device lists no DV decoder', () => {
-    // The A85. Same outcome as the missing declaration it replaces, but now
-    // it is an answer rather than an oversight.
     expect(probedDolbyVisionProfiles({ 'video/avc': [1] })).toEqual([]);
   });
 
@@ -283,12 +236,9 @@ describe('probedDolbyVisionProfiles', () => {
   });
 });
 
-/**
- * Tom, 2026-09-25: limit to the device's capabilities for direct play. The
- * decoders are the device's capability; the A85's screen (720x1612) is not.
- */
+/** The decoders are the device's size limit; the screen is not. */
 describe('decoderSizeLimit', () => {
-  // Measured on the A85, 2026-09-25 14:07Z, `decoder-sizes` in logcat.
+  // A real device's `decoder-sizes` report.
   const a85 = {
     'video/av01': { width: 1280, height: 720 },
     'video/avc': { width: 1920, height: 1080 },
@@ -299,9 +249,8 @@ describe('decoderSizeLimit', () => {
   };
 
   /**
-   * The first version took the smallest frame, and the A85's 720p AV1 decoder
-   * capped every 1080p H.264 file at 720p. The second dropped AV1, losing its
-   * Direct Play at 720p and below. Core `d6fa069` holds each codec to its own.
+   * Taking the smallest frame would cap every 1080p H.264 file at AV1's 720p;
+   * dropping AV1 would lose its Direct Play at 720p and below.
    */
   it('states the largest frame, and holds a codec that falls short to its own', () => {
     expect(decoderSizeLimit(a85, ['h264', 'hevc', 'vp9', 'av1'])).toEqual({

@@ -2,17 +2,12 @@ import type { ConnectionCheckResult } from '@machafoundation/core';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 
 /**
- * The node list as rows, because a newline could not be typed.
+ * The node list as rows, because a newline cannot be typed.
  *
- * The connect screen used to be one multiline box: several nodes, one per
- * line. The field accepted that and the parser accepted it, but on a phone the
- * second line was unreachable — a URL keyboard's action key is Go, and neither
- * `multiline` nor `submitBehavior="newline"` persuaded it to insert a line
- * break instead of submitting. That was tried, shipped in 0.4.0 and measured
- * on a device: still one line.
- *
- * So the list stopped depending on a key that may not exist. Each node gets a
- * row of its own and a control adds another. Pasting a list still works, and
+ * On a phone a URL keyboard's action key is Go, and neither `multiline` nor
+ * `submitBehavior="newline"` persuades it to insert a line break instead of
+ * submitting, so a multiline box never reaches its second line. Each node
+ * gets a row of its own and a control adds another. Pasting a list still works, and
  * is the one case that needs parsing: what arrives in a single row may be a
  * whole list, and it gets split across rows rather than left as text no
  * separator in this app would later split.

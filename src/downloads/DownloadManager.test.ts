@@ -53,8 +53,8 @@ describe('DownloadManager.cancel', () => {
     transfer.cancelAsync = undefined;
   });
 
-  // On the A85, 2026-09-28: a cancelled film kept arriving at 2.4 MB/s,
-  // because cancel only set a flag the transfer read when it finished.
+  // Setting a flag the transfer reads only when it finishes is not enough: a
+  // cancelled film would keep arriving.
   it('stops a transfer in flight and hands back its session', async () => {
     const api = playbackApi();
     const manager = new DownloadManager(new DownloadStore('test-cancel'), api as never, {} as never);
@@ -72,8 +72,8 @@ describe('DownloadManager.cancel', () => {
 });
 
 describe('DownloadManager, a file this device cannot play', () => {
-  // Tom, 2026-09-28: a file that cannot be played locally cannot be
-  // downloaded. An album's Download queues every track without asking, so
+  // A file that cannot be played locally cannot be downloaded. An album's
+  // Download queues every track without asking, so
   // the manager refuses too, before any session or byte.
   it('fails it as not available here, with no session and no transfer', async () => {
     const api = playbackApi();

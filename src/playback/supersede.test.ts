@@ -3,18 +3,16 @@ import { endpointFailure, MachaPlaybackError, type PlaybackSession } from '@mach
 import { errorBlamesEndpoint, selfSupersededGeneration, supersededErrorCheck, updateRefusalMessage } from './policy';
 
 /**
- * The mode-switch hole, which server 0.48.0 turned from latent into routine.
+ * A generation this client superseded with a mode switch.
  *
- * Under 0.48.0 a superseded generation answers `410 generation_superseded`
- * with `node_healthy: true` and `alternative_may_succeed: true` — do not walk.
+ * A superseded generation answers `410 generation_superseded` with
+ * `node_healthy: true` and `alternative_may_succeed: true`: do not walk.
  * expo-video never surfaces the status, so this client cannot classify it and
  * has to know from its own side that it caused the supersession.
  *
- * A rebuilding seek was already covered by the pending-seek guard. A mode
- * switch was not: before the fix `errorBlamesEndpoint` took its `!pendingSeek`
- * branch and returned `true`, so a 410 the client caused fired a failover —
- * and failover on mobile does not work, so that ends playback rather than
- * recovering it.
+ * A rebuilding seek is covered by the pending-seek guard. Without this guard
+ * for a mode switch, a 410 the client caused fires a failover, and failover
+ * on mobile does not work, so that ends playback rather than recovering it.
  *
  * Deadline in these cases: the node states `segmentHoldMs: 6_000` and
  * `SEEK_HOLD_MARGIN_MS` adds 2_000, so the settled tail is 8_000 ms.
@@ -32,9 +30,9 @@ describe('selfSupersededGeneration', () => {
   });
 
   it('is true while the PATCH is still in flight, however long it takes', () => {
-    // Measured 2026-09-21: a mode-switch PATCH took 15.1s and 16.0s before
-    // answering, and a rebuilding seek 12.5s. An in-flight change must not be
-    // bounded by a deadline sized for a fragment.
+    // A mode-switch PATCH can take 16 s to answer, and a rebuilding seek over
+    // 12 s. An in-flight change must not be bounded by a deadline sized for a
+    // fragment.
     const inFlight = { startedAtMs: NOW - 16_000 };
     expect(selfSupersededGeneration(inFlight, transformed(), NOW)).toBe(true);
   });
@@ -63,8 +61,8 @@ describe('selfSupersededGeneration', () => {
 
 describe('errorBlamesEndpoint with a generation this client superseded', () => {
   it('does not blame the node for a mode switch we asked for', () => {
-    // The gap exactly: no seek outstanding, so before the fix this returned
-    // true and the client failed over onto a healthy node.
+    // No seek outstanding: only the change in flight keeps the client from
+    // failing over onto a healthy node.
     expect(errorBlamesEndpoint(transformed(), undefined, NOW, { startedAtMs: NOW - 2_000 })).toBe(false);
   });
 
@@ -79,8 +77,8 @@ describe('errorBlamesEndpoint with a generation this client superseded', () => {
   });
 
   it('is unchanged when no generation change is outstanding', () => {
-    // The existing behaviour must not move: an ordinary mid-playback error
-    // with nothing outstanding is still the node's.
+    // An ordinary mid-playback error with nothing outstanding is still the
+    // node's.
     expect(errorBlamesEndpoint(transformed(), undefined, NOW)).toBe(true);
     expect(errorBlamesEndpoint(transformed(), undefined, NOW, undefined)).toBe(true);
   });
@@ -89,12 +87,10 @@ describe('errorBlamesEndpoint with a generation this client superseded', () => {
 /**
  * The guard declines the wrong remedy; it must not also swallow the report.
  *
- * **Seen on the A85 twice, the second time on the tagged 0.8.0 from a menu
- * tap.** 2026-09-23 18:31: Remux on a ten-bit HEVC title, PATCH answered, and
- * 1.8 s later the new generation's decoder refused the stream. The error fell
- * inside the settled tail, `failover-declined { reason:
- * 'generation-superseded-by-us' }`, and because a decline counts as handled
- * nothing ever set `failed`: black picture at 0:00, a play button, no message.
+ * A decline counts as handled, so a new generation whose decoder refuses the
+ * stream inside the settled tail (Remux on a ten-bit HEVC title, 1.8 s after
+ * the PATCH answers) would otherwise never set `failed`: black picture at
+ * 0:00, a play button, no message.
  *
  * The guard is right that the node is not to blame. What it cannot know is
  * whether the error was a stale fragment of the old generation (which the
@@ -120,7 +116,7 @@ describe('supersededErrorCheck', () => {
   });
 
   it('reports the A85 case once the tail has closed', () => {
-    // The 18:31 run exactly: settled, then an error 1.8 s later, re-examined
+    // Settled, then an error 1.8 s later, re-examined
     // at the end of the window. Still in error there means the new generation
     // itself cannot play, and the viewer has to hear so.
     const settledAtMs = NOW - 1_800;
@@ -135,8 +131,8 @@ describe('supersededErrorCheck', () => {
   });
 
   it('uses the same window the guard does, so it never reports inside it', () => {
-    // Two windows chosen independently is the collision this project keeps
-    // paying for. Wherever the guard would still decline, this must wait.
+    // Two windows chosen independently drift apart. Wherever the guard would
+    // still decline, this must wait.
     const settled = { startedAtMs: NOW - 20_000, settledAtMs: NOW - 10_000 };
     for (let at = NOW - 10_000; at <= NOW; at += 250) {
       const declining = !errorBlamesEndpoint(transformed(), undefined, at, settled);
@@ -153,7 +149,7 @@ const viaNode = (inner: unknown) => endpointFailure('https://macnessa.macha.netw
 
 describe('updateRefusalMessage', () => {
   it('does not tell a viewer whose film is still playing that it failed', () => {
-    // Measured refusal, verbatim from the A85 run.
+    // A node's refusal as the server words it.
     const message = updateRefusalMessage(refused('video transcode limit reached', 429, 'resource_limit'));
     expect(message).toContain('carried on unchanged');
     expect(message).not.toMatch(/^Macha playback request failed/);
@@ -173,9 +169,8 @@ describe('updateRefusalMessage', () => {
 
 describe('updateRefusalMessage detail, as it actually arrives', () => {
   it('quotes the node through core’s nested envelopes, and not the hostname with them', () => {
-    // Verbatim from the A85 screen, 2026-09-21: the message crossing
-    // `endpointFailure` carries both of core's prefixes and a URL the viewer
-    // cannot act on.
+    // The message crossing `endpointFailure` carries both of core's prefixes
+    // and a URL the viewer cannot act on.
     const message = updateRefusalMessage(viaNode(refused('timed out waiting for first fragmented-MP4 segment')));
     expect(message).toContain('(timed out waiting for first fragmented-MP4 segment)');
     expect(message).not.toContain('macnessa');

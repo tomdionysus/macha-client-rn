@@ -123,7 +123,7 @@ export default function MusicScreen() {
 
   // A full library is hundreds of tracks, so the track view owns its own
   // virtualized scroller rather than sitting inside the screen's ScrollView.
-  // Rendering them all at once fired an image request per row and left most
+  // Rendering them all at once fires an image request per row and leaves most
   // of the artwork blank.
   if (view === 'tracks') {
     return (
@@ -291,7 +291,6 @@ function TrackRow({
           <Text numberOfLines={1} style={styles.trackTitle}>
             {track.title}
           </Text>
-          {/* The album, then the artist below it (Tom, 2026-09-24). */}
           <Text numberOfLines={1} style={styles.trackSubtitle}>
             {track.musicContext ? albumLabel(track.musicContext.album) : ''}
             {playCount > 0 ? `  ·  ${playCount} play${playCount === 1 ? '' : 's'}` : ''}

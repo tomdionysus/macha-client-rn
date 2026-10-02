@@ -11,8 +11,7 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 const LOADING_INDICATOR_DELAY_MS = 600;
 
 /**
- * The one spinner (Tom, 2026-09-28: "There should be a standard spinner
- * everywhere"). Always the progress colour; only the size follows the place:
+ * The one spinner. Always the progress colour; only the size follows the place:
  * `large` for a screen or the player, `small` inside a button or a row.
  * Nothing else in the app draws an `ActivityIndicator`.
  */
@@ -29,8 +28,8 @@ export function Loading({ label }: { label?: string }) {
   if (!visible) return <View style={styles.block} />;
   return (
     <View style={styles.block}>
-      {/* Large: the small grey default read as a blank screen on the A85
-          while 815 albums took ~6 s (2026-09-28). */}
+      {/* Large: the small grey default reads as a blank screen during a
+          long load. */}
       <Spinner size="large" />
       {label ? <Text style={styles.caption}>{label}</Text> : null}
     </View>

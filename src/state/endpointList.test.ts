@@ -56,13 +56,7 @@ describe('adoptEndpoint', () => {
   });
 });
 
-/**
- * What the connect screen does with core's `checkEndpointConfiguration`.
- *
- * It replaced a local `firstReachable` that asked the same route but could
- * not tell "still waiting" from "nothing there", and accepted anything that
- * answered 401/403/404/503 without saying it might not be Macha.
- */
+/** What the connect screen does with core's `checkEndpointConfiguration`. */
 describe('connectOutcome', () => {
   const base = { endpoints: ['http://a:7438', 'http://b:7438', 'http://c:7438'], available: [], unconfirmed: [] };
 

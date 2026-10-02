@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PlaybackStartProgress } from '@machafoundation/core';
 import { preparingStreamText, startProgressText, startWaitNotice } from './startProgress';
 
-// The web client's cases (web `e543e0e`), word for word: every client says it alike.
+// The web client's cases, word for word: every client says it alike.
 
 const progress = (overrides: Partial<PlaybackStartProgress>): PlaybackStartProgress => ({
   kind: 'start', stage: 'planning', progressSeq: 1, elapsedMs: 0, ...overrides,

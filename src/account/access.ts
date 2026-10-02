@@ -14,11 +14,10 @@ export const MEDIA_ROLE: UserRole = 'media_viewer';
  * rather than two.
  *
  * `unknown` is the one that matters and the one that is easy to lose. "Nobody
- * has answered yet" is not "you are refused", and conflating them is not a
- * cosmetic bug: it sends a fully privileged viewer to a login screen on any
- * cold start against a slow cluster. The web client lost a whole run's worth of
- * privileged UI to that exact shape, and core makes it easy to reproduce —
- * `SessionManager.fetch` waits on a mint only when one is *already* in flight,
+ * has answered yet" is not "you are refused", and conflating them sends a
+ * fully privileged viewer to a login screen on any cold start against a slow
+ * cluster. Core makes that shape easy to reach: `SessionManager.fetch` waits
+ * on a mint only when one is *already* in flight,
  * so a request made in the window after a failed mint goes out tokenless, is
  * answered 401, and is returned unretried because it sent no token.
  *
@@ -33,7 +32,7 @@ export type MediaAccess =
 /**
  * Why the cluster will not serve media.
  *
- * Two genuinely different states, and both are reachable today:
+ * Three different states:
  *
  * - `no-session` — the node refused to mint at all. Either anonymous access is
  *   switched off, or the anonymous account holds no roles: the server maps both
@@ -49,9 +48,9 @@ export type MediaAccess =
  * A session with some roles but not `media_viewer` is an account configured
  * for something else, and the answer is to ask for the role. A session with an
  * empty role array was granted nothing — which core records as either a
- * registered-users-only deployment (removing `media_viewer` from the anonymous
- * account is how that is configured, server 0.38.4) or a signed-in viewer
- * silently degraded to anonymous by a credential-less re-mint. **Both of those
+ * registered-users-only deployment (configured by removing `media_viewer` from
+ * the anonymous account) or a signed-in viewer silently degraded to anonymous
+ * by a credential-less re-mint. **Both of those
  * are answered by signing in, and neither is answered by asking an
  * administrator for a role the viewer may already have.** Told to do the wrong
  * one, a viewer whose session merely lapsed goes looking for an admin.

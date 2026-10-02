@@ -27,8 +27,8 @@ export default function StatusScreen() {
   const { status, generation } = useMacha();
   // No signal: core's status client does not take one, and neither does
   // `router.request` (unlike `router.find`). `useAsync` discards a superseded
-  // result, so leaving on this screen wastes an in-flight request rather than
-  // rendering a stale one. Raised with the package session.
+  // result, so leaving this screen wastes an in-flight request rather than
+  // rendering a stale one.
   const snapshot = useAsync(() => status.status(), [status, generation]);
 
   const cluster = snapshot.value?.cluster;
@@ -113,8 +113,8 @@ function NodeCard({ node }: { node: ClusterNodeStatus }) {
         {[
           // The API endpoint verbatim, or nothing. `host`/`port` are the RPC
           // bind address — not necessarily reachable, and not the right
-          // protocol for REST — so falling back to them printed an internal
-          // address under an API label. Absent stays absent.
+          // protocol for REST — so falling back to them would print an
+          // internal address under an API label.
           node.api_endpoint,
           node.version,
           node.phase,

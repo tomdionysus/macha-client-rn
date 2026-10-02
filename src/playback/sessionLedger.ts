@@ -7,9 +7,8 @@
  * replaced by `install -r` — and backgrounding deliberately does not release,
  * so music can keep playing. A session left that way holds its node's video
  * transcode slot and counts against the account until `session_idle` reaps it,
- * thirty minutes later. On the A85 2026-09-23 the LAN node refused a create
- * `429 resource_limit` "video transcode limit reached", most likely holding this
- * client's own orphans.
+ * thirty minutes later, so orphans can make the node refuse a create with
+ * `429 resource_limit`.
  *
  * **The dead process cannot close them; the next one can.** Core's
  * `docs/resolver-direct.md`: a resolver-direct host owns every session it

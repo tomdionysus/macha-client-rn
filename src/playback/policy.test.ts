@@ -22,17 +22,15 @@ describe('statedUpdate', () => {
   });
 
   it('states the whole transform whenever a mode is named', () => {
-    // A bare `mode` is legal and the node would pick `video`/`audio` itself.
-    // That is the one thing this client must not allow: the node performs what
-    // it is told without asking what this device can decode.
+    // A bare `mode` would let the node pick `video`/`audio` without knowing
+    // what this device can decode.
     const stated = statedUpdate({ preferences: { mode: 'direct' } }, sessionWith(null));
     expect(stated.preferences).toMatchObject({ mode: 'direct', video: 'copy', audio: 'copy' });
   });
 
   it('keeps a quality cap when the viewer switches to transcode', () => {
-    // The regression this exists for: server 0.34.0 clears max_height when a
-    // PATCH names mode, so touching Mode silently handed the viewer a
-    // full-height transcode they never asked for.
+    // The server clears max_height when a PATCH names mode; without the
+    // restatement, touching Mode hands the viewer a full-height transcode.
     const stated = statedUpdate({ preferences: { mode: 'transcode' } }, sessionWith(720, 3_000_000));
     expect(stated.preferences?.maxHeight).toBe(720);
     expect(stated.preferences?.maxBitrate).toBe(3_000_000);
@@ -59,17 +57,10 @@ describe('statedUpdate', () => {
 });
 
 /**
- * A change that makes a new generation has to say where it starts.
- *
- * **Seen on the A85 2026-09-23 23:42:** *2001* at 1:08:10, Direct, the viewer
- * picks Remux; the PATCH carried `{ mode, video, audio }` and no position, the
- * node began the remux at `seekMs: 0`, and the film restarted from the
- * overture. The same `seekMs: 0` came back from the 18:31 Remux on *Dark*.
- * `applyUpdate` restored the position only when the target was Direct.
- *
- * Core's coordinator has the rule this client, standing in for it, never
- * carried: every representation update is sent with `seekMs` at the current
- * position, except a subtitle-only one or a session that cannot seek.
+ * A change that makes a new generation has to say where it starts, or the node
+ * starts it at `seekMs: 0`. Core's coordinator rule: every representation
+ * update carries `seekMs` at the current position, except a subtitle-only one
+ * or a session that cannot seek.
  */
 describe('positionedUpdate', () => {
   const seekable = (canSeek = true) => ({ options: { canSeek } }) as unknown as PlaybackSession;
@@ -94,8 +85,8 @@ describe('positionedUpdate', () => {
   });
 
   it('survives statedUpdate, which rebuilds the request through core', () => {
-    // The order `applyUpdate` uses. If the restatement dropped `seekMs` the
-    // fix above would change nothing on the wire.
+    // The order `applyUpdate` uses. If the restatement dropped `seekMs`,
+    // positioning would change nothing on the wire.
     const session = { options: { canSeek: true }, preferences: { maxHeight: null, maxBitrate: null } } as unknown as PlaybackSession;
     const sent = statedUpdate(positionedUpdate({ preferences: { mode: 'remux' } }, session, 4_090_000), session);
     expect(sent.seekMs).toBe(4_090_000);
@@ -126,24 +117,14 @@ describe('buildOrder', () => {
 });
 
 /**
- * The remux request that asked for audio this device cannot decode.
- *
- * Measured 2026-09-21: switching an AC-3 title to Remux sent
- * `{mode: remux, video: copy, audio: copy}`, and the A85 has no AC-3 decoder.
- * Served perfectly that is a silent film — the same defect as the `ac3`/`eac3`
- * capability claim, one layer up. Served by this cluster it hung, because
- * copying (E-)AC-3 into fMP4 never produces a first fragment. **The second is
- * the server's; the first was ours and is what these cover.**
- *
- * Before the fix `transformFor` took no second argument and always answered
- * `copy`, so every assertion below that expects `transcode` fails.
+ * A remux must not ask the node to copy audio this device cannot decode: the
+ * result would be silent, and the server cannot start an fMP4 copy of
+ * (E-)AC-3 at all.
  */
 describe('transformFor when the device cannot decode the source audio', () => {
   it('renames the mode, because the server refuses a remux that re-encodes', () => {
-    // playback.cpp:524 rejects mode=remux with any re-encoded stream, and :529
-    // rejects mode=transcode that re-encodes nothing. Correcting the transform
-    // without the name buys a 400 instead of the stall — the web client
-    // shipped exactly that halfway fix and had it refused.
+    // The server rejects mode=remux with any re-encoded stream, and
+    // mode=transcode that re-encodes nothing, with a 400.
     expect(transformFor('remux', false)).toEqual({
       mode: 'transcode',
       video: 'copy',
@@ -152,15 +133,12 @@ describe('transformFor when the device cannot decode the source audio', () => {
   });
 
   it('still copies the video, which this says nothing about', () => {
-    // A missing audio decoder is no reason to re-encode the picture, and doing
-    // so would turn a cheap rewrap into the most expensive operation there is.
+    // A missing audio decoder is no reason to pay for re-encoding the picture.
     expect(transformFor('remux', false).video).toBe('copy');
   });
 
   it('leaves direct play as the viewer asked for it', () => {
-    // Direct means "serve the original file": there is no transform to adjust,
-    // and silence is then the honest consequence of an explicit choice. The
-    // automatic path no longer picks it for these titles anyway.
+    // Direct serves the original file, so there is no transform to adjust.
     expect(transformFor('direct', false)).toEqual({ mode: 'direct', video: 'copy', audio: 'copy' });
   });
 
@@ -195,8 +173,7 @@ describe('audioCopyable', () => {
   });
 
   it('says yes when nothing is known, leaving the node in charge', () => {
-    // Absence of a fact is not a fact. The node picks correctly on create;
-    // this exists to stop the client overriding that with a worse answer.
+    // Absence of a fact is not a fact; the node's own choice stands.
     expect(audioCopyable(undefined, decodable)).toBe(true);
   });
 });
@@ -231,9 +208,7 @@ describe('sessionAudioCodec', () => {
 });
 
 describe('statedUpdate does not let the pressed mode override the corrected one', () => {
-  // The stub's Platform.OS defaults to ios, where ac3 is claimed deliberately
-  // and correctly — so this has to say android, which is where the decoder is
-  // missing. Getting that wrong made this test fail against working code.
+  // The stub's Platform.OS defaults to ios, which claims ac3; android does not.
   const previous = Platform.OS;
   beforeEach(() => {
     Platform.OS = 'android';
@@ -249,8 +224,8 @@ describe('statedUpdate does not let the pressed mode override the corrected one'
     }) as unknown as PlaybackSession;
 
   it('sends mode=transcode when Remux is pressed on audio this device cannot decode', () => {
-    // The spread-order trap: `{...stated, ...update.preferences}` would put the
-    // viewer's `remux` back over the corrected `transcode` and buy a 400.
+    // `{...stated, ...update.preferences}` would put the viewer's `remux` back
+    // over the corrected `transcode` and buy a 400.
     const result = statedUpdate({ preferences: { mode: 'remux' } }, ac3Session());
     expect(result.preferences).toMatchObject({ mode: 'transcode', video: 'copy', audio: 'transcode' });
   });

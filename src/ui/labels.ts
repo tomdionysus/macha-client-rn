@@ -4,13 +4,11 @@ import type { MediaSummary } from '../types';
 /**
  * Every word a viewer reads about a catalogue item, composed here.
  *
- * **Tom's ruling, 2026-09-24, given to core directly: core writes no viewer
- * text.** It hands over structured data — `playbackContext`, `musicContext`
- * with the album's year, `seasonNumber`, `episodeNumber`, `discNumber`,
- * `trackNumber`, sort and category keys — and the wording is each client's.
- * Core cut its label helpers and `MediaSummary.subtitle` the same day; these
- * replace them, worded as the other clients word them so the four stay
- * alike by agreement rather than by a shared function.
+ * Core writes no viewer text. It hands over structured data — `playbackContext`,
+ * `musicContext` with the album's year, `seasonNumber`, `episodeNumber`,
+ * `discNumber`, `trackNumber`, sort and category keys — and the wording is
+ * each client's, worded as the other clients word it so they stay alike by
+ * agreement rather than by a shared function.
  */
 
 /** "Season 1 Episode 5", or "Episode 5" when the season is not known. */
@@ -22,7 +20,7 @@ export function episodeLabel(item: MediaSummary): string | undefined {
 
 /**
  * "S01E05" — the compact form a season page lists, where the season is
- * already the page. It used to be the server's subtitle.
+ * already the page.
  */
 export function episodeCode(item: Pick<MediaSummary, 'seasonNumber' | 'episodeNumber'>): string | undefined {
   if (item.episodeNumber === undefined) return undefined;
@@ -52,7 +50,7 @@ const SORT_LABELS: Record<MediaSortKey, string> = {
 
 /**
  * "Sort By Title" — each choice reads as a whole, with no "Sort by" heading
- * over the control (Tom, 2026-09-23). Core keeps the keys and the orders.
+ * over the control. Core keeps the keys and the orders.
  */
 export function sortChoiceLabel(key: MediaSortKey): string {
   return `Sort By ${SORT_LABELS[key]}`;
@@ -67,8 +65,8 @@ export const CATEGORY_LABELS: Record<SearchCategoryKey, string> = {
 
 /**
  * A playlist's name, or a placeholder when it has none. Core stores an
- * unnamed list as `''` — the one it adopts from the store it replaced, and any
- * name that trims to nothing — and leaves the placeholder to the host.
+ * unnamed list, or a name that trims to nothing, as `''` and leaves the
+ * placeholder to the host.
  */
 export function playlistName(playlist: { name: string }): string {
   return playlist.name || 'Untitled playlist';

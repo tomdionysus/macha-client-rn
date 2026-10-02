@@ -3,8 +3,8 @@ import { ContinueWatchingStore, type PlaybackProgress } from '@machafoundation/c
 import { clientStore } from './storage';
 import { adoptLegacyContinueWatching } from './continueWatchingMigration';
 
-// Stored in the shape a phone saved before 2026-09-27, which named the title
-// `mediaId`; core reads that as `itemId` (`89a9d0c`).
+// Stored in the legacy shape, which named the title `mediaId`; core reads that
+// as `itemId`.
 const entry = (mediaId: string, positionMs = 60_000) => ({
   mediaId,
   positionMs,
@@ -12,7 +12,7 @@ const entry = (mediaId: string, positionMs = 60_000) => ({
   updatedAt: Date.now(),
 });
 
-/** An entry in today's shape, as the store writes it. */
+/** An entry in the current shape, as the store writes it. */
 const current = (itemId: string, positionMs = 60_000): PlaybackProgress => ({
   itemId,
   positionMs,

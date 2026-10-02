@@ -26,7 +26,7 @@ describe('seekStillPending', () => {
 
   it('believes the player again once the seek has clearly not landed', () => {
     // Otherwise a seek that never arrives freezes the position for good, which
-    // is worse than the snap-back it was added to prevent.
+    // is worse than the snap-back the pending seek prevents.
     expect(seekStillPending(noSession, pending, 120_000, 1_000 + 8_000)).toBe(false);
   });
 
@@ -40,9 +40,9 @@ describe('seekRequiresReposition', () => {
     ({ source: { isManifest: true }, ...overrides }) as unknown as PlaybackSession;
   const direct = () => ({ source: { isManifest: false } }) as unknown as PlaybackSession;
 
-  // The measured defect: an hour into a 2:43 film is hundreds of segments past
-  // production, refused immediately as beyond_hold_window, fatal on first
-  // occurrence in media3, and read by this client as a bad node.
+  // An hour into a 2:43 film is hundreds of segments past production: the node
+  // refuses it as beyond_hold_window, media3 treats that as fatal at once, and
+  // the error reads as a bad node.
   it('repositions a transformed generation for a seek past what is buffered', () => {
     expect(seekRequiresReposition(transformed(), 3_600_000, 120_000)).toBe(true);
   });
@@ -68,9 +68,9 @@ describe('seekRequiresReposition', () => {
     expect(seekRequiresReposition(undefined, 3_600_000, 0)).toBe(false);
   });
 
-  // Backward seeks are deliberately untouched: a bounded window implies they
-  // could also fall outside it, but that has not been measured and guessing
-  // about the server is what produced the defect in the first place.
+  // Backward seeks are deliberately untouched here: a bounded window implies
+  // they could also fall outside it, but nothing establishes that, and this
+  // does not guess about the server.
   it('does not act on backward seeks', () => {
     expect(seekRequiresReposition(transformed(), 10_000, 120_000)).toBe(false);
   });
@@ -80,8 +80,8 @@ describe('errorBlamesEndpoint', () => {
   const transformed = () => ({ source: { isManifest: true } }) as unknown as PlaybackSession;
   const direct = () => ({ source: { isManifest: false } }) as unknown as PlaybackSession;
 
-  // The measured case: fatal error 4.7s after our own seek, node perfectly
-  // healthy, and this client stopped the session and rebuilt elsewhere.
+  // A fatal error 4.7 s after our own seek, on a healthy node, must not stop
+  // the session and rebuild it elsewhere.
   it('does not blame the node for an error under an outstanding seek', () => {
     expect(errorBlamesEndpoint(transformed(), { targetMs: 3_600_000, atMs: 1_000 }, 5_700)).toBe(false);
   });
@@ -108,10 +108,8 @@ describe('errorBlamesEndpoint', () => {
 });
 
 // The window an outstanding seek excuses an error for has to be the serving
-// node's own hold, not a copy of the published default. `SEEK_DEADLINE_MS` was
-// chosen here at 6_000 without reference to the server, and happened to equal
-// it — the fifth entry in core's table of two independently chosen constants
-// that had to relate and did not.
+// node's own hold, not a copy of the published default: two independently
+// chosen constants that must relate will drift apart.
 describe('the seek window against the node that stated it', () => {
   const held = (segmentHoldMs: number) =>
     ({ source: { isManifest: true, budgets: { deadlineMs: 30_000, segmentHoldMs } } }) as unknown as PlaybackSession;
@@ -137,8 +135,8 @@ describe('the seek window against the node that stated it', () => {
   });
 
   it('allows the player its retry and first byte above the hold', () => {
-    // 6_000 exactly was the bug: a seek can legitimately land a hold *plus*
-    // transport later, and at 6_001 the next error was charged to the node.
+    // A seek can legitimately land a hold *plus* transport later, so a window
+    // of the hold alone would charge the node for an error at 6_001.
     expect(errorBlamesEndpoint(unstated(), seek, 1_000 + 7_000)).toBe(false);
   });
 
@@ -148,8 +146,8 @@ describe('the seek window against the node that stated it', () => {
 
   // Both windows come off the same figure deliberately. They answer different
   // questions — when to believe the player, and when to blame the node — but a
-  // seek that is still credible to one and expired to the other is the drift
-  // this whole item exists to remove.
+  // seek that is still credible to one and expired to the other is exactly
+  // the drift to avoid.
   it('times a pending seek out on the same window it excuses an error for', () => {
     expect(seekStillPending(held(10_000), { ...seek, targetMs: 600_000 }, 120_000, 1_000 + 9_000)).toBe(true);
     expect(seekStillPending(held(10_000), { ...seek, targetMs: 600_000 }, 120_000, 1_000 + 12_000)).toBe(false);

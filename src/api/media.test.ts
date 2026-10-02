@@ -23,13 +23,13 @@ function apiFailingWith(error: unknown, connectivity: Connectivity): MediaApi {
 
 describe('MediaApi.serve error classification', () => {
   it('treats a session that has not started as "could not ask", not as an unreachable cluster', async () => {
-    // Core 0.12.0 made `SessionNotStartedError` extend `MachaConnectionError`,
-    // which is what keeps the offline fallback working for a host that does
-    // nothing. Taken alone it would also route this through
-    // `reportUnreachable()` — and this error arrives before `start()` on every
-    // cold start, so a cluster that is up and answering would be marked offline
-    // on every launch. `shouldProbe()` then suppresses real requests for twenty
-    // seconds, and the viewer gets their downloads instead of their library.
+    // `SessionNotStartedError` extends `MachaConnectionError`, which keeps the
+    // offline fallback working for a host that does nothing. Taken alone it
+    // would also route this through `reportUnreachable()`, and this error
+    // arrives before `start()` on every cold start, so a cluster that is up and
+    // answering would be marked offline on every launch. `shouldProbe()` then
+    // suppresses real requests for twenty seconds, and the viewer gets their
+    // downloads instead of their library.
     const connectivity = new Connectivity();
     const api = apiFailingWith(new SessionNotStartedError('not-started'), connectivity);
 
@@ -48,23 +48,20 @@ describe('MediaApi.serve error classification', () => {
   });
 
   it('is only distinguishable by class, which is why the order matters', () => {
-    // Pinning the premise rather than trusting the release note: if this ever
-    // stops being true, the branch ordering in `serve` is merely redundant
+    // Pins the premise: if this ever stops being true, the branch ordering in
+    // `serve` is merely redundant
     // rather than load-bearing, and someone should know which.
     expect(new SessionNotStartedError('not-started')).toBeInstanceOf(MachaConnectionError);
   });
 });
 
 /**
- * What core's router actually throws, rather than the class it started as.
- *
- * Every test above hands `serve` a bare `MachaConnectionError`, and every
- * branch they cover tested identity — so they passed while none of those
- * branches could fire in the app. A walk that exhausts the cluster throws
+ * What core's router actually throws. A walk that exhausts the cluster throws
  * `MachaClusterRouteError` around a `MachaEndpointError` around the original;
- * a 4xx ends the walk and comes out as core's own `MachaApiError`, not this
- * client's class of the same name. What survives a layer boundary is fields,
- * never identity (core's rule, `playbackFailureStatus`).
+ * a 4xx ends the walk and comes out as core's own `MachaApiError`. What
+ * survives a layer boundary is fields, never identity (core's rule,
+ * `playbackFailureStatus`), so a bare `MachaConnectionError` alone proves
+ * nothing about what the app meets.
  */
 describe('MediaApi.serve reads what the router throws', () => {
   const walked = (error: unknown) =>

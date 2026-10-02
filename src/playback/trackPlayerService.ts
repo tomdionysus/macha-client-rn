@@ -4,17 +4,12 @@ import { audioRemote } from './audioRemote';
 /**
  * The background playback service.
  *
- * react-native-track-player requires a registered service, but on Android it
- * is an Android headless task that is only started when the platform decides
- * to — which is *not* while the app is alive and holding a media foreground
- * service. Registering the transport handlers only here meant the
- * notification's buttons had no listener at all during normal use.
- *
- * So the handlers live in the playback runtime, which is alive for exactly as
- * long as the JS context is, and this registers them only for the case where
- * the task is started without that runtime having mounted. `audioRemote` is
- * the single implementation either way, and the runtime replaces these as soon
- * as it mounts, so a button can never be handled twice.
+ * On Android this is a headless task the platform starts only when it decides
+ * to, which is not while the app is alive and holding a media foreground
+ * service, so handlers registered only here would have no listener during
+ * normal use. The playback runtime installs the real handlers on mount; this
+ * covers the task starting before it has. `audioRemote` is the single
+ * implementation either way, so a press is never handled twice.
  */
 export async function trackPlayerService(): Promise<void> {
   TrackPlayer.addEventListener(Event.RemotePlay, () => audioRemote().play());

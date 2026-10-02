@@ -12,15 +12,14 @@ import { classifyProbe, recoveryAfterProbe } from './policy';
  *
  * A viewer pauses past `session_idle` (30 minutes); the node reaps the session,
  * correctly; on resume media3 fetches the next fragment, gets `404`, and the
- * player errors. This client failed over on every player error, and failover
- * starts by charging the endpoint — so the node that answered honestly was
- * dropped and the viewer sent to one that never held the session. Core saw
- * exactly that live on 2026-09-17.
+ * player errors. Failover starts by charging the endpoint, so failing over
+ * here would drop the node that answered honestly and send the viewer to one
+ * that never held the session.
  *
  * expo-video hides the status, so this client asks instead: `sessionAlive` on
  * the owning node, which records nothing against it either way. Which player
  * error gets asked about is decided before this, by waiting out the node's own
- * window (Tom, 2026-09-24, option A) — so an error from a source already
+ * window, so an error from a source already
  * replaced never reaches the probe.
  */
 
@@ -66,7 +65,7 @@ describe('recoveryAfterProbe', () => {
     // Core stops there: an alive session answering 404 is a fragment past the
     // end of a live plan. This client cannot tell that case apart, because
     // expo-video hides the status, so a live session with a failing player
-    // still fails over — recorded in ACTIVE as a choice.
+    // still fails over, deliberately.
     expect(recoveryAfterProbe('alive', 1_900_000, undefined)).toBe('failover');
   });
 

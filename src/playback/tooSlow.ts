@@ -9,21 +9,17 @@ import { convertedStreams } from './quality';
 import type { PlaybackChoice } from './resume';
 
 /**
- * A quality no node can produce at real speed (core `d1069d2`), mirrored
- * here because this client runs its own failover rather than core's
- * coordinator.
+ * A quality no node can produce at real speed, mirrored from core here
+ * because this client runs its own failover rather than core's coordinator.
+ * Without it, a source every node transcodes below real time delivers a first
+ * fragment, stalls, and fails over back and forth for ever with no word why.
  *
- * The web client, 2026-09-28: The Martian's 4K HEVC ten-bit source
- * transcodes at about 0.33x on both nodes, so each delivered its first
- * fragment and stalled, and failover went back and forth for ever with the
- * viewer at 0:02 and no word why. A failure before the generation has played
- * `EARLY_STALL_MEDIA_MS`, on a stream the node is producing (not Direct,
- * where it is the network), fails over once as before; if the replacement
- * fails the same way, the second node shares the limit and another would too.
- *
- * Then, Tom, 2026-09-28: a quality the viewer chose stops, with the reason
- * and a way to try again. A quality Play chose steps down to the next lower
- * one and says so; with none lower, it stops the same way.
+ * A failure before the generation has played `EARLY_STALL_MEDIA_MS`, on a
+ * stream the node is producing (not Direct, where it is the network), fails
+ * over once; if the replacement fails the same way, the second node shares
+ * the limit and another would too. Then a quality the viewer chose stops,
+ * with the reason and a way to try again. A quality Play chose steps down to
+ * the next lower one and says so; with none lower, it stops the same way.
  */
 
 /** The failures counted so far against one file, mode and cap. */
@@ -65,9 +61,8 @@ export function tooSlowToPlay(
 
 /**
  * Why playback stopped, from the facts where they are known: the quality,
- * and which streams the session converts. Tom: "clear, concise, and visible
- * 'Macha can't play this quality because...'". The web's `tooSlowToPlayText`
- * word for word (web `e543e0e`).
+ * and which streams the session converts. The web's `tooSlowToPlayText` word
+ * for word.
  */
 export function tooSlowToPlayText(quality?: QualityClass, transform?: { video: string; audio: string }): string {
   const streams = transform && convertedStreams(transform.video === 'transcode', transform.audio === 'transcode');

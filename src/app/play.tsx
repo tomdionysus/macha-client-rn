@@ -126,9 +126,8 @@ export default function PlayerScreen() {
   /**
    * Force landscape, or hand rotation back to the device.
    *
-   * Rotating the phone already worked; what was missing was a way to ask for
-   * landscape while the phone is lying flat or held in a rotation lock, which
-   * is most of the time someone is actually watching something.
+   * This asks for landscape while the phone is lying flat or held in a
+   * rotation lock, which is most of the time someone is watching something.
    *
    * The button reads the *measured* orientation rather than a flag of its own,
    * so rotating by hand keeps the icon honest — a remembered "we are
@@ -204,8 +203,7 @@ export default function PlayerScreen() {
   }
 
   // Music gets its own presentation entirely: controls that stay put, artwork
-  // as the subject, shuffle/repeat/queue. Sharing the video chrome made it a
-  // video player with a picture in the middle.
+  // as the subject, shuffle/repeat/queue.
   if (audioOnly) return <NowPlayingMusic onClose={leave} />;
 
   const landscape = width > height;
@@ -291,10 +289,10 @@ export default function PlayerScreen() {
             </Pressable>
           </View>
 
-          {/* Not over a failure. The panel paints first, so this row sat on
-              top of its message (A85, 2026-09-23), and none of the three can
-              do anything for a player that has failed. The top bar stays: it
-              holds the Playback menu the failure message points to. */}
+          {/* Not over a failure: the failure panel paints first, so this row
+              would cover its message, and none of the three can do anything
+              for a failed player. The top bar stays: it holds the Playback
+              menu the failure message points to. */}
           {status !== 'failed' ? (
             <View style={styles.transport} pointerEvents="box-none">
               <Pressable
@@ -396,15 +394,11 @@ export default function PlayerScreen() {
       {/*
         A refusal that did not stop playback still has to reach the viewer.
         `status` stays as it was when a mode or quality change is refused — the
-        existing source carries on — so the failure panel above never renders,
-        and before this the viewer tapped Remux, watched a spinner for fifteen
-        seconds and got nothing at all. Measured on the A85 2026-09-21.
+        existing source carries on — so the failure panel above never renders.
 
-        **Rendered after the chrome, not before it.** The film is still playing
-        and must not be covered by a panel, so this sits above the transport —
-        but placed before the chrome it was painted over by the bottom bar and
-        the last line of a four-line message was cut in half. Seen on the
-        device; the fix is paint order, not height.
+        Rendered after the chrome so it paints over the bottom bar: placed
+        before it, the bar covers the last line of a long message. The film is
+        still playing, so this sits above the transport rather than over it.
       */}
       {chromeVisible && error && status !== 'failed' ? (
         <View style={styles.notice} pointerEvents="none">

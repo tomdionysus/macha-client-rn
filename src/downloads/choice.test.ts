@@ -3,8 +3,8 @@ import type { MediaSummary, MediaTechnicalProfile, PlaybackCapabilities, Playbac
 import { NOT_AVAILABLE_HERE, downloadChoices, downloadTarget, playableHere } from './choice';
 
 /**
- * Tom, 2026-09-28: Download opens a chooser on a title with more than one
- * file, a download is always a copy of the file named, and a file this
+ * Download opens a chooser on a title with more than one file, a download is
+ * always a copy of the file named, and a file this
  * device cannot play off the disk cannot be downloaded ("Not available for
  * this device").
  */
@@ -51,7 +51,7 @@ describe('playableHere', () => {
   });
 
   it('is false for audio this device cannot decode', () => {
-    // 2010 on the A85: AC-3 and no decoder for it. Copied, it plays silent.
+    // AC-3 with no decoder for it: copied, it would play silent.
     expect(playableHere(file('macha:hd', 1920, 1080, 8_000_000, 'ac3'), phone)).toBe(false);
   });
 

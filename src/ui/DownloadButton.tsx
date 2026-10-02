@@ -21,7 +21,7 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
  * transferring with a percentage, stored, or failed and retryable. Tapping a
  * stored item asks before deleting, because the bytes are the point.
  *
- * A title with more than one file opens a chooser first (Tom, 2026-09-28):
+ * A title with more than one file opens a chooser first:
  * a download is a copy of one file, so the viewer names which. A title none
  * of whose files this device can play off the disk cannot be downloaded: the
  * button is grey, and tapping it says "Not available for this device".
@@ -77,8 +77,8 @@ export function DownloadButton({
       setChecking(false);
       if (current) setFetched(current);
     }
-    // Without facts (the node cannot be asked) this is the download as it
-    // was: the manager checks again before it fetches anything.
+    // Without facts (the node cannot be asked) the download goes ahead: the
+    // manager checks again before it fetches anything.
     if (current && !anyPlayableHere(current)) unavailable();
     else if (current && current.length > 1) setChoosing(true);
     else enqueue();
@@ -228,8 +228,8 @@ function Control({
 }
 
 const styles = StyleSheet.create({
-  // A title page's Download sits in the header across from Back (Tom,
-  // 2026-09-28), so it looks like the header's other buttons.
+  // A title page's Download sits in the header across from Back, so it looks
+  // like the header's other buttons.
   button: {
     width: TOUCH_TARGET,
     height: TOUCH_TARGET,

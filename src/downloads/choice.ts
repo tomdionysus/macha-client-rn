@@ -9,7 +9,7 @@ import {
 import { summaryLine } from '../ui/mediaLines';
 import { formatBytes } from '../ui/format';
 
-/** What the viewer is told about a file this device cannot play off the disk (Tom, 2026-09-28). */
+/** What the viewer is told about a file this device cannot play off the disk. */
 export const NOT_AVAILABLE_HERE = 'Not available for this device';
 
 /** One file a viewer can name for a download. */
@@ -39,7 +39,7 @@ export function playableHere(
 }
 
 /**
- * The files of a title as a download chooser lists them (Tom, 2026-09-28):
+ * The files of a title as a download chooser lists them:
  * core's summaries, largest first, with files that read the same offered
  * once. The size is the node's where it gives one; otherwise it is estimated
  * from the overall bitrate and the length, and says "about".
@@ -70,7 +70,7 @@ export function downloadChoices(
  * Which record a download is stored under, and whether the viewer named the
  * file. A named file keys the record, so the title reads as downloaded by
  * that file; otherwise the first file keys it and the download takes the
- * file playback would pick, as before.
+ * file playback would pick.
  */
 export function downloadTarget(
   media: Pick<MediaSummary, 'mediaIds'>,

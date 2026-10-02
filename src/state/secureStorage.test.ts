@@ -23,9 +23,8 @@ describe('secureStorage', () => {
     expect(secureStorage.getItem('macha.session.v1')).toBeNull();
   });
 
-  // Logout, then a quick login. With a fire-and-forget delete, the delete
-  // landed after the login's write and erased the new token, so the next
-  // launch came up anonymous: the silent logout this storage exists to end.
+  // Logout, then a quick login. A fire-and-forget delete would land after the
+  // login's write and erase the new token: a silent logout.
   it('keeps a token written after a removal, whenever the removal settles', () => {
     secureStorage.setItem('macha.session.v1', 'token-a');
     secureStorage.removeItem('macha.session.v1');

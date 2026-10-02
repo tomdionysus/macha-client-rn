@@ -27,9 +27,8 @@ const HOST_AND_PORT = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/i;
  * there is no way to tell them apart from a camera frame. Someone whose node
  * genuinely answers to a single-label name can still type it.
  *
- * IPv6 literals are not handled; nothing on this project has produced one, and
- * guessing at the bracket syntax without a case to check it against would be
- * inventing a format rather than reading one.
+ * IPv6 literals are not handled: with no case to check the bracket syntax
+ * against, handling them would be inventing a format rather than reading one.
  */
 export function readScannedEndpoint(text: string): string {
   const trimmed = text.trim();

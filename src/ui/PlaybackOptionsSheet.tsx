@@ -37,10 +37,9 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
  * tracks and media representations exist. What this device can actually play
  * is decided here, from its own decoders: Remux and Direct stay listed but are
  * disabled, with the reason, when they would hand the player something it
- * cannot decode (Tom, 2026-09-23 and 2026-09-24). A mode is never hidden —
- * the viewer sees what exists and why it is not available to them. With
- * "Offer everything" on in Settings they can pick it anyway (Tom, 2026-09-25:
- * sensible defaults, the viewer in ultimate control).
+ * cannot decode. A mode is never hidden — the viewer sees what exists and why
+ * it is not available to them. With "Offer everything" on in Settings they
+ * can pick it anyway.
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, playVersion, versions, busy } = usePlayback();
@@ -79,8 +78,8 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   };
 
   // The item's qualities replace the node's height list where there are
-  // any: the same list as the detail screen's buttons (Tom, 2026-09-25),
-  // and two lists of heights would contradict each other. The node's list
+  // any: the same list as the detail screen's buttons, and two lists of
+  // heights would contradict each other. The node's list
   // stays for an item whose facts never arrived.
   const shownVersions = offersVersions(versions) ? versions : undefined;
   const choiceText = shownVersions ? qualityChoiceText(shownVersions) : undefined;
@@ -90,14 +89,13 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
     <Sheet visible={visible} title="Playback" onClose={onClose}>
       <SheetSection title="Mode">
         {/*
-          * No Auto. The server no longer chooses: `mode` is required and it
+          * No Auto. The server does not choose: `mode` is required and it
           * performs exactly what it is told, so the default comes from the
           * shared chooser and these are overrides on top of it.
           */}
         {(options.modes as PlaybackMode[]).map((mode) => {
-          // Kept in the list and explained, not hidden: Tom's calls, Remux
-          // 2026-09-23 and Direct 2026-09-24. Either, on video or a file this
-          // device cannot handle, is a decoder refusal the menu had offered.
+          // Remux and Direct stay listed and explained, not hidden: on a file
+          // this device cannot decode, either is a decoder refusal.
           const blocked = mode === 'remux' ? remuxBlocked : mode === 'direct' ? directBlocked : undefined;
           const unavailable = mode !== preferences.mode ? blocked : undefined;
           // "Offer everything" lets the viewer pick it anyway, the reason still
