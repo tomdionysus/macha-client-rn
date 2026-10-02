@@ -400,6 +400,27 @@ changes; see *Deferred by Tom*.
 
 ---
 
+## P2 — Left over from the comment pass (0.13.1, 2026-10-02)
+
+Comments only were changed (proved by printing every file without comments
+against the previous commit). What it surfaced, not acted on:
+
+- **AV1 in `hlsVideoCodecs`:** the old `codecProbe.ts` comment said AV1 was
+  deliberately left out of the HLS list, but `capabilities.ts` sets
+  `hlsVideoCodecs: claimedVideo`, so AV1 is in both. The comment is gone;
+  which side is intended is Tom's question.
+- **Test names still carry history** ("the A85 was measured unable to
+  decode", "(server 0.70.0)"): strings, so outside a comments-only pass.
+- **Cleanup offered and not yet done:** 38 unused `React` imports and seven
+  other unused symbols (`tsc --noUnusedLocals`); the "Could not reach the
+  server" sentence written twice (`policy.ts`, `failureMessages.ts`);
+  vitest's `fsModuleCache` (74% of a run is re-transforming); the repeated
+  `preparing`/`startProgress` reset in `PlaybackProvider`.
+- **0.13.1 is on `experiment/object-ledger` only** (Tom), untagged, on the
+  core link: a tag belongs on `main` with the published core.
+
+---
+
 ## P2 — The seek control: what is left after the web-matching rework
 
 The rework is in COMPLETED 2026-10-02, proven on the A85. Still open from
