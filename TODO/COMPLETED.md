@@ -8,6 +8,30 @@ Newest first.
 
 ---
 
+## 2026-10-02 — 0.13.0 released, on core 0.21.0
+
+`main` = `8f95141`, tag `0.13.0` (annotated), pushed with `develop`
+(`bf9a0e1`, relinked) and `experiment/object-ledger`. Tom: "Cut a version,
+merge and push please". `develop` was fast-forwarded to
+`experiment/object-ledger` first, so the release carries the seek rework and
+the web-matching items.
+
+- Core: `npm view` showed 0.21.0 as newest; core's link had moved only by the
+  inter-node traffic types since, which nothing here uses.
+  `npm install @machafoundation/core@^0.21.0`: not a link, `resolved` the
+  registry tarball, integrity `sha512-3N5ZVAAe...` as for 0.12.0.
+- 0.13.0 / `versionCode 1300` in the release commit; `version:check`
+  consistent before and after tagging; typecheck clean, 403 tests, `expo
+  export` produced an `.hbc`. **Fresh clone of the tag:** `npm ci`, not a
+  link, typecheck clean, 403 tests.
+- `assembleRelease` from `main`: the first attempt failed straight after a
+  prebuild (output not captured); a plain rerun succeeded. Bundle checked for
+  three of the release's new strings. **Installed on the A85 (`...5410`)
+  2026-10-02 16:39:22, `versionCode 1300`.**
+- Back on `experiment/object-ledger`, linked: core `f794364`, typecheck
+  clean, 403 tests. That core's `dist` (`f239550e1484`) does not yet hold its
+  ranking change.
+
 ## 2026-10-02 — Seek works as the web client's does, proven on the A85
 
 Tom: "The seek on the phone still ignores direction then jumps. The seek

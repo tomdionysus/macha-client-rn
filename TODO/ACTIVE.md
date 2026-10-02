@@ -57,8 +57,8 @@ before the server ships them: check everything this client depends on.
 
 ### Where things stand (checked 2026-10-01)
 
-- **`main` is `6c293ad`, tagged `0.12.0`**, on published core `^0.21.0` (the
-  newest on npm). Releases since 0.9.0: 0.10.0 and 0.11.0 on core 0.20.0,
+- **`main` is `8f95141`, tagged `0.13.0`**, on published core `^0.21.0` (the
+  newest on npm), installed on the A85 `...5410`; COMPLETED 2026-10-02. Releases since 0.9.0: 0.10.0 and 0.11.0 on core 0.20.0,
   0.12.0 on 0.21.0; each record is in COMPLETED.
 - **`develop`** is two record-keeping commits past `main` and fully pushed,
   linked to `file:../macha-ts` at core `1217429` (dist `d861fac1147a`):
