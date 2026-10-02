@@ -344,6 +344,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
    * left. Play and Pause pressed meanwhile change only `resume`.
    */
   const seekHoldRef = useRef<{ resume: boolean } | undefined>(undefined);
+  /**
+   * Whether the viewer paused, which is what a held seek resumes to. Not
+   * `player.playing`: that is false while ExoPlayer buffers, so a seek made
+   * just after another, still filling its buffer, read as a pause and the
+   * film stayed paused once the new generation was on (the A85, 2026-10-02).
+   */
+  const viewerPausedRef = useRef(false);
   const failoverAttemptsRef = useRef(0);
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
@@ -482,6 +489,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       seekRequestRef.current = undefined;
       seekIntentRef.current = undefined;
       seekHoldRef.current = undefined;
+      viewerPausedRef.current = false;
       presentedRef.current = false;
       positionRef.current = 0;
       // A new item starts its regeneration bound afresh, as core's does.
@@ -881,11 +889,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     const hold = seekHoldRef.current;
     if (hold) {
       hold.resume = !hold.resume;
+      viewerPausedRef.current = !hold.resume;
       setState((current) => ({ ...current, playing: hold.resume }));
       return;
     }
-    if (player.playing) player.pause();
-    else player.play();
+    if (player.playing) {
+      viewerPausedRef.current = true;
+      player.pause();
+    } else {
+      viewerPausedRef.current = false;
+      player.play();
+    }
   }, [player]);
 
   /**
@@ -1063,12 +1077,20 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }
       seekIntentRef.current = { targetMs: bounded, presented: false };
       if (!seekHoldRef.current) {
-        seekHoldRef.current = { resume: player.playing };
+        seekHoldRef.current = { resume: !viewerPausedRef.current };
         player.pause();
       }
       // A newer target supersedes the request in flight, as core aborts it.
-      seekRequestRef.current?.abort();
-      seekRequestRef.current = undefined;
+      // Its generation is retired first, so the rejection the abort causes
+      // is a superseded request and not a seek that failed: read as a
+      // failure, it rolled the bar back to the outgoing stream's position and
+      // dropped the new target, and the presses counted from there (six
+      // presses after two moved 40 s, not 60, on the A85, 2026-10-02).
+      if (seekRequestRef.current) {
+        seekRequestRef.current.abort();
+        seekRequestRef.current = undefined;
+        ++generationRef.current;
+      }
       clearTimeout(seekDebounceRef.current);
       setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
       seekDebounceRef.current = setTimeout(() => {
