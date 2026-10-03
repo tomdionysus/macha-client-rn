@@ -55,6 +55,7 @@ import {
   transformFor,
 } from '../playback/policy';
 import { setAudioRemoteHandlers } from '../playback/audioRemote';
+import { mayPlay, nextPlayablePosition } from '../playback/availability';
 import { observeSeek, seekBase, seekPlan, UNCACHED_SEEK_DEBOUNCE_MS, type SeekIntent } from '../playback/seekIntent';
 import { qualitySteppedDownText, tooSlowToPlay, tooSlowToPlayText, type EarlyStalls } from '../playback/tooSlow';
 import type { MediaApi } from '../api/media';
@@ -706,12 +707,24 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [continueWatching, player, playbackApi, releaseSession, reportStartProgress],
   );
 
+  /** A title that may not be played: unavailable on the cluster and not on the disk. */
+  const heldBack = useCallback(
+    (item: MediaSummary | undefined) => !!item && !mayPlay(item, downloads.localFor(item)?.localUri !== undefined),
+    [downloads],
+  );
+
   const start = useCallback(
     async (items: readonly MediaSummary[], index: number, options?: StartOptions) => {
-      const stored = queueStore.replace(items, index);
-      await load(stored?.items ?? items, stored?.currentIndex ?? index, options);
+      // A queue started on a title that may not be played begins at the next
+      // one that may, and nothing starts where none may.
+      const first = heldBack(items[index])
+        ? nextPlayablePosition(items.length, index, 1, false, (position) => !heldBack(items[position]))
+        : index;
+      if (first === undefined) return;
+      const stored = queueStore.replace(items, first);
+      await load(stored?.items ?? items, stored?.currentIndex ?? first, first === index ? options : undefined);
     },
-    [load, queueStore],
+    [heldBack, load, queueStore],
   );
 
   /**
@@ -753,17 +766,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           ? orderRef.current
           : buildOrder(items.length, shuffleRef.current, index);
       const position = order.indexOf(index);
-      let nextPosition = (position < 0 ? 0 : position) + delta;
-      if (nextPosition < 0 || nextPosition >= order.length) {
-        if (!wrap) return false;
-        nextPosition = (nextPosition + order.length) % order.length;
-      }
-      const nextIndex = order[nextPosition];
+      // Titles that may not be played are passed over.
+      const nextPosition = nextPlayablePosition(order.length, position < 0 ? 0 : position, delta, wrap, (candidate) =>
+        !heldBack(items[order[candidate]!]),
+      );
+      if (nextPosition === undefined) return false;
+      const nextIndex = order[nextPosition]!;
       queueStore.select(nextIndex);
       await load(items, nextIndex, { seekMs: 0 });
       return true;
     },
-    [load, queueStore],
+    [heldBack, load, queueStore],
   );
 
   const skipNext = useCallback(async () => {
@@ -777,11 +790,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const jumpTo = useCallback(
     async (index: number) => {
       const { items } = queueRef.current;
-      if (index < 0 || index >= items.length) return;
+      if (index < 0 || index >= items.length || heldBack(items[index])) return;
       queueStore.select(index);
       await load(items, index, { seekMs: 0 });
     },
-    [load, queueStore],
+    [heldBack, load, queueStore],
   );
 
   const setShuffle = useCallback((shuffle: boolean) => {

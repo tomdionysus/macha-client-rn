@@ -170,3 +170,10 @@ export function RepeatOneIcon({ size = 24, color = colors.text }: IconProps) {
     </Svg>
   );
 }
+
+/** A title some of whose pieces no reachable node holds. */
+export const WarningIcon = icon('M12 3.5 2.5 20h19zM12 10v4.5M12 17.2v.1');
+/** A title none of whose pieces a reachable node holds. */
+export const BlockedIcon = icon('M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8');
+/** A title whose pieces have not been surveyed yet. */
+export const QuestionIcon = icon('M9 9a3 3 0 1 1 4.2 2.75c-.7.3-1.2.95-1.2 1.7V14.5M12 18v.1');

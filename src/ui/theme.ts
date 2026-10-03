@@ -77,3 +77,6 @@ export const type = {
 export const TOUCH_TARGET = 44;
 
 export const monospace = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+
+/** How far a title that may not be played is greyed out. */
+export const UNAVAILABLE_OPACITY = 0.38;

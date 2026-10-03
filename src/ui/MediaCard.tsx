@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } fro
 import { useRouter } from 'expo-router';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { Artwork } from './Artwork';
+import { AvailabilityBadge, UNAVAILABLE_OPACITY, useUnavailable } from './AvailabilityBadge';
 import { CloseIcon, PlayIcon } from './Icons';
 import { albumLabel, episodeCode, episodeLabel, trackNumberLabel } from './labels';
 import { hrefFor } from './navigation';
@@ -40,6 +41,7 @@ interface Props {
 
 export function MediaCard({ item, width, onPress, shape, progress, onRemove, style }: Props) {
   const router = useRouter();
+  const blocked = useUnavailable(item);
   const cardShape = shape ?? shapeFor(item.kind);
   const episode = episodeLinks(item);
   const track = item.kind === 'track' ? item.musicContext : undefined;
@@ -57,10 +59,13 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={item.title}
+      accessibilityState={{ disabled: blocked }}
+      disabled={blocked}
       onPress={() => onPress(item)}
-      style={({ pressed }) => [{ width }, style, pressed && styles.pressed]}>
+      style={({ pressed }) => [{ width }, style, pressed && styles.pressed, blocked && { opacity: UNAVAILABLE_OPACITY }]}>
       <View style={[styles.artworkFrame, { width, height }]}>
         <Artwork artwork={artwork} fallbackText={item.title} style={StyleSheet.absoluteFill} />
+        <AvailabilityBadge item={item} />
         {progress ? (
           <>
             <View style={styles.playBadge}>

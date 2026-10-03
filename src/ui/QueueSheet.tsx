@@ -1,7 +1,9 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from '../providers/PlaybackProvider';
+import { useMacha } from '../providers/MachaProvider';
 import { Artwork } from './Artwork';
+import { AvailabilityBadge, heldBack, UNAVAILABLE_OPACITY } from './AvailabilityBadge';
 import { ChevronDownIcon, CloseIcon, PlayIcon } from './Icons';
 import { Sheet } from './Sheet';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
@@ -16,6 +18,7 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
  */
 export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { queue, queueIndex, playing, jumpTo, removeFromQueue, moveInQueue } = usePlayback();
+  const { downloads } = useMacha();
 
   return (
     <Sheet visible={visible} title={`Queue · ${queue.length}`} onClose={onClose}>
@@ -25,18 +28,25 @@ export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): 
         queue.map((item, index) => {
           const current = index === queueIndex;
           return (
-            <View key={`${item.id}-${index}`} style={[styles.row, current && styles.rowCurrent]}>
+            <View
+              key={`${item.id}-${index}`}
+              style={[styles.row, current && styles.rowCurrent, heldBack(item, downloads) && { opacity: UNAVAILABLE_OPACITY }]}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Play ${item.title}`}
+                accessibilityState={{ disabled: heldBack(item, downloads) }}
+                disabled={heldBack(item, downloads)}
                 onPress={() => void jumpTo(index)}
                 style={styles.main}>
-                <Artwork
-                  artwork={item.artwork?.poster ?? item.artwork?.thumbnail ?? item.musicContext?.artwork}
-                  fallbackText={item.title}
-                  style={styles.art}
-                  borderRadius={radius.sm}
-                />
+                <View>
+                  <Artwork
+                    artwork={item.artwork?.poster ?? item.artwork?.thumbnail ?? item.musicContext?.artwork}
+                    fallbackText={item.title}
+                    style={styles.art}
+                    borderRadius={radius.sm}
+                  />
+                  <AvailabilityBadge item={item} size={10} />
+                </View>
                 <View style={styles.text}>
                   <Text numberOfLines={1} style={[styles.title, current && styles.titleCurrent]}>
                     {item.title}

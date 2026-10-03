@@ -12,6 +12,7 @@ import {
   qualityPreferences,
 } from '../playback/quality';
 import { useMacha } from '../providers/MachaProvider';
+import { useUnavailable } from './AvailabilityBadge';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
@@ -56,6 +57,7 @@ export function useTitleFacts(item: MediaSummary | undefined): AsyncResult<Playb
 
 export function PlayActions({ item, queue, facts }: Props) {
   const { continueWatching, playback } = useMacha();
+  const blocked = useUnavailable(item);
   const { start, busy } = usePlayback();
   const router = useRouter();
 
@@ -112,7 +114,7 @@ export function PlayActions({ item, queue, facts }: Props) {
           label={qualityLabel(step.quality)}
           variant="secondary"
           onPress={() => play(resumeMs > 0 ? resumeMs : 0, step)}
-          disabled={busy}
+          disabled={busy || blocked}
         />
       ))}
       {choice ? <Text style={styles.limited}>{choice}</Text> : null}
@@ -127,8 +129,9 @@ export function PlayActions({ item, queue, facts }: Props) {
           icon={<PlayIcon size={18} color={colors.text} />}
           onPress={() => play(resumeMs)}
           busy={busy}
+          disabled={blocked}
         />
-        <Button label="From start" variant="secondary" onPress={() => play(0)} disabled={busy} />
+        <Button label="From start" variant="secondary" onPress={() => play(0)} disabled={busy || blocked} />
         {qualities}
       </>
     );
@@ -136,7 +139,7 @@ export function PlayActions({ item, queue, facts }: Props) {
 
   return (
     <>
-      <Button label="Play" icon={<PlayIcon size={18} color={colors.text} />} onPress={() => play(0)} busy={busy} />
+      <Button label="Play" icon={<PlayIcon size={18} color={colors.text} />} onPress={() => play(0)} busy={busy} disabled={blocked} />
       {qualities}
     </>
   );

@@ -3,6 +3,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Artwork } from './Artwork';
+import { AvailabilityBadge } from './AvailabilityBadge';
 import { CloseIcon, PauseIcon, PlayIcon } from './Icons';
 import { MINI_PLAYER_HEIGHT } from './chrome';
 import { Spinner } from './Status';
@@ -32,7 +33,10 @@ export function MiniPlayer() {
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
       </View>
-      <Artwork artwork={artwork} fallbackText={media.title} style={styles.artwork} borderRadius={radius.sm} />
+      <View>
+        <Artwork artwork={artwork} fallbackText={media.title} style={styles.artwork} borderRadius={radius.sm} />
+        <AvailabilityBadge item={media} size={10} />
+      </View>
       <View style={styles.text}>
         <Text numberOfLines={1} style={styles.title}>
           {media.title}

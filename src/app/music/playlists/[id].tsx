@@ -7,6 +7,7 @@ import { usePlayback } from '../../../providers/PlaybackProvider';
 import type { Playlist } from '@machafoundation/core';
 import { albumLabel, playlistName } from '../../../ui/labels';
 import { Artwork } from '../../../ui/Artwork';
+import { AvailabilityBadge, heldBack, UNAVAILABLE_OPACITY } from '../../../ui/AvailabilityBadge';
 import { ChevronDownIcon, CloseIcon, PlayIcon, ShuffleIcon, TrashIcon } from '../../../ui/Icons';
 import { Screen } from '../../../ui/Screen';
 import { EmptyState } from '../../../ui/Status';
@@ -16,7 +17,7 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from '../../.
 
 export default function PlaylistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { playlists } = useMacha();
+  const { playlists, downloads } = useMacha();
   const { start, setShuffle, media: nowPlaying, busy } = usePlayback();
   const router = useRouter();
 
@@ -84,18 +85,23 @@ export default function PlaylistScreen() {
       ) : (
         <View style={styles.list}>
           {playlist.items.map((item, index) => (
-            <View key={`${item.id}-${index}`} style={styles.row}>
+            <View key={`${item.id}-${index}`} style={[styles.row, heldBack(item, downloads) && { opacity: UNAVAILABLE_OPACITY }]}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Play ${item.title}`}
+                accessibilityState={{ disabled: heldBack(item, downloads) }}
+                disabled={heldBack(item, downloads)}
                 onPress={() => play(index, false)}
                 style={styles.main}>
-                <Artwork
-                  artwork={item.artwork?.poster ?? item.musicContext?.artwork}
-                  fallbackText={item.title}
-                  style={styles.art}
-                  borderRadius={radius.sm}
-                />
+                <View>
+                  <Artwork
+                    artwork={item.artwork?.poster ?? item.musicContext?.artwork}
+                    fallbackText={item.title}
+                    style={styles.art}
+                    borderRadius={radius.sm}
+                  />
+                  <AvailabilityBadge item={item} size={10} />
+                </View>
                 <View style={styles.text}>
                   <Text numberOfLines={1} style={[styles.title, nowPlaying?.id === item.id && styles.playing]}>
                     {item.title}

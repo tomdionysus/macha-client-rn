@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Spinner } from './Status';
-import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
+import { colors, radius, space, type as typography, TOUCH_TARGET, UNAVAILABLE_OPACITY } from './theme';
 
 interface ButtonProps {
   label: string;
@@ -87,13 +87,15 @@ interface RowProps {
    */
   detailLines?: number;
   leading?: React.ReactNode;
+  /** Greyed and not selectable: a title that may not be played. */
+  disabled?: boolean;
   trailing?: React.ReactNode;
   onPress?(): void;
   active?: boolean;
 }
 
 /** A single tappable list line — tracks, episodes, seasons, settings entries. */
-export function ListRow({ title, detail, detailLines = 2, leading, trailing, onPress, active }: RowProps) {
+export function ListRow({ title, detail, detailLines = 2, leading, trailing, onPress, active, disabled }: RowProps) {
   const content = (
     <>
       {leading}
@@ -111,14 +113,16 @@ export function ListRow({ title, detail, detailLines = 2, leading, trailing, onP
     </>
   );
 
-  if (!onPress) return <View style={rowStyles.row}>{content}</View>;
+  if (!onPress) return <View style={[rowStyles.row, disabled && { opacity: UNAVAILABLE_OPACITY }]}>{content}</View>;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [rowStyles.row, pressed && rowStyles.pressed]}>
+      style={({ pressed }) => [rowStyles.row, pressed && rowStyles.pressed, disabled && { opacity: UNAVAILABLE_OPACITY }]}>
       {content}
     </Pressable>
   );

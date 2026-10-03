@@ -11,6 +11,7 @@ import type { MediaSummary } from '../../types';
 import { AddToPlaylistSheet } from '../../ui/AddToPlaylistSheet';
 import { DownloadButton } from '../../ui/DownloadButton';
 import { Artwork } from '../../ui/Artwork';
+import { AvailabilityBadge, UNAVAILABLE_OPACITY, useUnavailable } from '../../ui/AvailabilityBadge';
 import { ChevronRightIcon, DownloadIcon, HeartFilledIcon, HeartIcon, PlusIcon, ShuffleIcon } from '../../ui/Icons';
 import { Library } from '../../ui/Library';
 import { HeaderButton, Screen } from '../../ui/Screen';
@@ -278,15 +279,25 @@ function TrackRow({
   onAdd(): void;
   onToggleFavourite(): void;
 }) {
+  const blocked = useUnavailable(track);
   return (
-    <View style={styles.trackRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title}`} onPress={onPlay} style={styles.trackMain}>
-        <Artwork
-          artwork={track.artwork?.poster ?? track.musicContext?.artwork}
-          fallbackText={track.title}
-          style={styles.trackArt}
-          borderRadius={radius.sm}
-        />
+    <View style={[styles.trackRow, blocked && { opacity: UNAVAILABLE_OPACITY }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Play ${track.title}`}
+        accessibilityState={{ disabled: blocked }}
+        disabled={blocked}
+        onPress={onPlay}
+        style={styles.trackMain}>
+        <View>
+          <Artwork
+            artwork={track.artwork?.poster ?? track.musicContext?.artwork}
+            fallbackText={track.title}
+            style={styles.trackArt}
+            borderRadius={radius.sm}
+          />
+          <AvailabilityBadge item={track} size={10} />
+        </View>
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={styles.trackTitle}>
             {track.title}

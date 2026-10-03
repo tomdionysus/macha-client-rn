@@ -5,6 +5,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useMacha } from '../../providers/MachaProvider';
 import type { ShowDetails } from '../../types';
 import { Artwork } from '../../ui/Artwork';
+import { AvailabilityBadge, heldBack } from '../../ui/AvailabilityBadge';
 import { ChevronRightIcon } from '../../ui/Icons';
 import { DetailHero } from '../../ui/DetailHero';
 import { Screen } from '../../ui/Screen';
@@ -16,7 +17,7 @@ import { useOpenMedia } from '../../ui/navigation';
 
 export default function ShowScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { media, generation } = useMacha();
+  const { media, generation, downloads } = useMacha();
   const openMedia = useOpenMedia();
   const detail = useAsync((signal) => media.details(id, signal), [media, generation, id]);
 
@@ -44,13 +45,17 @@ export default function ShowScreen() {
                   title={season.title}
                   detail={season.year ? String(season.year) : undefined}
                   onPress={() => openMedia(season)}
+                  disabled={heldBack(season, downloads)}
                   leading={
-                    <Artwork
-                      artwork={season.artwork?.poster ?? show.artwork?.poster}
-                      fallbackText={season.title}
-                      style={{ width: 42, height: 63 }}
-                      borderRadius={radius.sm}
-                    />
+                    <View>
+                      <Artwork
+                        artwork={season.artwork?.poster ?? show.artwork?.poster}
+                        fallbackText={season.title}
+                        style={{ width: 42, height: 63 }}
+                        borderRadius={radius.sm}
+                      />
+                      <AvailabilityBadge item={season} size={10} />
+                    </View>
                   }
                   trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
                 />

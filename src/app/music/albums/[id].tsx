@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AvailabilityBadge, heldBack } from '../../../ui/AvailabilityBadge';
 import { useAsync } from '../../../hooks/useAsync';
 import { useMacha } from '../../../providers/MachaProvider';
 import { usePlayback } from '../../../providers/PlaybackProvider';
@@ -20,7 +21,7 @@ import { colors, space, type as typography } from '../../../ui/theme';
 
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { media, generation, downloadManager } = useMacha();
+  const { media, generation, downloadManager, downloads } = useMacha();
   const { start, setShuffle, busy, media: nowPlaying } = usePlayback();
   const [adding, setAdding] = useState<MediaSummary[] | undefined>(undefined);
   const router = useRouter();
@@ -113,10 +114,14 @@ export default function AlbumScreen() {
                   title={track.title}
                   active={nowPlaying?.id === track.id}
                   onPress={() => playFrom(index)}
+                  disabled={heldBack(track, downloads)}
                   leading={
-                    <Text style={[styles.trackNumber, nowPlaying?.id === track.id && styles.trackNumberActive]}>
-                      {track.trackNumber ?? index + 1}
-                    </Text>
+                    <View style={styles.leading}>
+                      <AvailabilityBadge item={track} size={14} inline />
+                      <Text style={[styles.trackNumber, nowPlaying?.id === track.id && styles.trackNumberActive]}>
+                        {track.trackNumber ?? index + 1}
+                      </Text>
+                    </View>
                   }
                   trailing={
                     <View style={styles.rowActions}>
@@ -143,6 +148,10 @@ export default function AlbumScreen() {
 }
 
 const styles = StyleSheet.create({
+  leading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   trackNumber: {
     ...typography.caption,
     color: colors.textFaint,

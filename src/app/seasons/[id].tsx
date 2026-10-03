@@ -6,6 +6,7 @@ import { useMacha } from '../../providers/MachaProvider';
 import { usePlayback } from '../../providers/PlaybackProvider';
 import type { Episode, SeasonDetails } from '../../types';
 import { Artwork } from '../../ui/Artwork';
+import { AvailabilityBadge, UNAVAILABLE_OPACITY, useUnavailable } from '../../ui/AvailabilityBadge';
 import { DetailHero } from '../../ui/DetailHero';
 import { PlayIcon } from '../../ui/Icons';
 import { Screen } from '../../ui/Screen';
@@ -94,11 +95,14 @@ function EpisodeRow({
   onOpen(): void;
 }) {
   const fraction = positionMs > 0 && episode.durationMs ? Math.min(1, positionMs / episode.durationMs) : 0;
+  const blocked = useUnavailable(episode);
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, blocked && { opacity: UNAVAILABLE_OPACITY }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${episode.title}`}
+        accessibilityState={{ disabled: blocked }}
+        disabled={blocked}
         onPress={onPlay}
         style={({ pressed }) => [styles.still, pressed && styles.pressed]}>
         <Artwork
@@ -110,6 +114,7 @@ function EpisodeRow({
         <View style={styles.playOverlay}>
           <PlayIcon size={18} color={colors.text} />
         </View>
+        <AvailabilityBadge item={episode} size={14} />
         {fraction > 0 ? (
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
@@ -119,6 +124,8 @@ function EpisodeRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`About ${episode.title}`}
+        accessibilityState={{ disabled: blocked }}
+        disabled={blocked}
         onPress={onOpen}
         style={styles.rowText}>
         <Text style={styles.episodeNumber}>{episodeCode(episode) ?? `Episode ${episode.episodeNumber}`}</Text>

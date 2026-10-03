@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { MediaSummary } from '../types';
 import { Artwork } from './Artwork';
+import { AvailabilityBadge } from './AvailabilityBadge';
 import { colors, radius, space, type as typography } from './theme';
 
 interface Props {
@@ -47,12 +48,15 @@ export function DetailHero({ item, facts, actions }: Props) {
 
       <View style={[styles.body, backdrop ? styles.bodyOverlapping : styles.bodyPlain]}>
         <View style={styles.row}>
-          <Artwork
-            artwork={poster}
-            fallbackText={item.title}
-            style={{ width: posterWidth, height: posterHeight }}
-            borderRadius={radius.md}
-          />
+          <View>
+            <Artwork
+              artwork={poster}
+              fallbackText={item.title}
+              style={{ width: posterWidth, height: posterHeight }}
+              borderRadius={radius.md}
+            />
+            <AvailabilityBadge item={item} />
+          </View>
           <View style={styles.headings}>
             {item.playbackContext ? (
               <Text numberOfLines={1} style={styles.eyebrow}>
