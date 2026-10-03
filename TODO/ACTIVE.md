@@ -8,83 +8,74 @@ Ranked P1 (do next) down to P3. There is no P0. **An inherited claim is not
 evidence**: where a peer's claim was checked against source or a device, it
 says so; where it was taken on trust, it says that too.
 
-**Last rationalised 2026-10-01, for a session starting cold after a `/clear`.**
-Everything finished is in COMPLETED under its date; releases 0.10.0, 0.11.0
-and 0.12.0 are there under 2026-09-27 and 2026-09-29.
+**Last rationalised 2026-10-04, for a session starting cold after a `/clear`.**
+Everything finished is in COMPLETED under its date; the newest entries are
+2026-10-01 to 2026-10-04 (web-matching, seek, 0.13.0, comments,
+availability).
 
 ---
 
 ## Start here
 
-### Work only on `experiment/object-ledger` (Tom, 2026-10-01)
+### Work only on `experiment/object-ledger` (Tom)
 
-**Every change goes on `experiment/object-ledger`**, or a branch cut from
-it, never on `develop` or `main`: no commits to, merges into or pushes of
-either. Tom's instruction, relayed by the server session and confirmed with
-Tom directly. The branch was cut from `develop` at `d9929e6`. It matches the
-server's experiment of the same name (step branches
-`experiment/object-ledger-t0` .. `-t2`; server `develop` frozen at
-`75e6f98`). API changes on that line are announced to core and every client
-before the server ships them: check everything this client depends on.
-
-- **So far:** Status `threads` gained `observation` (T0, server 0.74.0),
-  which reaches this client only through core.
-- **Decided, not built:** the whole API becomes RESTful. The first case is
-  the identity resets (`POST /api/v1/manage/identity-resets` and `GET
-  .../identity-resets/{id}`). **This client calls neither old route** and
-  uses none of core's manage API (checked 2026-10-01, answered to the
-  server).
-- **The releases and the 0.12.0 install** in *Open, in order* are on hold
-  under this rule: a release is a tag on `main`. Ask Tom before any of it.
-- `develop` still needed a push of `d9929e6` when the branch was cut; that
-  push is Tom's.
+**Every change goes on `experiment/object-ledger`.** Tom set it on
+2026-10-01 and restated it on 2026-10-02 ("Stay on the experimental
+branch") when 0.13.1 was cut there instead of on `main`. **Do not commit to,
+merge into or push `develop` or `main` unless Tom asks in that message**;
+0.13.0 was the one exception, at his word. It matches the server's
+experiment of the same name; the server and core announce API changes on
+that line to every client before shipping them, and each is checked here
+against what this client reads.
 
 ### Resume here, after a `/clear`
 
 1. Read *Start here*, then *Open, in order*.
-2. `git branch --show-current` is `experiment/object-ledger`. `git status --short` shows only `.claude/settings.json`,
-   `CLAUDE.local.md` and `basemind.toml`, none of which are this work.
-3. `test -L node_modules/@machafoundation/core` succeeds on `develop`.
+2. `git branch --show-current` is `experiment/object-ledger`; `git status
+   --short` shows only `.claude/settings.json`, `CLAUDE.local.md` and
+   `basemind.toml`, none of which are this work.
+3. `test -L node_modules/@machafoundation/core` succeeds (the branch is on
+   the core link).
 4. Core moves several times a day: `git -C ../macha-ts log --oneline -1`,
    `(cd ../macha-ts && npm run -s dist:hash)`, `npx tsc --noEmit -p .
    >/dev/null; echo $?` (the exit code, never a grep), `npx vitest run`.
-5. `adb mdns services` for the A85, then *Driving the phone* before any tap.
+   When searching core's `dist`, search it whole: `grep -rl ... | head`
+   once hid the answer under `dist/cluster/`.
+5. `adb mdns services` for the phones, then *Driving the phone* before any
+   tap.
 6. `ListAgents` for the peers. Act on a peer's news only after reading core's
-   source or `dist`, never on the message alone. **Commit before messaging a
-   peer about a change, and quote the SHA git printed** (memory
-   *never-guess-commit-ids*).
-7. **This session never pushes** (memory *never-push*): hand Tom the command.
+   source or `dist`, never on the message alone. **Commit in one step, read
+   the id off git's output, and only then message a peer quoting it**, never
+   in the same parallel batch (memory *never-guess-commit-ids*; broken twice
+   on 2026-10-03/04).
+7. **Push only when Tom says "push" in that message** (memory *never-push*);
+   otherwise hand him `git push origin experiment/object-ledger`.
 
-### Where things stand (checked 2026-10-01)
+### Where things stand (checked 2026-10-04)
 
-- **`main` is `8f95141`, tagged `0.13.0`**, on published core `^0.21.0` (the
-  newest on npm), installed on the A85 `...5410`; COMPLETED 2026-10-02. Releases since 0.9.0: 0.10.0 and 0.11.0 on core 0.20.0,
-  0.12.0 on 0.21.0; each record is in COMPLETED.
-- **`develop`** is two record-keeping commits past `main` and fully pushed,
-  linked to `file:../macha-ts` at core `1217429` (dist `d861fac1147a`):
-  typecheck clean, **359 tests**. The phone's own code is unchanged since
-  0.11.0.
-- **`experiment/object-ledger`** carries the web-matching work past
-  `develop` (COMPLETED 2026-10-01): typecheck clean, **393 tests**, nothing
-  pushed.
-- **The A85 runs the tagged 0.11.0** (`versionCode 1100`, installed
-  2026-09-29 11:21:35 local). **0.12.0 was built but never installed**: the
-  phone was off ADB at release. The APK from `main` may still be at
-  `android/app/build/outputs/apk/release/app-release.apk`, but any build since
-  overwrites it; rebuild from `main` (bundle forced) rather than trust it.
-  Tom is signed in. Panel **720x1612**; decoders AVC, HEVC and VP9 to
-  1920x1080, AV1 to 1280x720.
-- **The server:** 0.70.0 was confirmed live on both nodes at 17:09Z
-  2026-09-28 (operator names "Corvus FI-1" and "Corvus GBNI-1"); core's link
-  now models up to 0.73.0 (inter-node traffic). Ask core or the server what
-  is live before measuring against it. **fi-1** (`http://10.35.1.50:7438`)
-  holds little of the library and fetches from **gbni-1**
-  (`https://macnessa.macha.network`) over the WAN, so its transcode starts
-  can overrun core's budget; core walks to macnessa.
-- **Lost data, the server's to fix:** *The Cannonball Run*, *28 Days Later*,
-  *Event Horizon*, *GoodFellas*, *Cowboys & Aliens*, and *Dark* S01E06 past
-  46 minutes are missing extents and still listed as playable. Its per-file
-  readability work waits on Tom. Do not test against them expecting playback.
+- **`experiment/object-ledger`**: the last code commit is `55b7552`.
+  Everything after `origin/experiment/object-ledger` (`4bc1943`) is local:
+  the availability markers and the TODO records. Version 0.13.1
+  (`versionCode 1301`), untagged, on the core link. Typecheck clean, **410
+  tests** (2026-10-04, core `22e0620`).
+- **`main` is `8f95141`, tagged `0.13.0`**, on published core `^0.21.0`, the
+  newest on npm. **`develop` is `bf9a0e1`** (0.13.0 relinked). Both pushed
+  and both behind the experiment branch, by Tom's rule.
+- **The phones:** the A85 `...5410` runs 0.13.1 from `55b7552` (installed
+  2026-10-04 00:38). The A85 `...5398` runs the 2026-10-01 experiment build
+  (0.12.0 label) and was off wireless debugging when 0.13.1 was installed.
+  Panel 720x1612; decoders AVC, HEVC and VP9 to 1920x1080, AV1 to 1280x720.
+- **The server:** 0.82.0 (files, file availability) is live by its own
+  notice; 0.83.0 (item availability, the `unavailable` code) and 0.84.0
+  (availability kept across restarts, `unknown` rare) were announced and not
+  known deployed. Ask the server what is live before measuring.
+  **fi-1** (`http://10.35.1.50:7438`) holds little of the library and fetches
+  from **gbni-1** (`https://macnessa.macha.network`) over the WAN, so its
+  transcode starts can overrun core's budget; core walks to macnessa.
+- **Lost data:** *The Cannonball Run*, *28 Days Later*, *Event Horizon*,
+  *GoodFellas*, *Cowboys & Aliens* and *Dark* S01E06 past 46 minutes are
+  missing extents. Once 0.83.0 is live they should carry a partial or
+  unavailable marker; do not test against them expecting playback.
 - **Never run `npm run lint`**: `expo lint` installs ESLint into
   `package.json` unasked.
 - **The laws are `docs/principles-and-laws.md`**: 1 control, 2 viewer, 3
@@ -92,44 +83,46 @@ before the server ships them: check everything this client depends on.
 
 ### Open, in order
 
-1. **Install 0.12.0 on the A85** when it is on ADB: rebuild from `main` with
-   the bundle forced (*Devices*), gate on serial and model, confirm
-   `versionCode 1200`, and add the install to COMPLETED's 0.12.0 entry.
-2. **Match the web: built, not yet on a device** (COMPLETED 2026-10-01,
-   `6494c66` .. `305f5ee`). On the A85 when Tom allows an install: the
-   sentence under the quality buttons, node names on the status screen and
-   in the sheet, the start-progress line under the spinner (a transcode
-   start on fi-1 is slow enough to show it), and whether a too-slow
-   transcode reaches the failover at all.
-3. **What the device runs have not reached**, each needing Tom or a second
+1. **Install 0.13.1 on the A85 `...5398`** when it is on wireless debugging
+   (already paired). The APK from `55b7552` is at
+   `android/app/build/outputs/apk/release/app-release.apk` unless a build
+   has run since; rebuild if in doubt. Gate on serial and model.
+2. **See the availability markers on a device** once the server says 0.83.0
+   is live: a partial and an unavailable title on cards, rows, the detail
+   poster and Continue Watching; an unavailable one greyed and refusing a
+   tap; a downloaded one unmarked; a queue stepping over an unavailable one.
+3. **Tom's questions, open:**
+   - AV1 is claimed for HLS (`capabilities.ts`: `hlsVideoCodecs:
+     claimedVideo`), where a since-removed comment said it was deliberately
+     not. Which is intended?
+   - The mobile-data default is core's 720p, not a ruling; and the secure
+     store's backup side effect (AsyncStorage leaves Android Auto Backup with
+     the token).
+   - **Ruled, do not reopen:** Direct on a file whose audio the device cannot
+     decode stays available but is never the default; a downloaded title is
+     complete for availability.
+4. **Cleanup, offered and not done** (P2 *Left over from the comment
+   pass*): unused imports, the duplicated "Could not reach the server"
+   sentence, vitest's `fsModuleCache`, the repeated `preparing` reset.
+5. **The seek's remaining edges** (P2 *The seek control*): repaint while
+   paused, the first touch after the chrome hides, local seeks that go to
+   the node, `toggle` while buffering.
+6. **What the device runs have not reached**, each needing Tom or a second
    viewer: failover mid-play and the container restatement (a node taken
    down, only on Tom's word); a switch back into transcode refused
    `resource_limit` (a second viewer holding the slot); the mobile-data
-   ceiling and the unreachable-cluster wording (the network changed); the
-   wrong-password wording (a logout, and Tom's password); the camera and a
-   pasted node list (the Galaxy, by hand); the login-lapse notices (a session
-   near expiry). AV1 at 720p or below playing Direct needs such a file.
-   **Not built:** the proactive half of the reaped-session recovery (asking
-   when `AppState` returns with an old session). The reactive half is
-   proven on the A85 (COMPLETED 2026-09-28).
-4. **Downloads, still open** (the chooser itself is done, COMPLETED
-   2026-09-28):
-   - **For Tom:** the chooser offers files this device cannot decode (4K
-     ten-bit HEVC on the A85, 50 GB), and a download always plays off the
-     disk. Mark them, hide them, or leave it? (Files the device cannot play
-     are already greyed, `b4d2c1b`; check whether that settles it before
-     asking.)
-   - **Orphaned partial files** are never deleted: a download killed with
-     the app leaves its bytes in `documentDirectory/macha/media/`. A startup
-     sweep of files no record names would clear it.
-   - Not yet run: a film downloaded to completion and played off the disk.
-5. **Waiting on Tom:** the mobile-data default is core's 720p, not a ruling;
-   and the secure store's backup side effect (AsyncStorage leaves Android
-   Auto Backup with the token). **Ruled 2026-09-28, do not reopen:** Direct
-   on a file whose audio the device cannot decode stays available in the
-   sheet but is never the default ("If the user forces direct, that's on
-   them"); already true in source and on the A85.
-6. **The media3 segment-500 contradiction** (P1 below), and the P2s.
+   ceiling and the "No Macha server answered" wording (the network changed);
+   the wrong-password wording; the camera and a pasted node list (the
+   Galaxy, by hand); the login-lapse notices; whether a too-slow transcode
+   reaches the failover at all; the start-progress line on a slow fi-1
+   start. **Not built:** the proactive half of the reaped-session recovery.
+7. **Downloads, still open:** orphaned partial files are never deleted (a
+   startup sweep of files no record names would clear them), and a film has
+   not been downloaded to completion and played off the disk. Files this
+   device cannot decode are greyed in the chooser (`b4d2c1b`); check whether
+   that settles Tom's question about offering them before asking it.
+8. **The media3 segment-500 contradiction** (P1 below), and the rest of the
+   P2s.
 
 ---
 
@@ -218,10 +211,11 @@ by a person:** the QR scanner. **Never run on hardware at all:** the gate's
 `no-session` branch, which needs `allow_anonymous` off to reach, and the
 node-row paste path, which `adb shell input text` cannot emulate.
 
-**Tagged builds on hardware:** 0.10.0 and 0.11.0 were installed on the A85
-and looked at (COMPLETED 2026-09-27 and 2026-09-29); 0.12.0 has not been
-installed. The 2026-09-21 measurements above were on a dev build of the
-0.8.0 tree.
+**Builds on hardware:** 0.10.0, 0.11.0 and 0.13.0 were installed on the A85
+`...5410` and looked at; 0.12.0 never was. The seek rework was proven there on
+an experiment build (COMPLETED 2026-10-02), and 0.13.1 is installed but its
+availability markers have nothing to show until server 0.83.0. The
+2026-09-21 measurements above were on a dev build of the 0.8.0 tree.
 
 **`ReactNativeJS` logs reach `logcat` from a release build.** `adb logcat
 -v UTC | grep ReactNativeJS` shows core's routing, health and registry logs
@@ -263,11 +257,14 @@ after `npx expo prebuild --platform android` and a Gradle `assembleRelease`.
 **After a core change, force the JS bundle:** `./gradlew
 :app:createBundleReleaseJsAndAssets --rerun` before `assembleRelease`.
 Through the `file:` link Gradle sees no input change and reuses the old
-bundle (2026-09-28: an APK kept its old timestamp). Check the APK's time,
-and `strings` the bundle for a string only the new core has.
+bundle (2026-09-28: an APK kept its old timestamp). **Straight after a
+prebuild, run a plain `assembleRelease` instead**: it bundles fresh, and the
+forced task run right after a prebuild failed once (2026-10-02, output not
+kept). Either way, check the bundle's time against the last source change
+and `strings` it for a string only the new code has.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
-  Has the tagged **0.11.0** (*Where things stand*). The wireless ADB port
+  Tom's phone. Has **0.13.1** from `55b7552` (*Where things stand*). The wireless ADB port
   rotates on every enable (`34471`, `43777`, `41479` on 2026-09-27 alone),
   so rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
@@ -282,16 +279,11 @@ and `strings` the bundle for a string only the new core has.
   checks `mCurrentFocus` in the same invocation, and `ui.sh` deletes the old
   dump first (a failed `uiautomator dump` otherwise reads back the previous
   screen).
-- **A second Blackview A85**, serial `A85EEA0000005398`, at `10.35.1.195`
-  over wireless debugging (`36999` on 2026-10-01; it will rotate). Paired
-  with this Mac by Tom on 2026-10-01; the first A85 above (`...5410`) is a
-  different phone. **Installed 2026-10-01 20:03:50 local**: a fresh install
-  (nothing there before) of `experiment/object-ledger` at `9e9d937`,
-  `versionName 0.12.0` / `versionCode 1200` on the core link (dist
-  `d861fac1147a`), bundle forced and checked for the new sentences. The
-  process started with no crash in logcat; the phone was asleep behind its
-  lock screen, so nothing on screen was seen, and no endpoints are known to
-  be configured on it.
+- **A second Blackview A85**, serial `A85EEA0000005398`, at `10.35.1.195`,
+  paired with this Mac by Tom on 2026-10-01; its wireless port rotates like
+  the first's. Has the 2026-10-01 experiment build (`9e9d937`, labelled
+  0.12.0); no endpoints are known to be configured on it, so it will want
+  nodes and a sign-in before it plays anything.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
   **0.4.0** and **no endpoints configured**, so it opens on the connect screen
   — the right device for first-run and QR in one pass.
@@ -400,15 +392,12 @@ changes; see *Deferred by Tom*.
 
 ---
 
-## P2 — Left over from the comment pass (0.13.1, 2026-10-02)
+## P2 — Left over from the comment pass (2026-10-02)
 
 Comments only were changed (proved by printing every file without comments
 against the previous commit). What it surfaced, not acted on:
 
-- **AV1 in `hlsVideoCodecs`:** the old `codecProbe.ts` comment said AV1 was
-  deliberately left out of the HLS list, but `capabilities.ts` sets
-  `hlsVideoCodecs: claimedVideo`, so AV1 is in both. The comment is gone;
-  which side is intended is Tom's question.
+- **AV1 in `hlsVideoCodecs`** is Tom's question (*Open, in order*).
 - **Test names still carry history** ("the A85 was measured unable to
   decode", "(server 0.70.0)"): strings, so outside a comments-only pass.
 - **Cleanup offered and not yet done:** 38 unused `React` imports and seven
@@ -416,8 +405,6 @@ against the previous commit). What it surfaced, not acted on:
   server" sentence written twice (`policy.ts`, `failureMessages.ts`);
   vitest's `fsModuleCache` (74% of a run is re-transforming); the repeated
   `preparing`/`startProgress` reset in `PlaybackProvider`.
-- **0.13.1 is on `experiment/object-ledger` only** (Tom), untagged, on the
-  core link: a tag belongs on `main` with the published core.
 
 ---
 
@@ -771,26 +758,6 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
   repeat fragment requests with ~1 s then ~2 s backoff before going terminal.
   A yes would say the bytecode path is reachable somewhere; it would still not
   be a result about expo-video.
-
----
-
-## P2 — Availability on items and files (server 0.82.0 / 0.83.0), not used yet
-
-The server announced it, 2026-10-03; read from its notices, not yet from its
-source. Every catalogue item gains `availability` (`complete`, `partial`,
-`unavailable`, `unknown`) and, for a set, `availability_members` counts; each
-file on `/api/v1/playback/media` and `/api/v1/files/...` carries the same
-four codes with extent counts. Facts about extents held by reachable nodes,
-not a promise the bytes read, and "no reachable node" is not "lost". The
-server refuses nothing; what to show is the client's decision. About 23% of
-referenced extents were on no reachable node when announced.
-
-Checked 2026-10-03: nothing here trips on the extra fields (core decodes
-items and facts and drops unknown fields). To use it, core has to model the
-fields first. Then the lists could mark partial and unavailable titles, and
-the file chooser could grey a file no node holds, as it greys one this
-device cannot decode. That would settle the *Lost data* list above. Tom's
-call what to show.
 
 ---
 

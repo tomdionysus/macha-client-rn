@@ -8,6 +8,58 @@ Newest first.
 
 ---
 
+## 2026-10-02 to 04 — Comments rewritten, availability shown, 0.13.1 on the A85
+
+All on `experiment/object-ledger`, not on `develop` or `main` (Tom: "Stay on
+the experimental branch"). Pushed to `4bc1943`; the availability commits
+after it are local.
+
+**The comment pass** (`7c77bf5`; Tom: "make every code comment earn its
+place and remove all historical references"). Six agents, one per area;
+93 files, 1,660 comment lines out and 932 in. Proved comments-only by
+printing every file through the TypeScript printer without comments against
+the previous commit: identical but for two deleted JSX comment lines. It
+corrected four comments that contradicted the code (codec probe header,
+capabilities fallback, MachaProvider's secure storage note, access.ts's
+count of states). History stays here. Leftovers are in ACTIVE's P2.
+
+**0.13.1** (`4bc1943`): the version bump for the comment pass, on the
+experiment branch only, untagged and on the core link, because a tag belongs
+on `main` with the published core. `version:check` consistent.
+
+**Availability markers, as Tom ruled for every client** (through core, which
+had the ruling from Tom):
+- `649d5f7`: markers on every title (cards, detail poster, seasons,
+  episodes, album, playlist and music rows, the queue, the mini player); an
+  unavailable title greyed, not selectable, its play buttons disabled, a
+  queue stepping over it and a queue started on it beginning at the next.
+- `313aa0d`: outline icons in the television client's colours (red
+  `#ff4d4f`, yellow `#ffc53d`, disc `#08080ac9`), partial yellow; core's
+  `availableToPlay`; `currentAvailability` for stored titles (Continue
+  Watching, the queue sheet, the mini player, playlists), since no store
+  keeps availability.
+- `9decb76`: the provider's own copy of queue availability dropped. Core
+  pointed out, and its `playbackQueue.ts` confirms, that the live queue
+  keeps availability for the run; only a restored one has none.
+- `55b7552`: Tom's ruling that a downloaded title is complete: no marker,
+  not greyed, fully playable, whatever the server says.
+- Not seen on a device: items carry availability only from server 0.83.0,
+  announced and not known deployed.
+
+**Two commit ids sent to core were invented** (`e01d1b0`, `6aa2ef4`), each
+written in the same parallel batch as the commit, before git printed one.
+Both corrected at once; memory *never-guess-commit-ids* now forbids sending
+in the same batch.
+
+**Installed on the A85 `...5410`** 2026-10-04 00:38:01: 0.13.1 /
+`versionCode 1301` from `55b7552`, core link `1251cb2` (dist
+`b15839daa030`), after a fresh prebuild (the first build was started
+without one and would have carried 0.13.0's version) and a plain
+`assembleRelease`. Bundle written after the last source change and checked
+for this week's strings. **The second A85 (`...5398`) was not reachable**
+(on the network, wireless debugging off), so it still has the 2026-10-01
+build.
+
 ## 2026-10-02 — 0.13.0 released, on core 0.21.0
 
 `main` = `8f95141`, tag `0.13.0` (annotated), pushed with `develop`
