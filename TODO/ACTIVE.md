@@ -774,6 +774,26 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
 
 ---
 
+## P2 — Availability on items and files (server 0.82.0 / 0.83.0), not used yet
+
+The server announced it, 2026-10-03; read from its notices, not yet from its
+source. Every catalogue item gains `availability` (`complete`, `partial`,
+`unavailable`, `unknown`) and, for a set, `availability_members` counts; each
+file on `/api/v1/playback/media` and `/api/v1/files/...` carries the same
+four codes with extent counts. Facts about extents held by reachable nodes,
+not a promise the bytes read, and "no reachable node" is not "lost". The
+server refuses nothing; what to show is the client's decision. About 23% of
+referenced extents were on no reachable node when announced.
+
+Checked 2026-10-03: nothing here trips on the extra fields (core decodes
+items and facts and drops unknown fields). To use it, core has to model the
+fields first. Then the lists could mark partial and unavailable titles, and
+the file chooser could grey a file no node holds, as it greys one this
+device cannot decode. That would settle the *Lost data* list above. Tom's
+call what to show.
+
+---
+
 ## Possible server change worth watching
 
 **Tying the video transcode entitlement to the engine rather than the session**
