@@ -707,14 +707,27 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [continueWatching, player, playbackApi, releaseSession, reportStartProgress],
   );
 
+  /**
+   * Availability as the titles handed to `start` carried it, by item id. The
+   * queue store keeps none, so a queued title is judged by what the page it
+   * was started from knew; one never seen with it is playable.
+   */
+  const availabilityRef = useRef(new Map<string, MediaSummary['availability']>());
+
   /** A title that may not be played: unavailable on the cluster and not on the disk. */
   const heldBack = useCallback(
-    (item: MediaSummary | undefined) => !!item && !mayPlay(item, downloads.localFor(item)?.localUri !== undefined),
+    (item: MediaSummary | undefined) =>
+      !!item &&
+      !mayPlay(
+        { availability: item.availability ?? availabilityRef.current.get(item.id) },
+        downloads.localFor(item)?.localUri !== undefined,
+      ),
     [downloads],
   );
 
   const start = useCallback(
     async (items: readonly MediaSummary[], index: number, options?: StartOptions) => {
+      availabilityRef.current = new Map(items.map((item) => [item.id, item.availability]));
       // A queue started on a title that may not be played begins at the next
       // one that may, and nothing starts where none may.
       const first = heldBack(items[index])

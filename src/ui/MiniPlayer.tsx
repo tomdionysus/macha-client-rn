@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCurrentAvailability } from '../hooks/useCurrentAvailability';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Artwork } from './Artwork';
 import { AvailabilityBadge } from './AvailabilityBadge';
@@ -16,7 +17,8 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
  */
 export function MiniPlayer() {
   const router = useRouter();
-  const { status, media, playing, buffering, positionMs, durationMs, toggle, stop, error } = usePlayback();
+  const { status, media: playingMedia, playing, buffering, positionMs, durationMs, toggle, stop, error } = usePlayback();
+  const media = useCurrentAvailability(playingMedia ? [playingMedia] : [])[0];
 
   if (status === 'idle' || !media) return null;
 

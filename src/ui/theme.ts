@@ -40,6 +40,11 @@ export const colors = {
   warn: '#e8b33a',
   ok: '#59c07b',
   scrim: 'rgba(6, 6, 7, 0.72)',
+
+  /** Availability markers, as every client draws them. */
+  markerRed: '#ff4d4f',
+  markerYellow: '#ffc53d',
+  markerDisc: '#08080ac9',
 } as const;
 
 export const space = {

@@ -1,11 +1,12 @@
+import { availableToPlay } from '@machafoundation/core';
 import type { MediaSummary } from '../types';
 
 /**
  * How a title shows how much of it the reachable cluster holds, as every
- * client shows it (Tom's ruling): a red warning triangle for `partial`, a red
- * crossed circle for `unavailable` with the title greyed and not selectable,
- * a yellow question mark for `unknown`, and nothing for `complete`. Only
- * `unavailable` may not be played.
+ * client shows it (Tom's ruling): outline icons, a yellow warning triangle for
+ * `partial`, a red crossed circle for `unavailable` with the title greyed and
+ * not selectable, a yellow question mark for `unknown`, and nothing for
+ * `complete`. Only `unavailable` may not be played.
  *
  * The codes are facts about which nodes hold the pieces, not a promise the
  * bytes read back; an absent code (an older server) and any code this does
@@ -23,11 +24,12 @@ export function availabilityMarker(item: Pick<MediaSummary, 'availability'>): Av
 }
 
 /**
- * Whether a title may be played or opened. A downloaded title plays off the
- * disk whatever the cluster holds, so it is never held back.
+ * Whether a title may be played or opened: core's `availableToPlay`, the rule
+ * every client follows, except that a downloaded title plays off the disk
+ * whatever the cluster holds, so it is never held back.
  */
 export function mayPlay(item: Pick<MediaSummary, 'availability'>, downloaded = false): boolean {
-  return downloaded || item.availability !== 'unavailable';
+  return downloaded || availableToPlay(item);
 }
 
 /**

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from '../providers/PlaybackProvider';
+import { useCurrentAvailability } from '../hooks/useCurrentAvailability';
 import { useMacha } from '../providers/MachaProvider';
 import { Artwork } from './Artwork';
 import { AvailabilityBadge, heldBack, UNAVAILABLE_OPACITY } from './AvailabilityBadge';
@@ -19,13 +20,14 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { queue, queueIndex, playing, jumpTo, removeFromQueue, moveInQueue } = usePlayback();
   const { downloads } = useMacha();
+  const shown = useCurrentAvailability(queue);
 
   return (
     <Sheet visible={visible} title={`Queue · ${queue.length}`} onClose={onClose}>
       {queue.length === 0 ? (
         <Text style={styles.empty}>Nothing queued.</Text>
       ) : (
-        queue.map((item, index) => {
+        shown.map((item, index) => {
           const current = index === queueIndex;
           return (
             <View

@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
+import { useCurrentAvailability } from '../../../hooks/useCurrentAvailability';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { usePlayback } from '../../../providers/PlaybackProvider';
 import type { Playlist } from '@machafoundation/core';
@@ -15,6 +16,8 @@ import { Button } from '../../../ui/controls';
 import { pluralize } from '../../../ui/format';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../../../ui/theme';
 
+const NO_TRACKS: never[] = [];
+
 export default function PlaylistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { playlists, downloads } = useMacha();
@@ -25,6 +28,7 @@ export default function PlaylistScreen() {
   // redraws without depending on a memo dependency the compiler may drop.
   const all = usePlaylists();
   const playlist: Playlist | undefined = all.find((entry) => entry.id === id);
+  const tracks = useCurrentAvailability(playlist?.items ?? NO_TRACKS);
   const touch = useCallback(() => undefined, []);
   void playlists;
 
@@ -32,10 +36,10 @@ export default function PlaylistScreen() {
     (index: number, shuffled = false) => {
       if (!playlist || playlist.items.length === 0) return;
       setShuffle(shuffled);
-      void start(playlist.items, index);
+      void start(tracks, index);
       router.navigate('/play');
     },
-    [playlist, router, setShuffle, start],
+    [playlist, router, setShuffle, start, tracks],
   );
 
   const confirmDelete = useCallback(() => {
@@ -84,7 +88,7 @@ export default function PlaylistScreen() {
         <EmptyState title="Nothing here yet" detail="Add tracks from an album or the track list." />
       ) : (
         <View style={styles.list}>
-          {playlist.items.map((item, index) => (
+          {tracks.map((item, index) => (
             <View key={`${item.id}-${index}`} style={[styles.row, heldBack(item, downloads) && { opacity: UNAVAILABLE_OPACITY }]}>
               <Pressable
                 accessibilityRole="button"

@@ -27,7 +27,7 @@ export function AvailabilityBadge({
   const Icon = marker === 'partial' ? WarningIcon : marker === 'unavailable' ? BlockedIcon : QuestionIcon;
   return (
     <View pointerEvents="none" style={inline ? styles.inline : [styles.badge, { width: size + 8, height: size + 8 }]}>
-      <Icon size={size} color={marker === 'unknown' ? colors.warn : colors.danger} />
+      <Icon size={size} color={marker === 'unavailable' ? colors.markerRed : colors.markerYellow} />
     </View>
   );
 }
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.scrim,
+    backgroundColor: colors.markerDisc,
   },
   inline: {
     marginRight: space.xs,

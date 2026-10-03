@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { newestCatalogueFirst } from '../api/media';
 import { useAsync } from '../hooks/useAsync';
+import { useCurrentAvailability } from '../hooks/useCurrentAvailability';
 import { useMacha, useProblems } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import type { MediaSummary, PlaybackProgress } from '../types';
@@ -73,6 +74,7 @@ export default function HomeScreen() {
       }),
     [resumable, unavailable, downloads],
   );
+  const resumableShown = useCurrentAvailability(resumableItems);
 
   const resume = useCallback(
     (item: MediaSummary) => {
@@ -112,10 +114,10 @@ export default function HomeScreen() {
 
       {home.value ? (
         <>
-          {resumableItems.length > 0 ? (
+          {resumableShown.length > 0 ? (
             <MediaRow
               title="Continue watching"
-              items={resumableItems}
+              items={resumableShown}
               onOpen={resume}
               progress={progressByItem}
               onRemove={removeResumable}

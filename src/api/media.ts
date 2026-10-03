@@ -1,4 +1,11 @@
-import { MachaConnectionError, MachaMediaApi, type ArtworkSource, type SearchCategoryKey } from '@machafoundation/core';
+import {
+  currentAvailability,
+  MachaConnectionError,
+  MachaMediaApi,
+  type ArtworkSource,
+  type ItemAvailability,
+  type SearchCategoryKey,
+} from '@machafoundation/core';
 import type { ClusterCatalogueApi, CatalogueMediaProfile } from './catalogue';
 import type { ArtworkRef, Episode, LibraryHome, MediaDetails, MediaSummary, SeasonDetails } from '../types';
 import type { OfflineLibrary } from './offlineLibrary';
@@ -20,7 +27,7 @@ export class MediaApi {
   private readonly live: MachaMediaApi;
 
   constructor(
-    catalogue: ClusterCatalogueApi,
+    private readonly catalogue: ClusterCatalogueApi,
     private readonly offline?: OfflineLibrary,
     private readonly connectivity?: Connectivity,
     /**
@@ -160,6 +167,17 @@ export class MediaApi {
   async episodesOfSeason(seasonId: string, signal?: AbortSignal): Promise<Episode[]> {
     const details = await this.details(seasonId, signal);
     return 'episodes' in details ? (details as SeasonDetails).episodes : [];
+  }
+
+  /**
+   * How stored titles stand now, by item id: no store keeps availability, so
+   * a Continue Watching row, the queue or a playlist asks. Nothing is asked
+   * while the cluster is out of reach or will not serve this viewer; a title
+   * missing from the answer shows no marker and stays playable.
+   */
+  async currentAvailability(itemIds: readonly string[], signal?: AbortSignal): Promise<Map<string, ItemAvailability>> {
+    if (itemIds.length === 0 || this.mayRequest?.() === false) return new Map();
+    return currentAvailability(itemIds, this.catalogue, signal);
   }
 
   details(id: string, signal?: AbortSignal): Promise<MediaDetails> {
