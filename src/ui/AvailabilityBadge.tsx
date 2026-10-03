@@ -17,12 +17,13 @@ export function AvailabilityBadge({
   size = 18,
   inline = false,
 }: {
-  item: Pick<MediaSummary, 'availability'>;
+  item: MediaSummary;
   size?: number;
   /** In the flow of a row with no artwork to sit on, ahead of the title. */
   inline?: boolean;
 }) {
-  const marker = availabilityMarker(item);
+  const { downloads } = useMacha();
+  const marker = availabilityMarker(item, downloads.localFor(item)?.localUri !== undefined);
   if (!marker) return null;
   const Icon = marker === 'partial' ? WarningIcon : marker === 'unavailable' ? BlockedIcon : QuestionIcon;
   return (

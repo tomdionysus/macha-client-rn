@@ -10,6 +10,12 @@ describe('the marker a title shows', () => {
     expect(availabilityMarker({})).toBeUndefined();
     expect(availabilityMarker({ availability: 'some-future-code' })).toBeUndefined();
   });
+
+  it('marks nothing on a downloaded title, which the phone holds whole', () => {
+    for (const availability of ['partial', 'unavailable', 'unknown']) {
+      expect(availabilityMarker({ availability }, true)).toBeUndefined();
+    }
+  });
 });
 
 describe('what may be played', () => {

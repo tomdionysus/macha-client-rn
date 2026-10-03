@@ -8,13 +8,17 @@ import type { MediaSummary } from '../types';
  * not selectable, a yellow question mark for `unknown`, and nothing for
  * `complete`. Only `unavailable` may not be played.
  *
+ * A title downloaded to this device is complete by definition, whatever the
+ * server says (Tom's ruling): no marker, not greyed, fully playable.
+ *
  * The codes are facts about which nodes hold the pieces, not a promise the
  * bytes read back; an absent code (an older server) and any code this does
  * not name show no marker.
  */
 export type AvailabilityMarker = 'partial' | 'unavailable' | 'unknown';
 
-export function availabilityMarker(item: Pick<MediaSummary, 'availability'>): AvailabilityMarker | undefined {
+export function availabilityMarker(item: Pick<MediaSummary, 'availability'>, downloaded = false): AvailabilityMarker | undefined {
+  if (downloaded) return undefined;
   switch (item.availability) {
     case 'partial': return 'partial';
     case 'unavailable': return 'unavailable';
@@ -23,11 +27,7 @@ export function availabilityMarker(item: Pick<MediaSummary, 'availability'>): Av
   }
 }
 
-/**
- * Whether a title may be played or opened: core's `availableToPlay`, the rule
- * every client follows, except that a downloaded title plays off the disk
- * whatever the cluster holds, so it is never held back.
- */
+/** Whether a title may be played or opened: core's `availableToPlay`, or downloaded. */
 export function mayPlay(item: Pick<MediaSummary, 'availability'>, downloaded = false): boolean {
   return downloaded || availableToPlay(item);
 }
