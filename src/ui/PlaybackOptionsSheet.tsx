@@ -31,15 +31,9 @@ const MODE_DETAIL: Record<PlaybackMode, string> = {
 };
 
 /**
- * In-session playback controls.
- *
- * The node's `options` decide which modes, qualities, audio tracks, subtitle
- * tracks and media representations exist. What this device can actually play
- * is decided here, from its own decoders: Remux and Direct stay listed but are
- * disabled, with the reason, when they would hand the player something it
- * cannot decode. A mode is never hidden — the viewer sees what exists and why
- * it is not available to them. With "Offer everything" on in Settings they
- * can pick it anyway.
+ * In-session playback controls. The node's `options` say what exists; this
+ * device's decoders decide what is enabled. Undecodable Remux and Direct stay
+ * listed with the reason, and "Offer everything" lets the viewer pick them anyway.
  */
 export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { session, applyUpdate, playVersion, versions, busy } = usePlayback();
@@ -47,9 +41,8 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   const remuxBlocked = session ? remuxUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
   const directBlocked = session ? directUnavailableReason(session, deviceCapabilities(), devicePlaybackOverrides()) : undefined;
 
-  // What the server said about the video, beside the verdict. An unreported
-  // bit depth is not an objection, so a ten-bit source the node could not
-  // probe is still offered — and only this line tells the two cases apart.
+  // Logs source facts beside the verdict. An unreported bit depth is not an
+  // objection, so only this log reveals an unprobed ten-bit source.
   const sourceVideo = session?.sourceInfo.streams.find((stream) => stream.index === session.selected.videoStream);
   useEffect(() => {
     if (!visible || !session) return;
@@ -77,10 +70,8 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
     onClose();
   };
 
-  // The item's qualities replace the node's height list where there are
-  // any: the same list as the detail screen's buttons, and two lists of
-  // heights would contradict each other. The node's list
-  // stays for an item whose facts never arrived.
+  // The item's qualities (as on the detail screen) replace the node's height
+  // list, which remains only when the facts never arrived.
   const shownVersions = offersVersions(versions) ? versions : undefined;
   const choiceText = shownVersions ? qualityChoiceText(shownVersions) : undefined;
   const playing = shownVersions ? playingStep(shownVersions.steps, session) : undefined;
@@ -88,18 +79,11 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
   return (
     <Sheet visible={visible} title="Playback" onClose={onClose}>
       <SheetSection title="Mode">
-        {/*
-          * No Auto. The server does not choose: `mode` is required and it
-          * performs exactly what it is told, so the default comes from the
-          * shared chooser and these are overrides on top of it.
-          */}
+        {/* No Auto: the server requires `mode`; the default comes from the shared chooser. */}
         {(options.modes as PlaybackMode[]).map((mode) => {
-          // Remux and Direct stay listed and explained, not hidden: on a file
-          // this device cannot decode, either is a decoder refusal.
           const blocked = mode === 'remux' ? remuxBlocked : mode === 'direct' ? directBlocked : undefined;
           const unavailable = mode !== preferences.mode ? blocked : undefined;
-          // "Offer everything" lets the viewer pick it anyway, the reason still
-          // shown: their call, made knowing why it may not play.
+          // "Offer everything" unlocks it; the reason stays shown.
           const locked = unavailable !== undefined && !everything;
           return (
             <SheetOption
@@ -196,16 +180,12 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
         ) : null}
       </SheetSection>
 
-      {/* Where the stream comes from, named as every client names a node; the
-          description underneath says what is being served. */}
+      {/* The serving node, and what it serves. */}
       <SheetSection title={sessionNodeName(session) ?? 'Source'}>
         <Text style={{ ...typography.caption, color: colors.textFaint, lineHeight: 18 }}>
           {[
             session.sourceInfo.format?.toUpperCase(),
             formatBitrate(session.sourceInfo.bitrate),
-            // The container the node says it is serving, which is the honest
-            // answer; `format` is the muxer's own name for it and only stands
-            // in for a node that does not report the container.
             outputContainer(session) ? `→ ${outputContainer(session)!.toUpperCase()}` : undefined,
             formatBitrate(session.output.bitrate),
           ]
@@ -218,18 +198,9 @@ export function PlaybackOptionsSheet({ visible, onClose }: { visible: boolean; o
 }
 
 /**
- * What the node actually resolved, per elementary stream. Mixed results —
- * video copied while audio is transcoded — are real and worth showing, even
- * though the preference schema has no way to ask for them directly.
- *
- * Nothing to add when no stream is transcoded, though. A direct session
- * copies no stream anywhere — it serves the source file untouched — and a
- * remux rewraps both together, so "video copy, audio copy" names an operation
- * per stream that only happened to the session as a whole. The mode already
- * says that much, and spending "copy" on it is what stops the word meaning
- * anything in the case that needs it: one stream copied while its sibling is
- * re-encoded. Matches how `describePlaybackSession` badges the same sessions
- * in @machafoundation/core.
+ * Per-stream transforms, shown only when something is transcoded (e.g. video
+ * copied, audio transcoded); otherwise the mode says it all. Matches core's
+ * `describePlaybackSession`.
  */
 function describeTransform(session: PlaybackSession): string | undefined {
   const untouched = (transform: PlaybackTransform) => transform === 'copy' || transform === 'omit';
@@ -250,7 +221,7 @@ function stepDetail(step: VersionStep): string {
   return `Its own file · ${MODE_LABELS[step.instruction.mode]}`;
 }
 
-/** What is actually coming down the wire, preferred over the muxer's name for it. */
+/** The served container; the muxer `format` is only a fallback. */
 function outputContainer(session: PlaybackSession): string | undefined {
   return session.output.container ?? session.output.format;
 }

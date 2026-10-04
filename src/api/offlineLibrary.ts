@@ -10,12 +10,9 @@ import { offlineMedia } from '../state/downloads';
 import type { AlbumDetails, ArtistDetails, LibraryHome, MediaDetails, MediaSummary, SeasonDetails, ShowDetails } from '../types';
 
 /**
- * The library as it exists on this device.
- *
- * Downloads carry a full metadata snapshot, so an offline library can be
- * derived from them entirely — including albums and artists, which are
- * reconstructed from the ancestry each downloaded track already carries rather
- * than needing the catalogue.
+ * The library as it exists on this device, derived entirely from downloads'
+ * metadata snapshots; albums, artists and shows are rebuilt from each item's
+ * ancestry.
  */
 export class OfflineLibrary {
   constructor(private readonly downloads: DownloadStore) {}
@@ -59,11 +56,7 @@ export class OfflineLibrary {
       .sort((a, b) => (a.seasonNumber ?? 0) - (b.seasonNumber ?? 0) || (a.episodeNumber ?? 0) - (b.episodeNumber ?? 0));
   }
 
-  /**
-   * Albums reconstructed from downloaded tracks. An album exists offline
-   * because some of its tracks do, so its artwork and title come from the
-   * tracks themselves.
-   */
+  /** Albums rebuilt from downloaded tracks, taking title and artwork from them. */
   albums(): MediaSummary[] {
     const albums = new Map<string, MediaSummary>();
     for (const track of this.tracks()) {
@@ -143,8 +136,8 @@ export class OfflineLibrary {
 
     const show = this.shows().find((item) => item.id === id);
     if (show) {
-      // Seasons are synthesised from the episodes actually held, so a part-
-      // downloaded series still navigates the way the online one does.
+      // Seasons are built from the episodes held, so a partly downloaded
+      // series navigates like the online one.
       const seasons = new Map<string, SeasonDetails>();
       for (const episode of this.episodes()) {
         const context = episode.playbackContext;
@@ -191,12 +184,9 @@ export class OfflineLibrary {
 }
 
 /**
- * Search over what is downloaded, on the same terms as core's live search in
- * `MachaMediaApi.search`: "the", "a" and "an" are never searched on, at least
- * `MIN_SEARCH_TERM_LENGTH` characters must be left, and the category toggles
- * narrow the result — an empty list means nothing, absent means everything.
- * The rules are core's functions, used as they are, so the same query answers
- * the same way offline.
+ * Search over downloads using core's live-search rules: articles are ignored,
+ * `MIN_SEARCH_TERM_LENGTH` characters must remain, and `categories` narrows
+ * (empty means nothing, absent means everything).
  */
 export function searchOffline(
   haystack: readonly MediaSummary[],

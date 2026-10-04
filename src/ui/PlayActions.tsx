@@ -29,22 +29,8 @@ interface Props {
 }
 
 /**
- * The play controls for a detail screen. A partly watched item offers Resume
- * as the primary action with Play from start beside it, so neither choice is
- * ever hidden behind a menu.
- *
- * Beside them, one button per quality the item offers:
- * Play decides, and a quality button is the viewer deciding, never capped.
- * They start where the primary button would. Nothing above this device is
- * offered unless the viewer turned on "Offer everything" (core's
- * `playbackVersions`, with `offerAll`).
- * A downloaded item plays off the disk whatever is pressed, so it offers none.
- */
-/**
- * A title's playback facts, read once per page: the play buttons need them
- * and so does the Download in the header, which is greyed before a tap where
- * no file plays here. A downloaded title plays off the disk, so it asks for
- * none.
+ * A title's playback facts, read once per page for both the play buttons and
+ * the header's Download. Skipped for a downloaded title, which plays from disk.
  */
 export function useTitleFacts(item: MediaSummary | undefined): AsyncResult<PlaybackMediaFacts[] | undefined> {
   const { playback, downloads } = useMacha();
@@ -55,6 +41,11 @@ export function useTitleFacts(item: MediaSummary | undefined): AsyncResult<Playb
   );
 }
 
+/**
+ * Detail-screen play controls: Resume and From start for a partly watched item,
+ * plus one uncapped button per quality offered (core's `playbackVersions`;
+ * above-device qualities only with "Offer everything"). Downloads offer none.
+ */
 export function PlayActions({ item, queue, facts }: Props) {
   const { continueWatching, playback } = useMacha();
   const blocked = useUnavailable(item);
@@ -76,9 +67,8 @@ export function PlayActions({ item, queue, facts }: Props) {
   }, [facts.value, item.mediaIds, everything, playback]);
   const versions = offersVersions(all) ? all : undefined;
   const choice = versions ? qualityChoiceText(versions) : undefined;
-  // What the page was drawn from, once per answer: the item's own file list
-  // against what the facts route returned. The two can disagree, and only
-  // this line tells a missing pill from a missing file.
+  // Logs the item's file list against the facts route's answer, which can
+  // disagree; tells a missing quality button from a missing file.
   useEffect(() => {
     if (!facts.value && !facts.error) return;
     console.log('[macha] [playback] title-files', {

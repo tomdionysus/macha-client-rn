@@ -31,8 +31,7 @@ export default function AlbumScreen() {
   const album = detail.value as AlbumDetails | undefined;
   const tracks = album?.tracks ?? [];
 
-  // An album queues its ordered tracks; picking track five starts there and
-  // keeps going, rather than playing one track and stopping.
+  // Queue the whole album in order; picking a track starts there and continues.
   const playFrom = useCallback(
     (index: number, shuffled = false) => {
       setShuffle(shuffled);
@@ -42,12 +41,7 @@ export default function AlbumScreen() {
     [router, setShuffle, start, tracks],
   );
 
-  /**
-   * Queueing a whole album changes nothing the viewer can see: the button they
-   * tapped is unchanged and the per-track state is further down the page. The
-   * banner is the only acknowledgement, so it reports what actually happened
-   * rather than assuming every track was new.
-   */
+  /** The banner is the only feedback for queueing an album, so it reports what was actually added. */
   const downloadAlbum = useCallback(() => {
     const queued = downloadManager.enqueue(tracks);
     toast({

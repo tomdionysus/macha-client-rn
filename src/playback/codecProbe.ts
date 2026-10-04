@@ -1,27 +1,17 @@
 /**
- * What the device says it can decode, mapped onto the names Macha uses.
+ * What the device says it can decode, mapped onto Macha's codec names.
  *
- * The probe narrows a declared list and widens it only by the explicit
- * `PROBED_VIDEO_ADDITIONS`. A decoder existing is not by itself grounds to
- * claim a codec: the declared lists also encode container and delivery
- * constraints that `MediaCodecList` cannot see.
- *
- * An absent probe changes nothing except `PROBE_REQUIRED`. iOS and web have no
- * `MediaCodecList`, and a build without the native module returns nothing; in
- * both cases the declared list stands. Absence of a fact is not a fact.
+ * The probe only narrows a declared list, widening it solely by
+ * `PROBED_VIDEO_ADDITIONS`: the declared lists also encode container and
+ * delivery constraints `MediaCodecList` cannot see. With no probe (iOS, web, or
+ * a build without the native module) the declared list stands, except for
+ * `PROBE_REQUIRED`.
  */
 
 /**
- * Android decoder MIME types per Macha codec name.
- *
- * Several codecs have more than one spelling in the wild and any of them
- * counts: `audio/eac3-joc` is E-AC-3 with Atmos metadata and a device that
- * decodes it decodes E-AC-3. `audio/mpeg` is MP3 on Android, which is why it
- * is not listed under anything else.
- *
- * Every string must match an `android.media.MediaFormat` constant exactly
- * (`MIMETYPE_AUDIO_AC3 = "audio/ac3"` and so on): a typo looks exactly like an
- * absent decoder and misbehaves only on a device that has one.
+ * Android decoder MIME types per Macha codec name; any spelling counts
+ * (`audio/eac3-joc` is E-AC-3 with Atmos). Each must match an
+ * `android.media.MediaFormat` constant exactly: a typo looks like an absent decoder.
  */
 export const DECODER_MIME_TYPES: Readonly<Record<string, readonly string[]>> = {
   aac: ['audio/mp4a-latm'],
@@ -42,19 +32,12 @@ export const DECODER_MIME_TYPES: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * Codecs claimed because the device reports a decoder, not because a list
- * declares them. Without this, a device with an AV1 decoder has every AV1
- * title fully re-encoded.
- *
- * Applied to `videoCodecs`, whose containers already cover `mp4`/`mkv`/`webm`.
+ * declares them; otherwise every AV1 title is re-encoded on an AV1-capable
+ * device. Applied to `videoCodecs`, whose containers already cover mp4/mkv/webm.
  */
 export const PROBED_VIDEO_ADDITIONS: readonly string[] = ['av1'];
 
-/**
- * A declared list plus any candidate this device turned out to decode.
- *
- * Order is preserved and duplicates cannot arise: a candidate already declared
- * is left where it was.
- */
+/** A declared list plus any candidate this device decodes, order preserved, no duplicates. */
 export function withProbedAdditions(
   declared: readonly string[],
   mimeTypes: readonly string[] | undefined,
@@ -71,14 +54,9 @@ export function withProbedAdditions(
 }
 
 /**
- * Profile ids that mean more than eight bits, per MIME type.
- *
- * **Keyed by MIME because the numbers collide.** `2` is `AV1ProfileMain10`
- * and also `HEVCProfileMain10`; `4096` is `AV1ProfileMain10HDR10`,
- * `HEVCProfileMain10HDR10` and `VP9Profile2HDR`; `16` is `AVCProfileHigh10`.
- * A single flat set would silently call an H.264 `Main` stream ten-bit.
- *
- * Values are `android.media.MediaCodecInfo$CodecProfileLevel` constants.
+ * `MediaCodecInfo.CodecProfileLevel` ids that mean more than eight bits.
+ * Keyed by MIME because the numbers collide across codecs (`2` is both AV1 and
+ * HEVC Main10; `16` is AVC High10).
  */
 const TEN_BIT_PROFILES: Readonly<Record<string, readonly number[]>> = {
   // AV1ProfileMain10, Main10HDR10, Main10HDR10Plus
@@ -92,15 +70,11 @@ const TEN_BIT_PROFILES: Readonly<Record<string, readonly number[]>> = {
 };
 
 /**
- * The deepest video this device will decode, across the codecs claimed.
+ * The deepest video this device decodes, across the claimed codecs.
  *
- * The minimum, not the maximum, because core's model forces it:
- * `PlaybackCapabilities.videoBitDepth` is one number and
- * `videoStreamObjection` compares every source stream against it, so claiming
- * the deepest any codec manages would direct-play a ten-bit HEVC file to a
- * decoder that only does eight.
- *
- * `undefined` when the probe said nothing, leaving the declaration alone.
+ * The minimum, because core's `videoBitDepth` is one number checked against
+ * every stream: taking the maximum would send ten-bit HEVC to an eight-bit
+ * decoder. `undefined` when the probe said nothing.
  */
 export function probedVideoBitDepth(
   declared: readonly string[],
@@ -119,26 +93,14 @@ export function probedVideoBitDepth(
   return depths.length === 0 ? undefined : Math.min(...depths);
 }
 
-/**
- * Profile ids that mean HDR10, per MIME type.
- *
- * `HEVCProfileMain10HDR10` and `AV1ProfileMain10HDR10` are both `4096`, and
- * the `HDR10Plus` pair both `8192`, so this is keyed by MIME like the rest.
- * HDR10 and HDR10+ are both PQ, which is `smpte2084` in the transfer names
- * core compares against.
- */
+/** Profile ids that mean HDR10 or HDR10+ (both PQ, core's `smpte2084`), keyed by MIME as the ids collide. */
 const HDR10_PROFILES: Readonly<Record<string, readonly number[]>> = {
   'video/av01': [4096, 8192],
   'video/hevc': [4096, 8192],
   'video/x-vnd.on2.vp9': [4096, 16384],
 };
 
-/**
- * `Display.HdrCapabilities` constants for the two PQ types.
- *
- * 1 is Dolby Vision and 3 is HLG; neither is claimed here — Dolby Vision has
- * its own field, and HLG is not advertised by any decoder profile.
- */
+/** `Display.HdrCapabilities` PQ types. Dolby Vision (1) has its own field; HLG (3) is never advertised by a profile. */
 const DISPLAY_HDR10 = 2;
 const DISPLAY_HDR10_PLUS = 4;
 
@@ -146,13 +108,8 @@ const DISPLAY_HDR10_PLUS = 4;
 const DOLBY_VISION_MIME = 'video/dolby-vision';
 
 /**
- * The HDR transfers this device's decoders advertise.
- *
- * Only what the profiles state: HDR10 and HDR10+ name themselves in the
- * profile list, so they are claimed. HLG is not, because no profile encodes it
- * and claiming it would be an inference.
- *
- * Intersected with what the panel can present, as the television client does.
+ * The HDR transfers this device's decoders advertise, intersected with what the
+ * panel presents. Only HDR10/HDR10+, which profiles name; HLG is never inferred.
  * A display that does not answer gives `undefined`: unknown, not consent.
  */
 export function probedHdrTransfers(
@@ -175,15 +132,11 @@ export function probedHdrTransfers(
 }
 
 /**
- * The Dolby Vision bitstream profiles this device decodes.
+ * The Dolby Vision bitstream profiles this device decodes; core treats an
+ * empty and an absent answer alike as no Dolby Vision.
  *
- * Core reads an undeclared field as `capabilities.dolbyVision ?? []`, so an
- * empty answer here and no answer both deny Dolby Vision.
- *
- * Android names these as flags — `DolbyVisionProfileDvavPer` is `1`,
- * `DvavPen` `2`, `DvheDer` `4`, up to `Dvav110` at `1024` — while core wants
- * the bitstream profile number the stream reports. The flags are consecutive
- * powers of two in profile order, so the profile number is the bit position.
+ * Android reports profiles as power-of-two flags in profile order, so the
+ * profile number is the bit position.
  */
 export function probedDolbyVisionProfiles(
   profiles: Readonly<Record<string, readonly number[]>> | undefined,
@@ -198,22 +151,15 @@ export function probedDolbyVisionProfiles(
 }
 
 /**
- * Codecs claimed only when the probe positively confirms them.
- *
- * For most codecs an unanswerable probe leaves the declaration alone, because
- * being wrong costs a needless transform. For these, being wrong means the node
- * Direct Plays, media3 selects no audio track, and the film plays in silence
- * with no error raised anywhere. A failure nobody can see is worth more
- * caution than a transform somebody pays for.
+ * Codecs claimed only when the probe positively confirms them. A wrong claim
+ * here means Direct Play with no audio track selected: silent playback and no
+ * error anywhere, which is worse than a needless transform.
  */
 const PROBE_REQUIRED = new Set(['ac3', 'eac3']);
 
 /**
- * The declared codecs this device actually has a decoder for.
- *
- * A codec with no entry in `DECODER_MIME_TYPES` is kept rather than dropped:
- * the table not knowing a name is a gap in the table, and silently narrowing
- * on that would be the same over-confidence in the opposite direction.
+ * The declared codecs this device has a decoder for. A codec missing from
+ * `DECODER_MIME_TYPES` is kept: a gap in the table is not evidence.
  */
 export function decodableCodecs(
   declared: readonly string[],
@@ -231,15 +177,12 @@ export function decodableCodecs(
 }
 
 /**
- * The largest picture this device decodes, as `maxWidth` / `maxHeight`, and
- * each claimed codec whose own decoder stops short of it
- * (`videoCodecMaxSize`).
+ * The largest picture this device decodes (`maxWidth`/`maxHeight`), plus each
+ * claimed codec whose decoder stops short of it (`videoCodecMaxSize`).
  *
- * The decoders are asked (`videoDecoderSizes`, landscape frames at 24 fps),
- * not the screen. The overall limit is the largest frame any claimed codec
- * reaches and a codec below it is held to its own, so one weak decoder neither
- * caps the device nor loses its claim. A claimed codec with no reported size
- * sets no limit.
+ * From the decoders (landscape, 24 fps), not the screen. The overall limit is
+ * the largest any claimed codec reaches, so one weak decoder neither caps the
+ * device nor loses its claim. A codec with no reported size sets no limit.
  */
 export function decoderSizeLimit(
   sizes: Readonly<Record<string, { width: number; height: number }>> | undefined,

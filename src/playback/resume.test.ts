@@ -3,11 +3,9 @@ import { resumePreferences, type MediaSummary, type PlaybackSession } from '@mac
 import { belongsInContinueWatching, progressOf } from './resume';
 
 /**
- * Continue Watching stores the item id and the media id, the mode, the
- * resolution, the subtitle settings and everything else needed to resume as
- * if the viewer never left. This client drives the resolver
- * directly, so it builds what core's coordinator would; these check that
- * core's `resumePreferences` reads it back as the viewer left it.
+ * Continue Watching stores everything needed to resume as the viewer left it.
+ * This client builds what core's coordinator would; these check core's
+ * `resumePreferences` reads it back correctly.
  */
 const film = { id: 'tmdb:movie:1', kind: 'movie', title: '2010', mediaIds: ['macha:a', 'macha:b'] } as unknown as MediaSummary;
 
@@ -34,11 +32,7 @@ describe('progressOf', () => {
     expect(resumePreferences(entry)).toEqual({ mediaId: 'macha:b', mode: 'remux', container: 'fmp4', audioStream: 2, subtitleStream: 4 });
   });
 
-  /**
-   * Remux on a file whose AC-3 the device cannot decode is carried as
-   * transcode with the video copied. Saving the session's `transcode` would
-   * make the resume re-encode the picture.
-   */
+  /** Remux with undecodable AC-3 runs as transcode with video copied; saving `transcode` would re-encode the picture on resume. */
   it('resumes the mode the viewer picked, not the one the node was asked for', () => {
     const entry = progressOf(film, 60_000, 6_000_000, session('transcode', { audio: 2 }), { chosenByViewer: true, mode: 'remux' });
     expect(resumePreferences(entry).mode).toBe('remux');

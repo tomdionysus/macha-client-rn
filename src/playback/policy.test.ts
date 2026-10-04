@@ -3,7 +3,7 @@ import { audioCopyable, buildOrder, positionedUpdate, sessionAudioCodec, statedU
 import type { PlaybackSession } from '@machafoundation/core';
 import { Platform } from 'react-native';
 
-/** Only the fields the policy reads. The rest of a session is irrelevant here. */
+/** Only the fields the policy reads. */
 const sessionWith = (maxHeight: number | null, maxBitrate: number | null = null) =>
   ({ preferences: { maxHeight, maxBitrate } } as unknown as PlaybackSession);
 
@@ -29,16 +29,15 @@ describe('statedUpdate', () => {
   });
 
   it('keeps a quality cap when the viewer switches to transcode', () => {
-    // The server clears max_height when a PATCH names mode; without the
-    // restatement, touching Mode hands the viewer a full-height transcode.
+    // A PATCH naming mode clears max_height server-side; without restating it,
+    // touching Mode gives a full-height transcode.
     const stated = statedUpdate({ preferences: { mode: 'transcode' } }, sessionWith(720, 3_000_000));
     expect(stated.preferences?.maxHeight).toBe(720);
     expect(stated.preferences?.maxBitrate).toBe(3_000_000);
   });
 
   it('does not restate a cap into direct or remux, where nothing could apply it', () => {
-    // Copying passes the encoded stream through untouched, so there is no stage
-    // at which a height cap could act. Clearing it there is correct, not lossy.
+    // Copying passes the encoded stream through, so a height cap cannot apply.
     expect(statedUpdate({ preferences: { mode: 'direct' } }, sessionWith(720)).preferences?.maxHeight)
       .toBeUndefined();
     expect(statedUpdate({ preferences: { mode: 'remux' } }, sessionWith(720)).preferences?.maxHeight)
@@ -57,10 +56,9 @@ describe('statedUpdate', () => {
 });
 
 /**
- * A change that makes a new generation has to say where it starts, or the node
- * starts it at `seekMs: 0`. Core's coordinator rule: every representation
- * update carries `seekMs` at the current position, except a subtitle-only one
- * or a session that cannot seek.
+ * A change that makes a new generation must say where it starts, or the node
+ * starts at `seekMs: 0`. Core's rule: every representation update carries
+ * `seekMs`, except subtitle-only ones and unseekable sessions.
  */
 describe('positionedUpdate', () => {
   const seekable = (canSeek = true) => ({ options: { canSeek } }) as unknown as PlaybackSession;
@@ -85,8 +83,7 @@ describe('positionedUpdate', () => {
   });
 
   it('survives statedUpdate, which rebuilds the request through core', () => {
-    // The order `applyUpdate` uses. If the restatement dropped `seekMs`,
-    // positioning would change nothing on the wire.
+    // The order `applyUpdate` uses; the restatement must keep `seekMs`.
     const session = { options: { canSeek: true }, preferences: { maxHeight: null, maxBitrate: null } } as unknown as PlaybackSession;
     const sent = statedUpdate(positionedUpdate({ preferences: { mode: 'remux' } }, session, 4_090_000), session);
     expect(sent.seekMs).toBe(4_090_000);
@@ -116,15 +113,10 @@ describe('buildOrder', () => {
   });
 });
 
-/**
- * A remux must not ask the node to copy audio this device cannot decode: the
- * result would be silent, and the server cannot start an fMP4 copy of
- * (E-)AC-3 at all.
- */
+/** Remux must not copy audio this device cannot decode: it would play silent, and the server cannot fMP4-copy (E-)AC-3. */
 describe('transformFor when the device cannot decode the source audio', () => {
   it('renames the mode, because the server refuses a remux that re-encodes', () => {
-    // The server rejects mode=remux with any re-encoded stream, and
-    // mode=transcode that re-encodes nothing, with a 400.
+    // The server 400s a remux that re-encodes, and a transcode that re-encodes nothing.
     expect(transformFor('remux', false)).toEqual({
       mode: 'transcode',
       video: 'copy',
@@ -133,12 +125,12 @@ describe('transformFor when the device cannot decode the source audio', () => {
   });
 
   it('still copies the video, which this says nothing about', () => {
-    // A missing audio decoder is no reason to pay for re-encoding the picture.
+    // A missing audio decoder is no reason to re-encode the picture.
     expect(transformFor('remux', false).video).toBe('copy');
   });
 
   it('leaves direct play as the viewer asked for it', () => {
-    // Direct serves the original file, so there is no transform to adjust.
+    // Direct serves the original file; there is no transform to adjust.
     expect(transformFor('direct', false)).toEqual({ mode: 'direct', video: 'copy', audio: 'copy' });
   });
 
@@ -173,7 +165,7 @@ describe('audioCopyable', () => {
   });
 
   it('says yes when nothing is known, leaving the node in charge', () => {
-    // Absence of a fact is not a fact; the node's own choice stands.
+    // Unknown is not a refusal; the node's own choice stands.
     expect(audioCopyable(undefined, decodable)).toBe(true);
   });
 });
@@ -224,8 +216,8 @@ describe('statedUpdate does not let the pressed mode override the corrected one'
     }) as unknown as PlaybackSession;
 
   it('sends mode=transcode when Remux is pressed on audio this device cannot decode', () => {
-    // `{...stated, ...update.preferences}` would put the viewer's `remux` back
-    // over the corrected `transcode` and buy a 400.
+    // Spreading `update.preferences` last would put `remux` back over the
+    // corrected `transcode` and get a 400.
     const result = statedUpdate({ preferences: { mode: 'remux' } }, ac3Session());
     expect(result.preferences).toMatchObject({ mode: 'transcode', video: 'copy', audio: 'transcode' });
   });

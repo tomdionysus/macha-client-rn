@@ -12,17 +12,10 @@ const transfer = (overrides: Partial<Parameters<typeof throughputSample>[0]> = {
 
 describe('throughputSample', () => {
   it('measures the body transfer, not the time since the download was asked for', () => {
-    // 40MB across the four seconds bytes were actually moving. Whatever the
-    // session POST and cluster walk cost before that is not this link's fault
-    // and must not be folded into a number describing the pipe.
     expect(throughputSample(transfer())).toEqual({ bytes: 40_000_000, durationMs: 4_000 });
   });
 
   it('discards a transfer that went quiet, because the app was probably backgrounded', () => {
-    // Downloads run on a BACKGROUND session: the bytes keep arriving with the
-    // app away but the progress callbacks stop, so wall clock would measure the
-    // user's attention. A node that served this perfectly would be recorded as
-    // slow and then demoted for it.
     expect(throughputSample(transfer({ longestGapMs: MAX_PROGRESS_GAP_MS + 1 }))).toBeUndefined();
   });
 
@@ -31,7 +24,6 @@ describe('throughputSample', () => {
   });
 
   it('refuses a transfer with no measurable duration', () => {
-    // Everything arriving inside one callback tick says nothing about rate.
     expect(throughputSample(transfer({ lastAt: 1_000 }))).toBeUndefined();
   });
 
@@ -40,8 +32,7 @@ describe('throughputSample', () => {
   });
 
   it('subtracts what had already arrived by the first callback', () => {
-    // The first callback is not guaranteed to land at zero. Counting from zero
-    // while timing from the first callback would overstate the rate.
+    // The first callback need not land at zero bytes.
     expect(throughputSample(transfer({ firstBytes: 10_000_000 }))).toEqual({
       bytes: 30_000_000,
       durationMs: 4_000,

@@ -16,8 +16,6 @@ describe('editRow', () => {
     expect(editRow(['a', 'b'], 1, '')).toEqual(['a', '']);
   });
 
-  // The whole reason rows exist: a pasted list has to land as a list, or the
-  // viewer is back to a row holding text nothing will ever split again.
   it('expands a pasted list across rows', () => {
     expect(editRow([''], 0, '10.0.0.1:7438\n10.0.0.2:7438')).toEqual(['10.0.0.1:7438', '10.0.0.2:7438']);
     expect(editRow(['keep', ''], 1, 'a, b')).toEqual(['keep', 'a', 'b']);
@@ -65,8 +63,7 @@ describe('connectOutcome', () => {
     expect(outcome).toEqual({ kind: 'save', endpoints: ['http://c:7438', 'http://b:7438', 'http://a:7438'] });
   });
 
-  // A mistyped router address answers too. Say so rather than silently
-  // accepting it — or refusing it, since a node behind a proxy may look the same.
+  // A mistyped router address answers too, but so may a node behind a proxy.
   it('asks before saving when nothing identified itself as Macha', () => {
     const result = { ...base, available: ['http://b:7438'], unconfirmed: ['http://b:7438'] };
     const first = connectOutcome(result, false);

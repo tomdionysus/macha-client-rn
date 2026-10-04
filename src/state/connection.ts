@@ -6,7 +6,7 @@ const CLIENT_ID_KEY = 'macha.clientId.v1';
 const ENDPOINTS_KEY = 'macha.endpoints.v1';
 const DISCOVERED_KEY = 'macha.discoveredEndpoints.v1';
 
-/** A cluster realistically has a handful of nodes; this only guards a pathological advertisement. */
+/** Guards against a pathological advertisement; real clusters have a handful of nodes. */
 const MAX_DISCOVERED_ENDPOINTS = 16;
 
 interface StoredEndpoints {
@@ -45,10 +45,7 @@ export function getClientId(): string {
   return id;
 }
 
-/**
- * The keys a store saves under a client id, before the id. Each store owns
- * its own format; this list only reads them back.
- */
+/** Key prefixes of the per-client stores, each followed by the client id. */
 const PER_CLIENT_PREFIXES = [
   'macha.continueWatching.v1.',
   'macha-client-progress:',
@@ -61,13 +58,9 @@ const PER_CLIENT_PREFIXES = [
 ];
 
 /**
- * The client id to adopt back, where the current one has lost its data.
- *
- * A failed storage read at startup can let `getClientId()` mint a new id over
- * the real one, leaving every per-client store on the disk under the old id.
- * So where the current id owns nothing and exactly one other id owns
- * something, that one is ours. Two or more cannot be told apart, and
- * `anonymous` is only what a store is called before hydration.
+ * The client id to adopt back after a failed startup read minted a new one
+ * over it: if the current id owns no data and exactly one other id does, that
+ * one. `anonymous` is only a pre-hydration placeholder and is ignored.
  */
 export function orphanedClientId(keys: readonly string[], current: string | null): string | undefined {
   const owners = new Set<string>();
@@ -100,11 +93,7 @@ export function setConfiguredEndpoints(urls: readonly string[]): string[] {
   return normalized;
 }
 
-/**
- * Nodes this client has actually reached but the viewer never configured:
- * runtime-discovered membership, kept only as a resumable hint for the next
- * cold start's registry seed. Never authoritative, never user configuration.
- */
+/** Nodes discovered at runtime, kept only as a hint for the next cold start's registry seed. */
 export function getDiscoveredEndpoints(): string[] {
   return readValidatedJson(DISCOVERED_KEY, validEndpoints)?.urls ?? [];
 }

@@ -5,38 +5,13 @@ import {
 } from '@machafoundation/core';
 
 /**
- * A tiny persistence seam over AsyncStorage.
+ * Keys this client restores at startup: core uses both `macha.` and `macha-`
+ * keys (e.g. `macha-client-progress:`). Anchored on the separator so other
+ * libraries' `macha...` keys stay out.
  *
- * AsyncStorage is asynchronous, but the screens that read client state (the
- * play queue, Continue Watching, the endpoint list) need it synchronously
- * during render. So the store is hydrated once at startup into memory, reads
- * are synchronous from that cache, and writes update the cache immediately and
- * persist in the background. A failed write costs the *next* cold start, never
- * the current session.
- */
-/**
- * Keys this client restores at startup.
- *
- * Two prefixes, because two conventions meet here. This client namespaces its
- * own keys `macha.`; core uses both. Core's session cache is
- * `macha.session.v1`, but core before `0.10.0` wrote it as `macha-session`,
- * and a device carrying that data still has the hyphenated key. Filtering on
- * `macha.` alone would leave such a login written and never read back: an
- * anonymous session re-mints in milliseconds, so the only symptom is a person
- * signed out on every cold start. Anchored rather than a bare `macha` so a
- * third party's `machaSomething` cannot wander into this cache.
- *
- * **Do not replace this with core's `isMachaStorageKey`,** whose own doc
- * comment recommends exactly that. It is a registry of the keys *core* owns,
- * and this is a hydration filter for every key *this client* must restore —
- * which is a strictly larger set. Core's registry lists none of
- * `macha.clientId.v1`, `macha.endpoints.v1`, `macha.discoveredEndpoints.v1`,
- * `macha.downloads.v1.`, `macha.musicLibrary.v1.` or `macha.progress.v1:`.
- * Swapping it in drops all six, and because `macha.clientId.v1` is the
- * namespace the per-client stores are keyed under, a lost client id also
- * orphans Continue Watching, the queue, the playlists and the music library on
- * every cold start. Core's helper is right for a *host clearing Macha's data*,
- * which is not what this is.
+ * Do not swap in core's `isMachaStorageKey`: it lists only core's keys, not
+ * this client's (`macha.clientId.v1`, `macha.endpoints.v1`, downloads, ...),
+ * and losing the client id orphans every per-client store.
  */
 const OWNED_KEY_PREFIXES = ['macha.', 'macha-'] as const;
 
@@ -44,6 +19,12 @@ function owned(key: string): boolean {
   return OWNED_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
+/**
+ * A synchronous persistence seam over AsyncStorage. Screens read client state
+ * during render, so the store is hydrated into memory once at startup, reads
+ * come from that cache, and writes update it at once and persist in the
+ * background.
+ */
 class ClientStore {
   private cache = new Map<string, string>();
   private hydrated = false;
@@ -57,10 +38,8 @@ class ClientStore {
       const entries = await AsyncStorage.multiGet(keys);
       for (const [key, value] of entries) if (value !== null) this.cache.set(key, value);
     } catch {
-      // One row Android cannot read (over its ~2 MB CursorWindow) fails the
-      // whole `multiGet`. Starting empty would mean the Connect screen and a new
-      // client id minted over the real one, orphaning every per-client store.
-      // So read key by key, lose only what cannot be read, and say which.
+      // One row over Android's ~2 MB CursorWindow fails the whole `multiGet`.
+      // Read key by key so only that row is lost, not the client id and config.
       for (const key of keys) {
         try {
           const value = await AsyncStorage.getItem(key);
@@ -104,8 +83,7 @@ class ClientStore {
 
 export const clientStore = new ClientStore();
 
-// Core's helpers, bound to this client's store so callers keep the shorter
-// two-argument signature.
+// Core's helpers, bound to `clientStore`.
 export function readValidatedJson<T>(key: string, validate: (value: unknown) => value is T): T | undefined {
   return coreReadValidatedJson(clientStore, key, validate);
 }

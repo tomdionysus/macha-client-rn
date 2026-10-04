@@ -45,24 +45,14 @@ export default function HomeScreen() {
     [resumable],
   );
   /**
-   * Continue watching, narrowed to what can actually be played right now.
-   *
-   * Progress is device-local, so the list survives the cluster going away and
-   * would otherwise keep offering items whose bytes are somewhere this device
-   * cannot reach — an offer that can only fail. Restricted to downloads
-   * whenever cluster media is out of reach, with each entry swapped for its
-   * stored form so the cover comes off the disk rather than from a node.
-   *
-   * **Not keyed on "offline".** Offline is one of four ways the answer is no:
-   * a cluster that refuses this viewer answers every request promptly, yet can
-   * play nothing. `clusterMediaUnavailable` asks the question this rail has.
+   * Continue watching, limited to what can play now. Progress is device-local, so
+   * when cluster media is unreachable this narrows to downloads, in their stored
+   * form so covers come from disk. Keyed on `clusterMediaUnavailable`, not
+   * "offline": a cluster that refuses this viewer is reachable but plays nothing.
    */
   const unavailable = clusterMediaUnavailable(problems);
-  // Read against the clock at render, with no timer. The window is days wide,
-  // so the banner appearing at Home's next render (a refresh, a return to the
-  // screen, an account change) is soon enough. It goes as soon as a login
-  // replaces the session. Otherwise, if a named login has already been
-  // replaced, say that instead. The two cannot both apply.
+  // Read at render with no timer: the expiry window is days wide, so the next
+  // render is soon enough. Expiry and an ended named login cannot both apply.
   const accountNotice = sessionExpiryNotice(account, Date.now()) ?? sessionEndedNotice(account);
   const resumableItems = useMemo(
     () =>
@@ -151,9 +141,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  // The marker sits before Settings rather than replacing it: identity is not
-  // a destination, and on every screen but Settings it is not what the viewer
-  // came for.
+  // Beside Settings rather than replacing it: identity is not a destination.
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',

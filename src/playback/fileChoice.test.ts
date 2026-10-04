@@ -28,17 +28,13 @@ function file(mediaId: string, format: string, durationMs: number): PlaybackMedi
   return { mediaId, profile, operations: everything };
 }
 
-/**
- * The client chooses among an item's files and names the one it will play.
- * Naming none lets the server play its own first choice on a multi-file item,
- * whatever the chooser decided about a different file.
- */
+/** The file is always named; otherwise the server plays its own first choice on a multi-file item. */
 describe('chooseFile', () => {
   it('plays the file that plays best, and names it', () => {
     const choice = chooseFile([file('mkv', 'matroska,webm', 1_000), file('mp4', 'mov,mp4,m4a,3gp,3g2,mj2', 2_000)], ['mkv', 'mp4'], phone);
     expect(choice?.mediaId).toBe('mp4');
     expect(choice?.instruction.mode).toBe('direct');
-    // The runtime of the file chosen, not of the first one.
+    // The chosen file's runtime, not the first one's.
     expect(choice?.durationMs).toBe(2_000);
   });
 
@@ -52,12 +48,7 @@ describe('chooseFile', () => {
   });
 });
 
-/**
- * Which file, when something other than the chooser decided the mode: the
- * viewer named one, or a download wants the original. Something still has to
- * pick the file, and the server is to refuse a create on a
- * multi-file item that names none.
- */
+/** Which file, when the mode was decided elsewhere (viewer choice or a download); the server refuses a multi-file create that names none. */
 describe('fileToPlay', () => {
   it('names the file the chooser would play, on an item with several', () => {
     const files = [file('mkv', 'matroska,webm', 1_000), file('mp4', 'mov,mp4,m4a,3gp,3g2,mj2', 2_000)];

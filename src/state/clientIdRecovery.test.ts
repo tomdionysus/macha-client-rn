@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { orphanedClientId } from './connection';
 
-/**
- * A storage read that fails at startup can mint a new client id over the
- * real one, leaving every per-client store (Continue Watching, downloads,
- * playlists, the music library) on disk under the old id and unreachable.
- * The orphaned id is adopted back.
- */
 describe('orphanedClientId', () => {
   const old = 'a2618e45';
   const keys = [

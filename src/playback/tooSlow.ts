@@ -9,17 +9,14 @@ import { convertedStreams } from './quality';
 import type { PlaybackChoice } from './resume';
 
 /**
- * A quality no node can produce at real speed, mirrored from core here
- * because this client runs its own failover rather than core's coordinator.
- * Without it, a source every node transcodes below real time delivers a first
- * fragment, stalls, and fails over back and forth for ever with no word why.
+ * Detects a quality no node can produce at real speed, mirrored from core
+ * because this client runs its own failover. Otherwise a source every node
+ * transcodes too slowly stalls and fails over back and forth for ever.
  *
- * A failure before the generation has played `EARLY_STALL_MEDIA_MS`, on a
- * stream the node is producing (not Direct, where it is the network), fails
- * over once; if the replacement fails the same way, the second node shares
- * the limit and another would too. Then a quality the viewer chose stops,
- * with the reason and a way to try again. A quality Play chose steps down to
- * the next lower one and says so; with none lower, it stops the same way.
+ * A failure before `EARLY_STALL_MEDIA_MS` has played, on a node-produced stream
+ * (not Direct, where it is the network), fails over once; a second such failure
+ * means the limit is shared. Then a viewer-chosen quality stops with the reason;
+ * a Play-chosen one steps down to the next lower quality, or stops if none.
  */
 
 /** The failures counted so far against one file, mode and cap. */
@@ -34,12 +31,9 @@ export type TooSlowVerdict =
   | { kind: 'step-down'; step: VersionStep };
 
 /**
- * Whether a failed generation means the quality is too slow to play, and
- * what to do instead of failing over.
- *
- * `playedMs` is how much of the failed generation played, undefined where
- * nothing of it was ever presented: a source that never started has not
- * stalled. `steps` are the item's qualities, highest first.
+ * Whether a failed generation means the quality is too slow, and what to do
+ * instead of failing over. `playedMs` is undefined if nothing was presented
+ * (a source that never started has not stalled). `steps` are highest first.
  */
 export function tooSlowToPlay(
   stalls: EarlyStalls,
@@ -59,17 +53,13 @@ export function tooSlowToPlay(
   return { stalls: { key, count: 0 }, verdict: lower ? { kind: 'step-down', step: lower } : { kind: 'stop' } };
 }
 
-/**
- * Why playback stopped, from the facts where they are known: the quality,
- * and which streams the session converts. The web's `tooSlowToPlayText` word
- * for word.
- */
+/** Why playback stopped, from the quality and converted streams where known. Worded as the web client's. */
 export function tooSlowToPlayText(quality?: QualityClass, transform?: { video: string; audio: string }): string {
   const streams = transform && convertedStreams(transform.video === 'transcode', transform.audio === 'transcode');
   return `Macha can't play ${quality ? qualityLabel(quality) : 'this quality'} because the server can't convert ${streams ?? 'it'} fast enough to keep up.`;
 }
 
-/** Play's own choice stepped down to a quality a node keeps up with. The web's `qualitySteppedDownText`. */
+/** Play's own choice stepped down to a quality a node keeps up with. Worded as the web client's. */
 export function qualitySteppedDownText(quality?: QualityClass): string {
   return `Switched to ${quality ? qualityLabel(quality) : 'a lower quality'}: the server can't convert a higher quality fast enough.`;
 }

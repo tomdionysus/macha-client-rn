@@ -1,6 +1,5 @@
-// The catalogue wire model and its clients are core's. `ClusterCatalogueApi`
-// takes the router directly, so reads fail over and feed endpoint health
-// exactly as every other call does.
+// Re-exported from core. `ClusterCatalogueApi` reads through the router, so
+// reads fail over and feed endpoint health like every other call.
 export { ClusterCatalogueApi, MachaCatalogueApi } from '@machafoundation/core';
 export type {
   ArtworkSource,

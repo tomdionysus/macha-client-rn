@@ -78,11 +78,7 @@ export default function SeasonScreen() {
   );
 }
 
-/**
- * One episode. The still is the play target — the biggest, most obvious thing
- * on the row does the thing the viewer came for — while the text opens the
- * episode page for the synopsis and technical detail.
- */
+/** One episode. The still plays it; the text opens the episode page. */
 function EpisodeRow({
   episode,
   positionMs,

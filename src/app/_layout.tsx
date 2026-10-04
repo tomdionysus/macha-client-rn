@@ -38,8 +38,8 @@ function AppShell() {
   const { hydrated } = useMacha();
   const pathname = usePathname();
 
-  // The splash stays up until persisted client state is readable, so the first
-  // frame is never a momentarily empty library that then fills in.
+  // Hold the splash until persisted state is readable, so the first frame is
+  // never an empty library.
   useEffect(() => {
     if (hydrated) void SplashScreen.hideAsync();
   }, [hydrated]);

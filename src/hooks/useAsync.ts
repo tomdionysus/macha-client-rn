@@ -10,11 +10,8 @@ export interface AsyncResult<T> {
 }
 
 /**
- * Runs an async load, keeps the previous value visible while it re-runs, and
- * cancels in flight work when the inputs change or the screen goes away.
- *
- * A refresh deliberately does not clear `value`: replacing a populated screen
- * with a spinner because the viewer pulled to refresh loses more than it gains.
+ * Runs an async load, aborting it when deps change or on unmount. `refresh()`
+ * keeps the current value on screen; a deps change clears it.
  */
 export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>, deps: readonly unknown[]): AsyncResult<T> {
   const [value, setValue] = useState<T | undefined>(undefined);
@@ -30,9 +27,7 @@ export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>, deps: rea
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    // A refresh re-runs the same query, so the current value stays on screen.
-    // A dependency change is a *different* query, and showing the old answer
-    // under the new heading is worse than showing a spinner.
+    // A deps change is a different query: never show the old answer under it.
     const isRefresh = lastNonce.current !== nonce;
     lastNonce.current = nonce;
     if (isRefresh && hasValue.current) {

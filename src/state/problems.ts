@@ -1,18 +1,9 @@
 import type { MediaAccess } from '../account/access';
 
 /**
- * What is standing between this device and the cluster's media, as a list
- * rather than a flag.
- *
- * One boolean cannot carry this. "Offline" would cover at least four
- * different situations — no network, a node that will not answer, a cluster
- * that wants an account, an account that may not view — and they are not the
- * same to whoever is holding the phone: two of them pass on their own and two
- * need somebody to do something.
- *
- * Deliberately no "no internet". This client ignores `isInternetReachable`,
- * because a LAN with no route to the internet is a perfectly good home for a
- * Macha cluster.
+ * What stands between this device and the cluster's media. A list, not a flag:
+ * some pass on their own, others need the viewer to act. There is no "no
+ * internet": a LAN without internet is a fine home for a cluster.
  */
 export type ProblemKind =
   | 'no-endpoints'
@@ -61,11 +52,7 @@ const PROBLEMS: Record<ProblemKind, Omit<Problem, 'kind'>> = {
     title: 'This account cannot view media',
     detail: 'Ask for the media viewer role, or log in as someone who has it. Your downloads still play.',
   },
-  // Granted nothing at all, which is a different remedy from the line above:
-  // either this cluster serves registered users only, or a signed-in session
-  // was replaced by an anonymous one. Both are answered by signing in, and
-  // telling this viewer to ask an administrator for a role sends someone whose
-  // session merely lapsed looking for the wrong person.
+  // No roles at all: the remedy is signing in, not asking for a role.
   'account-no-roles': {
     title: 'This session cannot do anything',
     detail: 'Log in again to see the library — this session was granted no permissions. Your downloads still play.',
@@ -75,17 +62,11 @@ const PROBLEMS: Record<ProblemKind, Omit<Problem, 'kind'>> = {
 const problem = (kind: ProblemKind): Problem => ({ kind, ...PROBLEMS[kind] });
 
 /**
- * Everything currently wrong, root causes only.
- *
- * A consequence is not a second problem: with no network, "cannot reach your
- * cluster" is true and says nothing the first line did not, so it is left out.
- * An account refusal *is* reported alongside an unreachable cluster, because
- * that one does not resolve itself when the network comes back and the viewer
- * should not be told twice, in two sittings, about two different things.
+ * Everything currently wrong, root causes only: no network hides "cannot reach
+ * your cluster", but an account refusal is reported alongside an outage since
+ * it outlasts it.
  */
 export function describeProblems(facts: ProblemFacts): Problem[] {
-  // Nothing else is knowable, and nothing else is worth saying: there is no
-  // cluster to be unreachable or to refuse us yet.
   if (!facts.endpointsConfigured) return [problem('no-endpoints')];
 
   const problems: Problem[] = [];
@@ -104,14 +85,7 @@ export function describeProblems(facts: ProblemFacts): Problem[] {
   return problems;
 }
 
-/**
- * Whether media the cluster serves can be relied on right now.
- *
- * The question Continue Watching has to ask. "Are we offline" is only one of
- * the ways the answer is no: a cluster that refuses this viewer is perfectly
- * reachable and still cannot play them anything, so the rail would offer
- * items that fail when tapped.
- */
+/** Whether cluster media is unusable right now, by outage or by refusal. */
 export function clusterMediaUnavailable(problems: readonly Problem[]): boolean {
   return problems.length > 0;
 }
@@ -122,21 +96,13 @@ export interface EmptyLibraryCopy {
 }
 
 /**
- * What an empty shelf should say, which is not one sentence.
- *
- * "No films in this catalogue yet" is a claim about the *catalogue*, and this
- * client is only entitled to make it when it can actually see one. Refused, or
- * showing the device's own library because no node answered, the shelf is empty
- * for a reason that has nothing to do with what the cluster holds — and saying
- * otherwise tells a viewer their library is empty when it is full.
- *
- * `noun` is plural and lower case: "films", "series", "albums".
+ * What an empty shelf should say. Blames the catalogue only when it can
+ * actually be seen. `noun` is plural and lower case: "films", "series".
  */
 export function describeEmptyLibrary(noun: string, problems: readonly Problem[]): EmptyLibraryCopy {
   const kinds = new Set(problems.map((problem) => problem.kind));
 
-  // Access first, and deliberately ahead of an outage: it is the one the viewer
-  // can do something about, and unlike an outage it does not pass on its own.
+  // Access before an outage: it is actionable and does not pass on its own.
   if (kinds.has('account-cannot-view')) {
     return {
       title: `This account cannot view ${noun}`,
@@ -165,7 +131,6 @@ export function describeEmptyLibrary(noun: string, problems: readonly Problem[])
     };
   }
 
-  // Nothing is wrong, so the catalogue really is empty and we may say so.
   return {
     title: `No ${noun} in this catalogue yet`,
     detail: 'Items appear here as the node indexes your library.',

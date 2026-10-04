@@ -29,8 +29,7 @@ export function AddToPlaylistSheet({ visible, items, onClose }: Props) {
     const after = playlists.add(id, items)?.items.length ?? before;
     const added = after - before;
     onClose();
-    // Silently doing nothing when every track is already there reads as a bug,
-    // so say which it was.
+    // Report "already there" too; silence would read as a bug.
     Alert.alert(
       added > 0 ? 'Added' : 'Already there',
       added > 0

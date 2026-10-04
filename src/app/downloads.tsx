@@ -14,11 +14,8 @@ import { formatBytes, pluralize } from '../ui/format';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../ui/theme';
 
 /**
- * Everything stored on this device.
- *
- * This screen never touches the network. It is the one part of the app that is
- * guaranteed to work in airplane mode, so it reads only local state and local
- * files — including the artwork.
+ * Everything stored on this device. Reads only local state and files, artwork
+ * included, so it works with no network.
  */
 export default function DownloadsScreen() {
   const { downloadManager } = useMacha();

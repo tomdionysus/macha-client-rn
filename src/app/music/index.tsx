@@ -122,10 +122,9 @@ export default function MusicScreen() {
     </ScrollView>
   );
 
-  // A full library is hundreds of tracks, so the track view owns its own
-  // virtualized scroller rather than sitting inside the screen's ScrollView.
-  // Rendering them all at once fires an image request per row and leaves most
-  // of the artwork blank.
+  // The track view owns a virtualized list rather than sitting in the screen's
+  // ScrollView: rendering hundreds of rows at once fires an image request per row
+  // and leaves most artwork blank.
   if (view === 'tracks') {
     return (
       <Screen

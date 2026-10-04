@@ -3,17 +3,15 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-nativ
 import { useBottomChromeInset } from './chrome';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
-/** Long enough to read one short line, short enough to stay out of the way. */
 const VISIBLE_MS = 3_200;
 const FADE_MS = 180;
-/** How far it rises as it appears. Small: this is a confirmation, not an event. */
+/** Entrance rise, in points. */
 const RISE = 12;
 
 export interface Toast {
   message: string;
-  /** Leading glyph, normally the same one the control that was tapped uses. */
+  /** Leading glyph, usually the tapped control's. */
   icon?: React.ReactNode;
-  /** At most one: a transient banner is a confirmation, not a dialog. */
   action?: { label: string; onPress(): void };
 }
 
@@ -24,16 +22,8 @@ interface ShownToast extends Toast {
 const ToastContext = createContext<(toast: Toast) => void>(() => {});
 
 /**
- * Transient confirmation for an action whose result appears somewhere else.
- *
- * Durable state is not this component's job and never should be: a download's
- * real progress lives on the item's own button and on the downloads screen,
- * both of which outlast any banner. This exists only to close the loop at the
- * moment of the tap, for the case where what changed is off-screen — an album's
- * "Download" queues twelve tracks and nothing near the button moves.
- *
- * Deliberately not a queue. A second message replaces the first rather than
- * making the viewer sit through one they have already read.
+ * Transient confirmation for an action whose effect is off-screen; never the
+ * home of durable state. Not a queue: a new toast replaces the current one.
  */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ShownToast | undefined>(undefined);
@@ -45,8 +35,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const dismiss = useCallback((key: number) => {
-    // Only the banner that is still on screen may clear the slot; a fade-out
-    // finishing after a newer message arrived must not take it down with it.
+    // A stale fade-out must not clear a newer toast.
     setToast((current) => (current?.key === key ? undefined : current));
   }, []);
 
@@ -91,8 +80,7 @@ function Banner({ toast, onDone }: { toast: ShownToast; onDone(key: number): voi
 
   return (
     <Animated.View
-      // Sits above the docked chrome rather than over it, so the mini player
-      // and the navigation stay reachable while it is up.
+      // Above the docked chrome, which stays reachable.
       style={[
         styles.host,
         {
@@ -142,8 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     minHeight: TOUCH_TARGET,
     borderRadius: radius.md,
-    // Opaque, unlike the inline banners: this one floats over artwork, and a
-    // translucent surface over a poster is unreadable.
+    // Opaque because it floats over artwork.
     backgroundColor: colors.surface2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,

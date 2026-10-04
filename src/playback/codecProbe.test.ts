@@ -31,7 +31,7 @@ describe('decodableCodecs', () => {
   });
 
   it('keeps them on a device that reports them', () => {
-    // This device gets Direct Play rather than a transform it does not need.
+    // Such a device gets Direct Play rather than an unneeded transform.
     expect(decodableCodecs(DECLARED, WITH_DOLBY)).toEqual(DECLARED);
   });
 
@@ -49,8 +49,7 @@ describe('decodableCodecs', () => {
   });
 
   it('keeps a codec the table has no mapping for, rather than guessing', () => {
-    // A gap in the table is not evidence about the device. Narrowing on it
-    // would be the same over-confidence pointed the other way.
+    // A gap in the table is not evidence about the device.
     expect(decodableCodecs(['aac', 'something-new'], A85)).toEqual(['aac', 'something-new']);
   });
 });
@@ -64,18 +63,13 @@ describe('decodableCodecs when the device cannot be asked', () => {
   });
 
   it('still refuses ac3 and eac3, which have to be earned', () => {
-    // Asymmetric on purpose. Over-claiming these produces a silent film with
-    // no error anywhere; under-claiming costs a transform somebody notices.
+    // Asymmetric on purpose: over-claiming gives a silent film with no error;
+    // under-claiming costs a visible transform.
     expect(decodableCodecs(DECLARED, undefined)).toEqual(['aac', 'opus', 'vorbis', 'mp3', 'flac']);
   });
 });
 
-/**
- * The strings themselves, pinned against `MediaFormat.MIMETYPE_*`.
- *
- * A misspelling is invisible on a device without the decoder, and silently
- * denies Direct Play to every device that has it.
- */
+/** The strings pinned against `MediaFormat.MIMETYPE_*`: a misspelling silently denies Direct Play to every device with the decoder. */
 describe('DECODER_MIME_TYPES matches android.media.MediaFormat', () => {
   it.each([
     ['ac3', 'audio/ac3'],
@@ -112,8 +106,7 @@ describe('withProbedAdditions', () => {
   });
 
   it('adds nothing when the device could not be asked', () => {
-    // Absence of a fact is not a fact: an unanswerable probe leaves the
-    // declaration exactly as written.
+    // An unanswerable probe leaves the declaration as written.
     expect(withProbedAdditions(['h264', 'hevc'], undefined)).toEqual(['h264', 'hevc']);
     expect(withProbedAdditions(['h264', 'hevc'], [])).toEqual(['h264', 'hevc']);
   });
@@ -129,11 +122,9 @@ describe('withProbedAdditions', () => {
 });
 
 /**
- * Bit depth, derived from the decoder profiles. One number covers every codec,
- * though a device can be ten-bit for one and eight for the others.
- *
- * Profile ids from `MediaCodecInfo$CodecProfileLevel` collide across codecs
- * (2 is both AV1ProfileMain10 and HEVCProfileMain10), hence keying by MIME.
+ * Bit depth from decoder profiles: one number for every codec, though a device
+ * may be ten-bit for one and eight for others. Profile ids collide across
+ * codecs, hence keying by MIME.
  */
 describe('probedVideoBitDepth', () => {
   /** What the A85 actually reports. */
@@ -149,9 +140,8 @@ describe('probedVideoBitDepth', () => {
   });
 
   it('takes the minimum, not the maximum, across claimed codecs', () => {
-    // Core compares every source stream against this one number, so claiming
-    // the deepest any codec manages would direct-play a ten-bit HEVC file to
-    // a decoder that only does eight.
+    // Core checks every stream against this one number; the maximum would send
+    // ten-bit HEVC to an eight-bit decoder.
     expect(probedVideoBitDepth(['av1'], A85_PROFILES)).toBe(10);
     expect(probedVideoBitDepth(['hevc', 'av1'], A85_PROFILES)).toBe(8);
   });
@@ -162,14 +152,13 @@ describe('probedVideoBitDepth', () => {
   });
 
   it('does not read one codec’s profile number as another’s', () => {
-    // AVCProfileHigh10 is 16; HEVCProfileMain10 is 2. An H.264 decoder
-    // advertising profile 2 (Main) must not be read as ten-bit.
+    // AVCProfileHigh10 is 16; an H.264 decoder advertising 2 (Main) is not ten-bit.
     expect(probedVideoBitDepth(['h264'], { 'video/avc': [2] })).toBe(8);
     expect(probedVideoBitDepth(['h264'], { 'video/avc': [16] })).toBe(10);
   });
 
   it('is undefined when the device could not be asked', () => {
-    // The declaration then stands, rather than this inventing a number.
+    // The declaration then stands.
     expect(probedVideoBitDepth(['h264'], undefined)).toBeUndefined();
     expect(probedVideoBitDepth(['h264'], {})).toBeUndefined();
   });
@@ -180,9 +169,8 @@ describe('probedVideoBitDepth', () => {
 });
 
 /**
- * Decode says what can be read, the display says what can be shown, and only
- * both together is a claim. Display constants are `Display.HdrCapabilities`:
- * 1 DV, 2 HDR10, 3 HLG, 4 HDR10+.
+ * HDR is claimed only when both decoder and display support it.
+ * `Display.HdrCapabilities`: 1 DV, 2 HDR10, 3 HLG, 4 HDR10+.
  */
 describe('probedHdrTransfers', () => {
   const av1Hdr = { 'video/av01': [1, 4096, 8192] };
@@ -207,8 +195,7 @@ describe('probedHdrTransfers', () => {
   });
 
   it('does not read Dolby Vision or HLG panel support as PQ', () => {
-    // 1 is Dolby Vision, which has its own field; 3 is HLG, which no decoder
-    // profile advertises and which is therefore not claimed from here.
+    // Dolby Vision has its own field; no decoder profile advertises HLG.
     expect(probedHdrTransfers(['av1'], av1Hdr, [1, 3])).toEqual([]);
   });
 });
@@ -219,14 +206,12 @@ describe('probedDolbyVisionProfiles', () => {
   });
 
   it('converts Android profile flags to bitstream profile numbers', () => {
-    // DvheDtr is 16 -> profile 4, DvheStn 32 -> 5, DvheSt 256 -> 8,
-    // DvavSe 512 -> 9. Consecutive powers of two in profile order.
+    // DvheDtr 16 -> 4, DvheStn 32 -> 5, DvheSt 256 -> 8, DvavSe 512 -> 9.
     expect(probedDolbyVisionProfiles({ 'video/dolby-vision': [16, 32, 256, 512] })).toEqual([4, 5, 8, 9]);
   });
 
   it('ignores a flag that is not a single bit', () => {
-    // A vendor answering with a mask of several profiles cannot be resolved
-    // to one number, and guessing which it meant is how a wrong claim starts.
+    // A multi-profile mask cannot be resolved to one number, so it is not guessed.
     expect(probedDolbyVisionProfiles({ 'video/dolby-vision': [48, 32] })).toEqual([5]);
   });
 
@@ -248,10 +233,7 @@ describe('decoderSizeLimit', () => {
     'video/x-vnd.on2.vp9': { width: 1920, height: 1080 },
   };
 
-  /**
-   * Taking the smallest frame would cap every 1080p H.264 file at AV1's 720p;
-   * dropping AV1 would lose its Direct Play at 720p and below.
-   */
+  /** The smallest frame would cap 1080p H.264 at AV1's 720p; dropping AV1 would lose its Direct Play at 720p and below. */
   it('states the largest frame, and holds a codec that falls short to its own', () => {
     expect(decoderSizeLimit(a85, ['h264', 'hevc', 'vp9', 'av1'])).toEqual({
       maxWidth: 1920,

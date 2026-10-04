@@ -77,14 +77,7 @@ const buttonStyles = StyleSheet.create({
 interface RowProps {
   title: string;
   detail?: string;
-  /**
-   * How many lines of `detail` to show before truncating.
-   *
-   * Two is right for a sentence of explanation, which is what most rows carry.
-   * A row whose detail is a *list* — the configured nodes, say — has to be
-   * told, because clamping that at two reads as a limit on how many there can
-   * be rather than as a truncated view of how many there are.
-   */
+  /** Lines of `detail` before truncating; raise it when the detail is a list. */
   detailLines?: number;
   leading?: React.ReactNode;
   /** Greyed and not selectable: a title that may not be played. */

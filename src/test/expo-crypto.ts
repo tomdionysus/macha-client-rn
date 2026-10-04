@@ -1,10 +1,4 @@
-/**
- * A UUID source. The real one is a native module; this is its contract.
- *
- * Counted rather than random so a test can say "a different id was minted"
- * without asserting on randomness, which is the only property of this module
- * any logic here depends on.
- */
+/** A UUID source stub, counted rather than random so tests can assert a new id was minted. */
 let minted = 0;
 
 export function randomUUID(): string {

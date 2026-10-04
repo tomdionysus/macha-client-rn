@@ -18,9 +18,8 @@ interface Props {
 }
 
 /**
- * A horizontally scrolling rail. Card width is derived from the viewport so a
- * small phone shows a comfortable two-and-a-bit cards and a large one shows
- * more, with the partial card at the edge acting as the scroll affordance.
+ * Horizontally scrolling rail. Cards are sized so a partial card shows at the
+ * edge as the scroll affordance.
  */
 export function MediaRow({ title, items, onOpen, shape, progress, onRemove, onSeeAll, emptyLabel }: Props) {
   const { width: viewport } = useWindowDimensions();
@@ -48,8 +47,7 @@ export function MediaRow({ title, items, onOpen, shape, progress, onRemove, onSe
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.rail}
-          // A card plus its gutter is one snap unit, so a flick always settles
-          // with whole cards aligned to the left margin.
+          // Card plus gutter is one snap unit, so flicks settle on whole cards.
           snapToInterval={cardWidth + space.md}
           decelerationRate="fast"
           renderItem={({ item }) => (
@@ -71,8 +69,7 @@ export function MediaRow({ title, items, onOpen, shape, progress, onRemove, onSe
 
 function railCardWidth(viewport: number, shape: CardShape): number {
   const available = viewport - space.lg * 2;
-  // Stills are wide, so fewer fit; posters and sleeves are narrow enough for
-  // two and a half across a phone.
+  // Cards visible per screen width, by shape.
   const perScreen = shape === 'still' ? 1.35 : ASPECT[shape] === 1 ? 2.4 : 2.6;
   return Math.round(Math.min(available / perScreen, shape === 'still' ? 320 : 190));
 }

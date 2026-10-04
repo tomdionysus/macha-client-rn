@@ -9,11 +9,7 @@ import { albumLabel, episodeCode, episodeLabel, trackNumberLabel } from './label
 import { hrefFor } from './navigation';
 import { colors, radius, space, type as typography } from './theme';
 
-/**
- * Poster (2:3) for films and series, still (16:9) for episodes, sleeve (1:1)
- * for music. Aspect ratio is a property of the *content*, so it is derived
- * here rather than passed down by every caller.
- */
+/** Poster (2:3) for films and series, still (16:9) for episodes, square (1:1) for music. */
 export type CardShape = 'poster' | 'still' | 'square';
 
 export function shapeFor(kind: MediaSummary['kind']): CardShape {
@@ -111,8 +107,7 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
         </>
       ) : track ? (
         <>
-          {/* The album, then the artist below it, each a link; then the
-              track number. */}
+          {/* Album and artist links, then the track number. */}
           <Text
             numberOfLines={1}
             accessibilityRole="link"
@@ -137,8 +132,7 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
         </>
       ) : albumArtist ? (
         <>
-          {/* Core leaves the artist off albums on the artist's own page,
-              where it would only repeat the page. */}
+          {/* Core omits the artist on the artist's own page. */}
           <Text
             numberOfLines={1}
             accessibilityRole="link"
@@ -162,22 +156,15 @@ export function MediaCard({ item, width, onPress, shape, progress, onRemove, sty
 }
 
 /**
- * An episode named away from its season: the series, then "Season 1 Episode
- * 4", each a link — the series to its page, the label to the season.
- *
- * In search results and Continue Watching an episode reads this way on every
- * client, never `S01E04`; a season page draws its own compact rows. The label
- * is `episodeLabel` and the ids are the ones `playbackContext` carries. An
- * episode without that context falls back to a plain line rather than
- * guessing at links.
+ * Series and "Season 1 Episode 4" links for an episode shown outside its
+ * season. Without `playbackContext` the card falls back to a plain line.
  */
 function episodeLinks(
   item: MediaSummary,
 ): { series: { id: string; title: string }; seasonId: string; label: string | undefined } | undefined {
   if (item.kind !== 'episode' || !item.playbackContext) return undefined;
   const { series, season } = item.playbackContext;
-  // A stored snapshot can lack `episodeNumber`; then there is no label to
-  // give, and the link line is left out rather than guessed at.
+  // A stored snapshot can lack `episodeNumber`, leaving `label` undefined.
   return { series, seasonId: season.id, label: episodeLabel(item) };
 }
 

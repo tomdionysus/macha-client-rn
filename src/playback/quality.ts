@@ -23,26 +23,15 @@ import { clientStore } from '../state/storage';
 import { displayPixels } from './capabilities';
 
 /**
- * Per-quality play and the ceilings on automatic play.
- *
- * The judgement is core's: `playbackVersions` says which qualities an item
- * has and what automatic play takes, `qualityCeiling` what caps it. This
- * client drives the resolver directly and constructs no coordinator, so what
- * the coordinator does around them is repeated here, in one place, as core
- * described it for a resolver-direct host.
+ * Per-quality play and the ceilings on automatic play. The judgement is core's
+ * (`playbackVersions`, `qualityCeiling`); this client has no coordinator, so
+ * the coordinator's handling around them lives here.
  */
 
-/**
- * The viewer's ceilings on this device. Core keeps none of them; the store
- * and its key are core's so that every client keeps the setting alike.
- */
+/** The viewer's quality ceilings on this device, in core's store and key so every client keeps them alike. */
 export const qualityPreferences = new QualityPreferenceStore(clientStore);
 
-/**
- * NetInfo's connection type as core's three kinds. Ethernet is Wi-Fi's
- * ceiling, not mobile data's; anything NetInfo cannot name counts as Wi-Fi,
- * which is core's rule too.
- */
+/** NetInfo's connection type as core's kinds: ethernet counts as Wi-Fi; anything unnamed is `unknown`. */
 export function connectionKindOf(type: string | undefined): ConnectionKind {
   if (type === 'cellular') return 'cellular';
   if (type === 'wifi' || type === 'ethernet') return 'wifi';
@@ -51,7 +40,7 @@ export function connectionKindOf(type: string | undefined): ConnectionKind {
 
 let connection: ConnectionKind = 'unknown';
 
-/** Set from `MachaProvider`'s NetInfo listener, the one place that has it. */
+/** Set from `MachaProvider`'s NetInfo listener. */
 export function setConnectionKind(kind: ConnectionKind): void {
   connection = kind;
 }
@@ -69,7 +58,7 @@ export function deviceQualityCeiling(): QualityCeiling | undefined {
   });
 }
 
-/** How a step reads on a button or in the sheet: core's label ("4K", "2K", "1080p"). */
+/** Core's label for a step ("4K", "2K", "1080p"). */
 export { qualityLabel } from '@machafoundation/core';
 
 /** "its video", "its audio", "its video and audio", or undefined for neither. */
@@ -78,23 +67,17 @@ export function convertedStreams(video: boolean, audio: boolean): string | undef
 }
 
 /**
- * Why Play chooses the file it does, as one sentence built from every fact
- * core gives: the file chosen, a larger one passed over because it would need
- * converting (`passedOver`), and a ceiling that kept a larger one out
- * (`limitedBy`, with its reason). The web client's `qualityChoiceText` word for
- * word, so every client says it alike.
- *
- * "Which plays without converting" is said only when a larger file was passed
- * over for needing it, since only then is it the reason. Undefined when Play
- * is choosing the largest file there is, which needs no explaining.
+ * Why Play chooses the file it does, in one sentence: the file chosen, a larger
+ * one passed over for needing conversion (`passedOver`), and a ceiling that kept
+ * a larger one out (`limitedBy`). Worded as the web client's, so clients agree.
+ * Undefined when Play is choosing the largest file, which needs no explaining.
  */
 export function qualityChoiceText(versions: Pick<PlaybackVersions, 'files' | 'automatic' | 'limitedBy' | 'passedOver'>): string | undefined {
   const { automatic, limitedBy, passedOver } = versions;
   if (!automatic) return undefined;
   const clauses: string[] = [];
   const converted = passedOver && convertedStreams(passedOver.converts.video, passedOver.converts.audio);
-  // A node's measured transcode rate for this kind of picture: the conversion
-  // is not only needed but too slow to watch.
+  // Conversion is needed and also slower than real time on every measured node.
   const tooSlow = passedOver?.reasons.includes('transcode-below-real-time');
   if (passedOver && converted) {
     clauses.push(`${qualityLabel(passedOver.quality)} needs ${converted} converted${tooSlow ? ', which the server can\'t do fast enough' : ''}`);
@@ -116,23 +99,21 @@ export function qualityChoiceText(versions: Pick<PlaybackVersions, 'files' | 'au
 }
 
 /**
- * The best rate any node has measured for transcoding a kind of picture, as
- * the resolver answers it. Automatic play passes over a
- * file no node converts at real speed; the coordinator passes it on every
- * `playbackVersions` call, and so does everything here.
+ * The best measured transcode rate per kind of picture, from the resolver.
+ * Passed on every `playbackVersions` call so automatic play skips files no
+ * node converts at real speed.
  */
 export type TranscodeRate = PlaybackVersionsOptions['transcodeRate'];
 
-/** Whether the viewer turned off the device limit. Kept in core's store with the ceilings. */
+/** Whether the viewer turned off the device limit; kept in core's store with the ceilings. */
 export function offerAll(): boolean {
   return qualityPreferences.get().offerAll === true;
 }
 
 /**
  * Whether an item's qualities are worth a button each: more than one, or one
- * that is not what Play would take anyway. A single button that does what
- * Play does is noise. What is offered at all is core's: nothing above this
- * device unless `offerAll` (`playbackVersions`).
+ * that differs from what Play would take. What is offered is core's decision
+ * (`playbackVersions`, nothing above this device unless `offerAll`).
  */
 export function offersVersions(versions: PlaybackVersions | undefined): versions is PlaybackVersions {
   if (!versions) return false;
@@ -155,13 +136,10 @@ function factsFor(files: readonly FileFacts[], mediaId: string | undefined): Fil
 }
 
 /**
- * Automatic play: the best file at or below the ceiling, or a capped
- * transcode where every file is above it. Its streams are named from that
- * file's facts, as the coordinator names them, because a 0.58.0 node refuses
- * a create on a file with several audio streams that names none.
- *
- * `preferences` are the ones the caller is starting with, for the languages
- * a stream is chosen by. Undefined only when there are no files.
+ * Automatic play: the best file at or below the ceiling, or a capped transcode
+ * when every file is above it. Streams are named from that file's facts, since
+ * the node refuses a create on a multi-audio file that names none. `preferences`
+ * supply the languages to choose by. Undefined only when there are no files.
  */
 export function automaticStart(
   files: readonly FileFacts[],
@@ -178,10 +156,7 @@ export function automaticStart(
   return { ...stepStart(step, files, preferences), versions };
 }
 
-/**
- * A quality the viewer picked, started fresh. Never capped: its preferences
- * name a concrete mode, and nothing re-ranks the file it names.
- */
+/** A quality the viewer picked, started fresh. Never capped or re-ranked. */
 export function versionStart(
   step: VersionStep,
   files: readonly FileFacts[],
@@ -218,15 +193,11 @@ function stepStart(
 /**
  * The PATCH that switches a playing session to a picked quality.
  *
- * **The height cap is always stated**, `null` for a file played as it is.
- * `restatePreferencesClearedByMode` carries the session's cap into any
- * transcode that names none, which is right for a Mode change and wrong
- * here: after a capped 720p, picking the 1080p file would come back capped.
- *
- * On the same file the streams are left to `preparePlaybackPatch`, which
- * restates the ones playing. On another file they are named from that file's
- * facts, in the languages playing now, since the old file's stream indexes
- * mean nothing on the new one (core's rule for a file switch).
+ * The height cap is always stated (`null` for an uncapped file), otherwise
+ * `restatePreferencesClearedByMode` would carry the old cap into the new pick.
+ * On the same file `preparePlaybackPatch` restates the playing streams; on
+ * another file streams are named from its facts in the current languages,
+ * since stream indexes do not carry across files.
  */
 export function versionUpdate(
   step: VersionStep,
@@ -242,9 +213,8 @@ export function versionUpdate(
     index >= 0 ? session.sourceInfo.streams.find((stream) => stream.index === index)?.language || undefined : undefined;
   const audioLanguage = languageOf(session.selected.audioStream);
   const subtitleLanguage = languageOf(session.selected.subtitleStream);
-  // The kind of subtitles playing, too: a forced track (foreign dialogue
-  // only) stays forced and a full one full, since a file may flag its forced
-  // track as the default.
+  // Keep the subtitle kind too: forced stays forced, full stays full, since a
+  // file may flag its forced track as default.
   const subtitleForced = subtitleLanguage
     ? session.sourceInfo.streams.find((stream) => stream.index === session.selected.subtitleStream)?.forced
     : undefined;
@@ -263,11 +233,7 @@ export function versionUpdate(
   };
 }
 
-/**
- * Which step the session is playing, if any: its file, capped as that step
- * caps it. A session on a file no step names, or capped by some other
- * control, is none of them.
- */
+/** The step the session is playing (same file, same cap), if any. */
 export function playingStep(steps: readonly VersionStep[], session: PlaybackSession | undefined): VersionStep | undefined {
   if (!session) return undefined;
   const cap = session.preferences.maxHeight ?? null;

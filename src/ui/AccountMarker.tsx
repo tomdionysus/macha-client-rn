@@ -6,18 +6,9 @@ import { UserIcon } from './Icons';
 import { colors, radius, type as typography, TOUCH_TARGET } from './theme';
 
 /**
- * Who you are, stated as quietly as the question deserves.
- *
- * It renders nothing at all unless the cluster has actually named a user or
- * named the anonymous account. The two silent cases are deliberate: an
- * unanswered whoami (offline, starting, or a node too old to have accounts)
- * would otherwise be drawn as "nobody is signed in", which is a claim this
- * client has no answer to make. A marker that appears a moment late is a
- * smaller fault than one that is confidently wrong.
- *
- * A letter rather than a picture, because Macha has no avatars — core models
- * a username and nothing else, and inventing an image here would be inventing
- * a field the server does not have.
+ * Header account marker: the user's initial (Macha has no avatars), or a glyph
+ * when anonymous. Renders nothing until the cluster has answered whoami, so an
+ * unanswered call is never drawn as "signed out".
  */
 export function AccountMarker() {
   const router = useRouter();
@@ -31,9 +22,6 @@ export function AccountMarker() {
       accessibilityRole="button"
       accessibilityLabel={signedIn ? `Signed in as ${display.username}` : 'Log in'}
       hitSlop={8}
-      // Signed in, the account lives in Settings beside everything else about
-      // this device. Anonymous, the only useful move is the one control the
-      // viewer came for.
       onPress={() => router.navigate(signedIn ? '/settings' : '/login')}
       style={({ pressed }) => [styles.target, pressed && styles.pressed]}>
       <View style={[styles.disc, signedIn && styles.identified]}>
@@ -50,8 +38,7 @@ export function AccountMarker() {
 }
 
 const styles = StyleSheet.create({
-  // A full touch target around a much smaller mark: the disc is the subtle
-  // part, the 44pt box is what a thumb actually has to hit.
+  // Full touch target around a smaller disc.
   target: {
     width: TOUCH_TARGET,
     height: TOUCH_TARGET,
@@ -65,8 +52,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Only a signed-in marker carries a disc. Anonymous is a glyph on the same
-  // footing as the other header buttons, because it is one.
+  // Only signed-in gets a disc; anonymous matches the other header buttons.
   identified: {
     backgroundColor: colors.surface2,
     borderWidth: StyleSheet.hairlineWidth,

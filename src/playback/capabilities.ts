@@ -12,31 +12,23 @@ import type { PlaybackCapabilities } from '@machafoundation/core';
 import type { PlaybackPolicyOverrides } from '@machafoundation/core';
 
 /**
- * What this device can decode without the node transforming anything.
+ * What this device can play without the node transforming anything.
  *
  * Each platform starts from its player's guaranteed baseline (AVPlayer,
- * ExoPlayer); Android then narrows and widens it by probing. Anything not
- * claimed makes the node remux or transcode, and the server performs what it
- * is told, so an over-claim plays as a black screen or silence.
+ * ExoPlayer); Android then narrows and widens it by probing. The node does what
+ * it is told, so an over-claim plays as a black screen or silence.
  *
- * On Android the largest picture the decoders manage is stated as `maxWidth` /
- * `maxHeight` (`decoderSizeLimit`). Core's chooser objects to a larger picture
- * (`video-size-exceeds-client`), and `playbackVersions` offers nothing above it
- * unless the viewer turned the limit off (`QualityPreference.offerAll`).
- *
- * The limit is never the screen: a panel smaller than 1080p would refuse
- * Direct Play of files its decoders manage. The screen is only a preference
- * default for automatic play (`qualityCeiling`). iOS and web have no probe and
- * state no limit.
+ * On Android `maxWidth`/`maxHeight` come from the decoders (`decoderSizeLimit`),
+ * never the screen, so a small panel can still Direct Play what its decoders
+ * manage; the screen only sets the automatic quality default (`qualityCeiling`).
  */
 export function deviceCapabilities(): PlaybackCapabilities {
   return platformCapabilities();
 }
 
 /**
- * The panel in physical pixels. `screen` rather than `window`, because the
- * window loses the system bars and the panel does not. Stated landscape;
- * core classes a screen either way up (`displayQualityClass`).
+ * The panel in physical pixels, landscape. `screen` rather than `window`,
+ * which excludes the system bars.
  */
 export function displayPixels(): { width: number; height: number } | undefined {
   const { width, height, scale } = Dimensions.get('screen');
@@ -45,11 +37,7 @@ export function displayPixels(): { width: number; height: number } | undefined {
   return long > 0 && short > 0 ? { width: long, height: short } : undefined;
 }
 
-/**
- * The decoders' frame sizes, memoised like the profiles, or undefined where
- * they could not be asked (no native module, a build predating the call, or
- * a throw), which states no limit.
- */
+/** Memoised decoder frame sizes; undefined (no limit) when they could not be asked. */
 let probedSizes: { sizes: Record<string, { width: number; height: number }> | undefined } | undefined;
 
 function probedDecoderSizes(): Record<string, { width: number; height: number }> | undefined {
@@ -70,9 +58,8 @@ function platformCapabilities(): PlaybackCapabilities {
   const audioContainers = ['mp3', 'm4a', 'aac', 'wav', 'flac'];
 
   if (Platform.OS === 'android') {
-    // See `codecProbe`. A build without the native module, or a device that
-    // reports nothing, leaves the declared lists as written, less the codecs
-    // that must be probed to be claimed.
+    // See `codecProbe`. With no probe the declared lists stand, less the
+    // codecs that must be probed to be claimed.
     const profiles = probedProfiles();
     const decoders = profiles ? Object.keys(profiles) : undefined;
     const narrow = (declared: string[]) => decodableCodecs(declared, decoders);
@@ -81,32 +68,23 @@ function platformCapabilities(): PlaybackCapabilities {
     return {
       platform: 'android',
       containers: ['mp4', 'm4v', 'mov', ...audioContainers, 'mkv', 'matroska', 'webm', 'ogg', 'oga', 'opus'],
-      // The probe removes what this device cannot decode and adds AV1 where it
-      // can; see `PROBED_VIDEO_ADDITIONS`.
+      // Narrowed by the probe, plus AV1 where decodable (`PROBED_VIDEO_ADDITIONS`).
       videoCodecs: claimedVideo,
-      // `ac3` and `eac3` are listed as formats, not as hardware: the probe
-      // removes them where the device has no decoder. Claimed without one, the
-      // node Direct Plays and media3 selects no audio track, so the title plays
-      // in silence with nothing logged.
+      // Formats, not hardware: the probe removes `ac3`/`eac3` where there is no
+      // decoder, since a false claim plays silent with nothing logged.
       audioCodecs: claimedAudio,
       hlsFmp4: true,
       hlsTs: true,
-      // The delivery lists are the decode lists. A narrower HLS claim
-      // re-encodes audio and rules out AV1 delivery however capable the device
-      // is; a wider one, if media3's HLS path cannot demux a codec in fMP4,
-      // fails visibly and can be reported.
+      // Delivery lists equal the decode lists. Narrower would re-encode audio and
+      // rule out AV1; if media3's HLS path cannot demux a codec, it fails visibly.
       hlsVideoCodecs: claimedVideo,
       hlsAudioCodecs: claimedAudio,
       // Core does not read `capabilities.dash`.
       dash: true,
-      // Whether the stream can be presented at all, asked of the device. Not a
-      // judgement of the panel's quality. An undeclared `dolbyVision` reads in
-      // core as an empty list.
+      // Whether the stream can be presented at all, not a judgement of the panel.
       hdr: probedHdrTransfers(claimedVideo, profiles, probedDisplayHdr()) ?? [],
       dolbyVision: probedDolbyVisionProfiles(profiles),
-      // Derived from the decoder profiles; see `probedVideoBitDepth` for why the
-      // answer is the minimum across claimed codecs. 8 when the device cannot
-      // be asked.
+      // Minimum across claimed codecs (see `probedVideoBitDepth`); 8 when unknown.
       videoBitDepth: probedVideoBitDepth(claimedVideo, profiles) ?? 8,
       // Absent where the device could not be asked; see `decoderSizeLimit`.
       ...decoderSizeLimit(probedDecoderSizes(), claimedVideo),
@@ -115,13 +93,11 @@ function platformCapabilities(): PlaybackCapabilities {
 
   if (Platform.OS === 'ios') {
     return {
-      // Names the executor, not the operating system: AVPlayer and a browser
-      // engine differ on HLS packaging and on ALAC. Read only locally.
+      // The executor, not the OS: AVPlayer and a browser differ on HLS packaging and ALAC.
       platform: 'ios',
       containers: ['mp4', 'm4v', 'mov', ...audioContainers, 'aiff'],
       videoCodecs: ['h264', 'hevc'],
-      // Claimed unconditionally, unlike Android: AVFoundation decodes both on
-      // every shipping Apple device, and iOS has no probe.
+      // Unconditional: AVFoundation decodes both on every Apple device, and iOS has no probe.
       audioCodecs: ['aac', 'ac3', 'eac3', 'alac', 'mp3', 'flac'],
       hlsFmp4: true,
       hlsTs: true,
@@ -144,12 +120,7 @@ function platformCapabilities(): PlaybackCapabilities {
   };
 }
 
-/**
- * What the panel can present, memoised beside the decoder answer.
- *
- * `undefined` means the platform could not be asked, which must not read as
- * "no HDR" — see `probedHdrTransfers`.
- */
+/** Memoised display HDR types; `null` means the platform could not be asked, not "no HDR". */
 let probedDisplay: { types: number[] | null } | undefined;
 
 function probedDisplayHdr(): number[] | null {
@@ -165,19 +136,14 @@ function probedDisplayHdr(): number[] | null {
 }
 
 /**
- * The decoder profiles this device reports, or `undefined`.
- *
- * Every failure is the same answer: no native module (iOS, web, or a build
- * predating it), a throw from the platform, or an empty map all mean "not
- * known", and `codecProbe` then leaves the declared lists alone. This must
- * never narrow on a failure to ask — that would silently force transforms for
- * every codec on any device where the call went wrong.
+ * Memoised decoder profiles, or `undefined` when unknown (no native module, a
+ * throw, or an empty map). Never narrow on a failure to ask: that would force
+ * transforms for every codec.
  */
 let probed: { profiles: Record<string, number[]> | undefined } | undefined;
 
 function probedProfiles(): Record<string, number[]> | undefined {
-  // Memoised: enumerating `MediaCodecList` is not free, this is asked on every
-  // create and failover, and a device's decoders do not change in-process.
+  // Memoised: enumerating `MediaCodecList` is costly and asked on every create and failover.
   if (probed) return probed.profiles;
   let profiles: Record<string, number[]> | undefined;
   try {
@@ -187,8 +153,7 @@ function probedProfiles(): Record<string, number[]> | undefined {
     profiles = undefined;
   }
   probed = { profiles };
-  // Logged once so that "asked and told no" is distinguishable from "never
-  // asked".
+  // Logged once so "asked and told no" is distinguishable from "never asked".
   const types = profiles ? Object.keys(profiles) : [];
   console.log('[macha] [playback] codec-probe', {
     available: MachaCodecs != null,
@@ -201,12 +166,7 @@ function probedProfiles(): Record<string, number[]> | undefined {
   return profiles;
 }
 
-/**
- * Facts about the host that no probe can discover.
- *
- * Nothing is excluded. The server performs exactly what it is told, so a
- * device that mis-reports a decoder is corrected here.
- */
+/** Host facts no probe can discover, for correcting a device that mis-reports a decoder. Currently none. */
 export function devicePlaybackOverrides(): PlaybackPolicyOverrides {
   return {};
 }

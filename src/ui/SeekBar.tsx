@@ -11,38 +11,31 @@ interface Props {
   onSeek(positionMs: number): void;
 }
 
-/** The bar is thin at rest and thickens under a finger, so the touch target is generous but the chrome is not. */
+/** The bar thickens while scrubbed. */
 const TRACK_HEIGHT = 4;
 const ACTIVE_TRACK_HEIGHT = 7;
 const THUMB_SIZE = 15;
-/** A comfortable strip to grab, well beyond the drawn bar. */
+/** Touch strip height, well beyond the drawn bar. */
 const HIT_HEIGHT = 34;
 
 /**
- * A transactional scrubber: dragging moves only the local preview, and the
- * player is asked to seek once, on release. Seeking continuously during a drag
- * would have a transformed stream renegotiating on every pixel.
+ * Scrubber that seeks once, on release; dragging only moves the preview, since
+ * continuous seeks would renegotiate a transformed stream on every pixel.
  */
 export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, onSeek }: Props) {
   const [width, setWidth] = useState(0);
   const [scrubMs, setScrubMs] = useState<number | undefined>(undefined);
-  // Refs, not state: the pan handlers are created once and would otherwise
-  // capture the first render's width and duration forever.
+  // Props are read through refs so the PanResponder is created once: position
+  // updates re-render several times a second, and a responder rebuilt mid-drag
+  // resets `dx` and snaps the thumb back.
   const widthRef = useRef(0);
   const durationRef = useRef(durationMs);
   durationRef.current = durationMs;
-  // `enabled` and `onSeek` are read through refs for the same reason, and it
-  // matters more than it looks: the player reports a position several times a
-  // second, so anything rebuilding the handlers on a prop change rebuilds them
-  // *during* a drag. `play.tsx` passes an inline arrow, so `onSeek` is a new
-  // function on every one of those renders. A fresh `PanResponder` mid-gesture
-  // starts a fresh gesture: `dx` resets to zero and the thumb snaps back to
-  // where the finger landed, several times a second.
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const onSeekRef = useRef(onSeek);
   onSeekRef.current = onSeek;
-  /** Where the finger first landed, so the whole drag is measured from one origin. */
+  /** Where the finger first landed; the drag is measured from here. */
   const grantXRef = useRef(0);
 
   const displayMs = scrubMs ?? positionMs;
@@ -58,9 +51,7 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
           grantXRef.current = event.nativeEvent.locationX;
           setScrubMs(positionAt(grantXRef.current, widthRef.current, durationRef.current));
         },
-        // Only the grant location is trustworthy as an absolute x: during a
-        // drag the touch may be over a child view with its own coordinates.
-        // Everything after it is measured as travel from that origin.
+        // locationX is only reliable at grant; mid-drag it may be relative to a child view.
         onPanResponderMove: (_event, gesture) => {
           setScrubMs(positionAt(grantXRef.current + gesture.dx, widthRef.current, durationRef.current));
         },
@@ -71,7 +62,7 @@ export function SeekBar({ positionMs, durationMs, bufferedMs, enabled = true, on
         },
         onPanResponderTerminate: () => setScrubMs(undefined),
       }),
-    // Created once, deliberately: see the refs above.
+    // Created once: see the refs above.
     [],
   );
 

@@ -1,27 +1,19 @@
 /**
- * Every playback session this install holds open, kept where the next process
- * can find it.
+ * Persists every playback session this install holds open, so the next
+ * process can close those a dead one left behind.
  *
- * **The gap is process death.** `releaseSession` runs on stop, on replacement
- * and on reconfiguration, but not when the app is swiped away, killed, or
- * replaced by `install -r` — and backgrounding deliberately does not release,
- * so music can keep playing. A session left that way holds its node's video
- * transcode slot and counts against the account until `session_idle` reaps it,
- * thirty minutes later, so orphans can make the node refuse a create with
- * `429 resource_limit`.
+ * `releaseSession` does not run when the app is killed or replaced, and
+ * backgrounding deliberately keeps sessions so music plays on. An orphan holds
+ * a transcode slot and counts against the account until `session_idle` reaps it
+ * (thirty minutes), and can make the node refuse creates with `429 resource_limit`.
  *
- * **The dead process cannot close them; the next one can.** Core's
- * `docs/resolver-direct.md`: a resolver-direct host owns every session it
- * creates, including those left by a process that died, and `stop()` acts on an
- * id it has no record of — core mints `${endpoint.id}::${nodeSessionId}` and
- * recovers the node from it, and an untracked close never throws and never
- * charges the node. So the ids are written down as they are handed out and
- * closed at the next launch.
+ * Core's `stop()` closes an id it has no record of (it recovers the node from
+ * the id, never throws, never charges the node), so ids are recorded as issued
+ * and closed at the next launch.
  *
- * **Taken once per process, at hydration.** The playback services are rebuilt
- * on every connection generation; a reclaim that re-read the ledger each time
- * would close the session playing right now. The snapshot is taken before any
- * endpoint exists to create one on.
+ * Orphans are taken once per process, at hydration, before any endpoint exists:
+ * services are rebuilt per connection generation, and re-reading would close
+ * the session now playing.
  */
 
 /** The synchronous half of `clientStore`, which is all this needs. */
@@ -45,7 +37,7 @@ export class SessionLedger {
     try {
       parsed = JSON.parse(this.storage.getItem(this.key) ?? '[]');
     } catch {
-      // A value this cannot read closes nothing; it must not stop the app.
+      // An unreadable value closes nothing and must not stop the app.
       return [];
     }
     return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
@@ -63,10 +55,7 @@ export class SessionLedger {
     this.storage.setItem(this.key, JSON.stringify(ids.filter((id) => id !== sessionId)));
   }
 
-  /**
-   * The ids a previous process left, once. Every later call answers empty, so
-   * nothing this process records can be mistaken for an orphan.
-   */
+  /** The ids a previous process left, once; later calls answer empty so this process's ids are never orphans. */
   takeOrphans(): string[] {
     if (this.taken) return [];
     this.taken = true;
@@ -75,12 +64,9 @@ export class SessionLedger {
 }
 
 /**
- * Close each orphan and forget it, whether or not the close worked.
- *
- * Forgotten on failure too: a node that will not answer reaps the session on
- * its own clock, and keeping the id would retry it on every launch for ever.
- * Sequential, because they are few and a burst of `DELETE`s at startup buys
- * nothing over a trickle.
+ * Close each orphan sequentially and forget it whether or not the close
+ * worked: an unresponsive node reaps on its own clock, and retrying every
+ * launch would never end.
  */
 export async function reclaimOrphans(
   orphans: readonly string[],
@@ -91,7 +77,7 @@ export async function reclaimOrphans(
     try {
       await close(sessionId);
     } catch {
-      // Core's untracked close does not throw; this is for a close that does.
+      // Core's untracked close does not throw; this guards a close that does.
     } finally {
       ledger.forget(sessionId);
     }

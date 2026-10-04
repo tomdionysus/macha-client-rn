@@ -3,11 +3,9 @@ import type { PlaybackSession } from '@machafoundation/core';
 import { generationLocalMs, generationOriginMs, titlePositionMs } from './policy';
 
 /**
- * The title's timeline and a generation's are different. A transformed
- * generation begins at the node's `seekMs`, and the player reports positions
- * from that origin: *Avatar*, transcoded and scrubbed to 1:44:35, is built at
- * `seekMs 6275725` and then reports about 13 s, which read as a title
- * position would put the bar at `0:13`.
+ * A transformed generation's positions are relative to the node's `seekMs`:
+ * a transcode scrubbed to 1:44:35 starts at `seekMs 6275725` and then reports
+ * about 13 s, which read as a title position would put the bar at 0:13.
  */
 
 const transformed = (seekMs: number) =>
@@ -15,7 +13,7 @@ const transformed = (seekMs: number) =>
 const direct = (seekMs = 0) =>
   ({ source: { isManifest: false }, seekMs }) as unknown as PlaybackSession;
 
-/** A downloaded original played off the disk: no node, no generation. */
+/** A downloaded original played from disk: no node, no generation. */
 const noSession = undefined;
 
 describe('generationOriginMs', () => {
@@ -24,8 +22,7 @@ describe('generationOriginMs', () => {
   });
 
   it('is zero for direct play, which is the whole file', () => {
-    // For direct the two timelines coincide. Adding an origin here would move
-    // a position that is already right.
+    // The timelines coincide for direct; an origin would move a correct position.
     expect(generationOriginMs(direct(2_673_964))).toBe(0);
   });
 
@@ -40,13 +37,12 @@ describe('generationOriginMs', () => {
 
 describe('titlePositionMs', () => {
   it('puts the measured Avatar reading back on the title timeline', () => {
-    // 0:13 into a generation that begins at 1:44:35.7 is 1:44:48.7 of the
-    // film, not 13 seconds.
+    // 0:13 into a generation starting at 1:44:35.7 is 1:44:48.7 of the film.
     expect(titlePositionMs(transformed(6_275_725), 13_000)).toBe(6_288_725);
   });
 
   it('reports the generation origin at the moment it starts', () => {
-    // What the bar should read the instant a rebuilding seek lands.
+    // What the bar reads the instant a rebuilding seek lands.
     expect(titlePositionMs(transformed(6_275_725), 0)).toBe(6_275_725);
   });
 
@@ -65,9 +61,8 @@ describe('titlePositionMs', () => {
 
 describe('generationLocalMs', () => {
   it('converts a title position back for writing into the player', () => {
-    // seekTo writes currentTime directly when the target is already buffered.
-    // Writing 1:44:48 into a generation that starts at 1:44:35 would ask for a
-    // point nearly two hours past anything the node has produced.
+    // seekTo writes currentTime directly for a buffered target; a title position
+    // would land far past anything produced.
     expect(generationLocalMs(transformed(6_275_725), 6_288_725)).toBe(13_000);
   });
 
@@ -77,9 +72,7 @@ describe('generationLocalMs', () => {
   });
 
   it('clamps a target below the generation origin to its start', () => {
-    // A backward seek past the origin cannot be served by this generation; the
-    // reposition path is what handles it, and this must not go negative on the
-    // way there.
+    // The reposition path handles a seek before the origin; this must not go negative.
     expect(generationLocalMs(transformed(6_275_725), 60_000)).toBe(0);
   });
 

@@ -8,19 +8,11 @@ import {
 import { classifyProbe, recoveryAfterProbe } from './policy';
 
 /**
- * A reaped session is not the node failing.
- *
- * A viewer pauses past `session_idle` (30 minutes); the node reaps the session,
- * correctly; on resume media3 fetches the next fragment, gets `404`, and the
- * player errors. Failover starts by charging the endpoint, so failing over
- * here would drop the node that answered honestly and send the viewer to one
- * that never held the session.
- *
- * expo-video hides the status, so this client asks instead: `sessionAlive` on
- * the owning node, which records nothing against it either way. Which player
- * error gets asked about is decided before this, by waiting out the node's own
- * window, so an error from a source already
- * replaced never reaches the probe.
+ * A reaped session is not the node failing. After a pause past `session_idle`
+ * the node reaps it and the next fragment 404s; failing over would charge an
+ * honest node and move to one that never held the session. expo-video hides
+ * the status, so the client asks the owning node via `sessionAlive`, which
+ * charges nothing. Errors from an already replaced source are settled out first.
  */
 
 describe('classifyProbe', () => {
@@ -45,15 +37,13 @@ describe('classifyProbe', () => {
 
 describe('recoveryAfterProbe', () => {
   it('regenerates on the same node when the node has forgotten the session', () => {
-    // Same node, nothing charged: every other node would answer 404 for a
-    // session it never held.
+    // Same node, nothing charged: every other node would 404 a session it never held.
     expect(recoveryAfterProbe('gone', 1_900_000, undefined)).toBe('regenerate');
   });
 
   it('fails over when a regeneration at this very position made no progress', () => {
-    // Core's own bound, `session-regeneration-made-no-progress`: the same
-    // position, rounded to the millisecond, means the last regeneration changed
-    // nothing and the next step must differ.
+    // Core's `session-regeneration-made-no-progress`: the same position to the
+    // millisecond means the last regeneration changed nothing.
     expect(recoveryAfterProbe('gone', 1_900_000.4, 1_900_000)).toBe('failover');
   });
 
@@ -62,10 +52,8 @@ describe('recoveryAfterProbe', () => {
   });
 
   it('fails over on a live session, which is a deliberate divergence from core', () => {
-    // Core stops there: an alive session answering 404 is a fragment past the
-    // end of a live plan. This client cannot tell that case apart, because
-    // expo-video hides the status, so a live session with a failing player
-    // still fails over, deliberately.
+    // Core stops here (a live plan's past-end 404), but expo-video hides the
+    // status, so this client cannot tell that case apart and fails over.
     expect(recoveryAfterProbe('alive', 1_900_000, undefined)).toBe('failover');
   });
 

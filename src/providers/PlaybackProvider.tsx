@@ -81,28 +81,15 @@ export interface PlaybackState {
   queueIndex: number;
   shuffle: boolean;
   repeat: RepeatMode;
-  /**
-   * The qualities the playing item offers, and why automatic play took less
-   * than its best where a ceiling did; see `playback/quality.ts`. Absent off
-   * the disk, and where the node gave no facts.
-   */
+  /** Qualities the playing item offers, and any ceiling automatic play applied; absent off the disk. See `playback/quality.ts`. */
   versions?: PlaybackVersions;
-  /**
-   * The failure is a quality no node converts at real speed: the failure
-   * screen offers another quality beside Try again. See `playback/tooSlow.ts`.
-   */
+  /** Failed because no node converts this quality at real speed; the failure screen offers another. See `playback/tooSlow.ts`. */
   tooSlow?: boolean;
-  /**
-   * What the node reports a start or change is doing (the server's
-   * `start=async`), while it does it; see `playback/startProgress.ts`.
-   */
+  /** The node's progress on an async start or change (`start=async`). */
   startProgress?: PlaybackStartProgress;
-  /** When the item now loading was asked for, for the wait notice's count. */
+  /** When the loading item was requested, for the wait notice's timer. */
   startedAtMs?: number;
-  /**
-   * A new stream is being built behind the one playing: a change, a
-   * failover, or a reaped session regenerated.
-   */
+  /** A new stream is being built behind the playing one (change, failover or regeneration). */
   preparing?: boolean;
 }
 
@@ -152,42 +139,16 @@ export function usePlayback(): PlaybackContextValue {
 
 /** Progress is checkpointed at most this often; it is a resume hint, not telemetry. */
 const PROGRESS_CHECKPOINT_MS = 5_000;
-/**
- * How many replacements to admit before telling the viewer a title will not play.
- *
- * Bounded because a title that is genuinely broken fails identically on every
- * node, and walking a whole cluster to prove it only delays the message.
- */
+/** Failovers admitted before reporting the title unplayable; a broken title fails on every node. */
 const MAX_FAILOVER_ATTEMPTS = 2;
 
-/**
- * How long playback must survive before the budget above is forgiven.
- *
- * The budget exists to stop a broken title cycling the cluster, and those
- * failures arrive back to back. A node that dies half an hour into a film is a
- * different event from the one that died at the start, and should not be
- * refused because of it — so the count is a burst limit rather than a lifetime
- * one.
- */
+/** Playback surviving this long resets the failover budget: it is a burst limit, not a lifetime one. */
 const FAILOVER_BUDGET_RESET_MS = 60_000;
 
-/**
- * What a viewer reads when the player failed and no recovery was possible.
- *
- * Claims only what is known: the stream stopped, recovery did not work. The
- * player's own message is a codec or network trace and expo-video hides the
- * HTTP status that would say more.
- */
+/** Shown when the player failed unrecoverably. expo-video hides the HTTP status, so it claims no cause. */
 const PLAYER_FAILURE_MESSAGE = 'This stream stopped playing and could not be recovered. Try again.';
 
-/**
- * What a viewer reads when a change they asked for left the player in error.
- *
- * Honest about what is known and no more: the change was theirs, the stream
- * after it did not play, and expo-video never says why — so "may", and a
- * remedy they can reach from where they are. Not the player's own message,
- * which is a codec trace such as "MediaCodecVideoRenderer error, index=0".
- */
+/** Shown when a viewer's change left the player in error; expo-video never says why, so "may". */
 const SUPERSEDED_FAILURE_MESSAGE =
   'Playback stopped after the change and did not recover. This device may not be able to play the stream that way. '
   + 'Try another mode from the playback menu, or try again.';
@@ -210,19 +171,13 @@ const IDLE: PlaybackState = {
 };
 
 /**
- * The application-scoped playback runtime: the sole owner of the platform
- * player and of the active Macha session lease.
+ * App-scoped playback runtime: sole owner of the platform player and the active
+ * Macha session. The full-screen player and mini player are views of it, so
+ * moving between them never touches the session or source.
  *
- * React owns presentation only. The full-screen player route and the docked
- * mini player are two views of this one runtime, so moving between them — or
- * remounting either — never creates a session, reloads the source, seeks or
- * renegotiates playback.
- *
- * Resource-changing transitions are generation-ordered: starting another item
- * closes the old session before a replacement may be created, and a session
- * whose POST completes after its generation was superseded is deleted rather
- * than activated. Transport operations that do not change the source stay
- * local and immediate.
+ * Source-changing transitions are generation-ordered: the old session closes
+ * before a new one is created, and a session whose POST lands after its
+ * generation was superseded is deleted. Transport controls stay local.
  */
 export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const {
@@ -257,78 +212,37 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   /** Guards one play-count increment per started item. */
   const countedPlayRef = useRef<string | undefined>(undefined);
   const generationRef = useRef(0);
-  /**
-   * Which engine owns the current item. Music runs on the native audio player
-   * for a real media session — notification transport, headset buttons,
-   * tap-to-open — while video stays on expo-video.
-   */
+  /** Music runs on the native audio player for a real media session; video on expo-video. */
   const engineRef = useRef<'video' | 'audio'>('video');
   const lastCheckpointRef = useRef(0);
   const durationRef = useRef(0);
   /**
-   * The runtime as the node reports it, which the player may not override.
-   *
-   * A transformed stream is a growing playlist, so the player's own `duration`
-   * describes what has been produced rather than what the film is; letting that
-   * win pins the seek bar to its right-hand end and the remaining time at
-   * `−0:00`. Zero means nobody authoritative has
-   * said yet, and only then is the player's figure worth having — a downloaded
-   * file played off the disk has no session and no profile, and there the
-   * player is the only source there is.
+   * The node's runtime, which the player may not override: a transformed stream
+   * is a growing playlist whose player `duration` is only what has been produced.
+   * Zero means unknown, and only then (e.g. a download) does the player's figure count.
    */
   const knownDurationRef = useRef(0);
   const positionRef = useRef(0);
   /**
-   * Whether the source now in the player has reported any progress.
-   *
-   * **The only thing that tells a real end from the one `load` causes.**
-   * expo-video empties the player on `replace(null)` with `clearMediaItems()`
-   * and `prepare()`, which leaves ExoPlayer in `STATE_ENDED` with no error, and
-   * it sends `playToEnd` for exactly that state. `load` makes that call after
-   * pointing `mediaRef` at the item it is loading, so without this the listener
-   * would take it as that item finishing, retire it from Continue Watching and
-   * advance.
-   *
-   * A flag rather than a threshold on position against duration: a server
-   * duration a few seconds longer than the stream would make a threshold
-   * refuse genuine ends, and auto-advance is the thing being protected.
+   * Whether the current source has reported progress: the only way to tell a
+   * real end from the spurious `playToEnd` that `replace(null)` causes (ExoPlayer
+   * lands in `STATE_ENDED`). A flag, not a position threshold, because server
+   * durations can run a few seconds long.
    */
   const progressedRef = useRef(false);
   /** Where the last regeneration was asked for; see `recoveryAfterProbe`. */
   const lastRegenerationPositionRef = useRef<number | undefined>(undefined);
-  /**
-   * How far the player has buffered, as its own ref.
-   *
-   * Read by `seekTo` to decide whether a seek lands beyond what the node has
-   * produced. State is no use there: `seekTo` reaches us from a gesture handler
-   * created once, which would capture the first render's value forever.
-   */
+  /** Buffered extent, as a ref because `seekTo` is called from a gesture handler created once. */
   const bufferedRef = useRef(0);
-  /**
-   * What the video player's volume should be, for `restoredVolume` to measure a
-   * duck against. Constant today: nothing in this client offers an in-app volume
-   * control, because a phone already has hardware buttons and a system slider.
-   * It is a ref rather than a literal so that adding one later cannot forget
-   * this path and leave the viewer fighting an automatic restore.
-   */
+  /** The intended video volume, for `restoredVolume` to measure a duck against. A ref so an in-app volume control would update it. */
   const intendedVolumeRef = useRef(1);
   /**
-   * A seek the player has been asked for but has not yet reached.
-   *
-   * Both engines keep reporting the *old* position for a few frames after a
-   * seek, and on a transformed stream for a good deal longer. Accepting those
-   * reports drags the bar back to where the viewer just left, then jumps it
-   * forward when the seek lands — and writes the stale position to Continue
-   * Watching on the way past. So reports are ignored until one arrives near the
-   * target, or until the deadline, which is the guard against a seek that never
-   * lands leaving the position frozen for good.
+   * A seek not yet reached. Both engines report the old position for a while
+   * after a seek, so reports are ignored until one lands near the target or the
+   * deadline passes.
    */
   const pendingSeekRef = useRef<{ targetMs: number; atMs: number } | undefined>(undefined);
-  /**
-   * The viewer's seek target, pinned until the stream that serves it is on
-   * the player and tracking; see `playback/seekIntent.ts`. The bar shows it,
-   * and a further seek builds on it, as the web client's does.
-   */
+  /** The viewer's seek target, pinned until the stream serving it is tracking; see `playback/seekIntent.ts`. */
   const seekIntentRef = useRef<SeekIntent | undefined>(undefined);
   /** The last position the player actually reported, for a seek that never lands. */
   const observedPositionRef = useRef(0);
@@ -337,26 +251,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   /** The node request for a seek in flight, aborted when the viewer seeks again. */
   const seekRequestRef = useRef<AbortController | undefined>(undefined);
   /**
-   * The picture held while the node builds the generation a seek needs, and
-   * whether to play once it is on: the web holds the frame at the instant the
-   * viewer asks, rather than letting the old stream play on from where they
-   * left. Play and Pause pressed meanwhile change only `resume`.
+   * Set while the frame is held for a seek's new generation; `resume` says
+   * whether to play once it is on. Play/Pause meanwhile change only `resume`.
    */
   const seekHoldRef = useRef<{ resume: boolean } | undefined>(undefined);
-  /**
-   * Whether the viewer paused, which is what a held seek resumes to. Not
-   * `player.playing`: that is false while ExoPlayer buffers, so a seek made
-   * just after another would read as a pause and leave the film paused once
-   * the new generation is on.
-   */
+  /** Whether the viewer paused. Not `player.playing`, which is false while ExoPlayer buffers. */
   const viewerPausedRef = useRef(false);
   const failoverAttemptsRef = useRef(0);
   const lastFailoverAtRef = useRef(0);
   const failoverInFlightRef = useRef(false);
-  /**
-   * A start or change's progress onto the state, for the generation that
-   * asked for it only; gone once it is ready or has failed.
-   */
+  /** Publishes start progress for the requesting generation only; cleared once ready or failed. */
   const reportStartProgress = useCallback(
     (generation: number): StartProgressListener =>
       (progress) => {
@@ -366,27 +270,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       },
     [],
   );
-  /**
-   * The quality the viewer picked for this item, so a retry replays their
-   * choice rather than automatic play; and the item's file facts, so a
-   * switch to another file can name that file's streams.
-   */
+  /** The quality the viewer picked for this item, so a retry replays it. */
   const versionRef = useRef<VersionStep | undefined>(undefined);
-  /**
-   * Whether this item's source is on the player yet. Until it is, what the
-   * player reports describes nothing of ours: an idle expo-video player ticks
-   * position 0 every 250 ms with no source at all. Taken as the viewer's
-   * position, one tick while the session is being made would become the
-   * resume point, checkpointed into Continue Watching and used by a retry or
-   * a stop.
-   */
+  /** Whether this item's source is on the player yet; until then, an idle player's position-0 ticks are ignored. */
   const presentedRef = useRef(false);
-  /**
-   * Who chose how this item plays, for Continue Watching (`progressOf`): a
-   * resume restores the viewer's mode and quality, and lets automatic play
-   * choose again where it chose.
-   */
+  /** Who chose how this item plays, so a resume restores only the viewer's choices. */
   const choiceRef = useRef<PlaybackChoice>({ chosenByViewer: false });
+  /** The item's file facts, so a switch to another file can name its streams. */
   const filesRef = useRef<readonly PlaybackMediaFacts[] | undefined>(undefined);
   /** The playing item's qualities, highest first, for a step down; see `tooSlowToPlay`. */
   const stepsRef = useRef<readonly VersionStep[]>([]);
@@ -395,8 +285,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => () => player.release(), [player]);
 
-  // Restore a resumable queue on a cold start. This loads intent only: no
-  // session is created until the viewer actually presses play.
+  // Restore a saved queue on cold start; no session until the viewer presses play.
   useEffect(() => {
     const restored = queueStore.load();
     if (!restored) return;
@@ -412,8 +301,6 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       if (!force && now - lastCheckpointRef.current < PROGRESS_CHECKPOINT_MS) return;
       lastCheckpointRef.current = now;
-      // The title, the file and how it is playing, so a resume restores all
-      // three; off the disk, the position alone.
       if (belongsInContinueWatching(media)) {
         continueWatching.update(progressOf(media, positionMs, durationMs, sessionRef.current, choiceRef.current));
       }
@@ -429,7 +316,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       try {
         await playbackApi.stop(session);
       } catch {
-        // Session expiry and explicit cleanup are equivalent to the client.
+        // Expiry and explicit cleanup are equivalent.
       }
     },
     [playbackApi],
@@ -462,8 +349,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const previous = sessionRef.current;
       sessionRef.current = undefined;
       mediaRef.current = media;
-      // Each item gets its own budget: a title that exhausted the cluster says
-      // nothing about the next one.
+      // Each item gets its own failover budget.
       failoverAttemptsRef.current = 0;
       lastFailoverAtRef.current = 0;
       failoverInFlightRef.current = false;
@@ -471,8 +357,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         queueRef.current.items.length === items.length &&
         queueRef.current.items.every((existing, position) => existing.id === items[position]?.id);
       queueRef.current = { items: [...items], index };
-      // Keep an existing shuffle order across an ordinary advance; only a
-      // genuinely different queue earns a reshuffle.
+      // Keep the shuffle order across an advance; only a different queue reshuffles.
       if (!sameQueue || orderRef.current.length !== items.length) {
         orderRef.current = buildOrder(items.length, shuffleRef.current, index);
       }
@@ -490,21 +375,16 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       viewerPausedRef.current = false;
       presentedRef.current = false;
       positionRef.current = 0;
-      // A new item starts its regeneration bound afresh, as core's does.
       lastRegenerationPositionRef.current = undefined;
       // Before the `replace(null)` below, whose `playToEnd` must not count.
       progressedRef.current = false;
       lastCheckpointRef.current = 0;
       knownDurationRef.current = 0;
-      // The new item's own figure, as the state below has it. Left alone it
-      // would carry the previous item's duration, paired with the new
-      // `mediaRef`, until the source reports one.
+      // Otherwise the previous item's duration lingers until the source reports.
       durationRef.current = media.durationMs ?? 0;
 
-      // **`busy` is owned from here to the `finally` below, with nothing
-      // outside it.** Anything thrown between setting it and entering the
-      // `try` would strand the flag and leave the Play button disabled until
-      // the app is restarted.
+      // Nothing may throw between setting `busy` and the `try`, or the flag is
+      // stranded and Play stays disabled.
       setBusy(true);
       try {
         setState((current) => ({
@@ -526,14 +406,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           versions: undefined,
         }));
 
-        // The old lease is released before a replacement is requested, so a node
-        // never holds two transcode entitlements for one viewer.
+        // Release the old session before requesting a new one, so a node never
+        // holds two transcode slots for one viewer.
         const audio = media.kind === 'track';
         engineRef.current = audio ? 'audio' : 'video';
         player.pause();
         player.replace(null, true);
-        // The audio engine owns music entirely, notification included, so
-        // expo-video must not also claim a media session or a background slot.
+        // The audio engine owns music and its notification; expo-video must not
+        // also claim a media session.
         player.staysActiveInBackground = false;
         player.showNowPlayingNotification = false;
         if (!audio) await stopAudio();
@@ -542,13 +422,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
         const remembered = continueWatching.positionFor(media.id);
         const seekMs = options.seekMs ?? (remembered > RESUME_FLOOR_MS ? remembered : 0);
-        // The resume point is the position until the player reports one of
-        // this source's, so a stop or a retry before then keeps it.
+        // The resume point stands until this source reports a position.
         positionRef.current = seekMs;
-        // Resuming where the viewer left: the same file, and where they chose
-        // them, the same mode, cap and tracks (core's `resumePreferences`).
-        // Only a resume; "From start", a picked quality or a picked mode is a
-        // fresh choice.
+        // A plain resume restores the same file and the viewer's chosen mode, cap
+        // and tracks. "From start", a picked quality or a picked mode does not.
         const resumeEntry =
           !options.version && options.preferences?.mode === undefined && seekMs > 0 && seekMs === remembered
             ? continueWatching.entryFor(media.id)
@@ -557,27 +434,21 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           ...(resumeEntry ? resumePreferences(resumeEntry) : {}),
           ...options.preferences,
         };
-        // `'choose'` is core's client-side sentinel for "you decide". This
-        // client always decides, so it never sets one — narrowing here keeps
-        // that true at the type level rather than by convention.
+        // `'choose'` is core's "you decide" sentinel; this client always decides.
         const requestedMode = startPreferences.mode === 'choose' ? undefined : startPreferences.mode;
         choiceRef.current = {
           chosenByViewer: !!options.version || requestedMode !== undefined,
           quality: options.version?.quality,
           mode: options.version?.instruction.mode ?? requestedMode,
         };
-        // A start seek is a seek like any other: a freshly presented player
-        // reports 0 for a few frames before it lands, and those frames must
-        // not be checkpointed over the resume point either. Nothing of the
-        // previous item's may still be pending.
+        // A start seek is pending like any other, so the player's initial 0s are
+        // not checkpointed over the resume point.
         const startSeek = () => {
           pendingSeekRef.current = seekMs > 0 ? { targetMs: seekMs, atMs: Date.now() } : undefined;
         };
         pendingSeekRef.current = undefined;
 
-        // A downloaded original is played straight off the disk: no session, no
-        // capability URL, no node. This is the whole point of downloads — in
-        // airplane mode there is nothing to negotiate with.
+        // A download plays straight off the disk: no session, no node.
         const stored = downloads.localFor(media);
         if (stored?.localUri) {
           startSeek();
@@ -595,10 +466,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
             if (seekMs > 0) player.currentTime = seekMs / 1000;
             player.play();
           }
-          // Only this load's: a newer one may have begun during the await.
+          // A newer load may have begun during the await.
           if (generationRef.current === myGeneration) presentedRef.current = true;
-          // Off the disk there is no node to ask, so the player's own reading is
-          // the only one available and is left free to supply it.
+          // Off the disk, the player's own duration is the only source.
           knownDurationRef.current = 0;
           durationRef.current = media.durationMs ?? 0;
           setState((current) => ({
@@ -610,7 +480,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
             positionMs: seekMs,
             buffering: false,
           }));
-          // `busy` is cleared by the `finally`; this path only returns.
+          // `busy` is cleared by the `finally`.
           return;
         }
 
@@ -640,20 +510,18 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }
         const session = await createSession(playbackApi, media, instruction, seekMs, {
           ...startPreferences,
-          // A height cap and the streams named, for the file chosen.
+          // Height cap and named streams for the chosen file.
           ...chosenPreferences,
-          // The file the chooser picked, sent as the session's `media_id`.
-          // Core restates it on every replacement generation.
+          // The chosen file, as `media_id`; core restates it on every generation.
           ...(chosenMediaId ? { mediaId: chosenMediaId } : {}),
         }, reportStartProgress(myGeneration));
         if (generationRef.current !== myGeneration) {
-          // A late lease belonging to a superseded generation is never activated.
+          // A late session for a superseded generation is never activated.
           await releaseSession(session);
           return;
         }
         sessionRef.current = session;
-        // A transformed generation already begins at the start position; only
-        // Direct seeks into the file.
+        // A transformed generation already begins at the start position.
         if (session.mode === 'direct') startSeek();
         if (audio) {
           await loadAudioTrack(
@@ -662,14 +530,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           );
         } else {
           applySource(player, session, media, nowPlayingArtworkUrl(mediaApi, media));
-          // The returned keyframe-aligned seek is the immutable origin of this
-          // transformed generation; a transformed source already starts there.
           if (session.mode === 'direct' && seekMs > 0) player.currentTime = seekMs / 1000;
           player.play();
         }
         if (generationRef.current === myGeneration) presentedRef.current = true;
-        // The session's own figure first — it describes this exact output —
-        // and the profile's runtime when it does not give one.
+        // The session's figure describes this exact output; the profile's is the fallback.
         const durationMs = session.durationMs || knownDurationMs;
         knownDurationRef.current = durationMs;
         durationRef.current = durationMs;
@@ -683,9 +548,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        // What the viewer reads is a sentence about the kind of failure, never
-        // core's log line; see `createFailureMessage`. The log line is kept
-        // here, where it is evidence rather than copy.
+        // The viewer gets a sentence (`createFailureMessage`); the raw error goes to the log.
         console.log('[macha] [playback] create-refused', {
           code: playbackFailureCode(error),
           refusal: classifyCreateRefusal(error),
@@ -708,9 +571,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * A title that may not be played: unavailable on the cluster and not on the
-   * disk. The live queue keeps each title's availability for the run; one
-   * restored from storage has none, and plays.
+   * A title that may not be played: unavailable on the cluster and not
+   * downloaded. A title restored from storage has no availability, and plays.
    */
   const heldBack = useCallback(
     (item: MediaSummary | undefined) => !!item && !mayPlay(item, downloads.localFor(item)?.localUri !== undefined),
@@ -719,8 +581,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   const start = useCallback(
     async (items: readonly MediaSummary[], index: number, options?: StartOptions) => {
-      // A queue started on a title that may not be played begins at the next
-      // one that may, and nothing starts where none may.
+      // Start at the first playable title from `index`, or not at all.
       const first = heldBack(items[index])
         ? nextPlayablePosition(items.length, index, 1, false, (position) => !heldBack(items[position]))
         : index;
@@ -731,11 +592,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [heldBack, load, queueStore],
   );
 
-  /**
-   * Plays one item, giving it the most useful queue its context allows: an
-   * episode queues the rest of its season so playback keeps going, and anything
-   * else queues alone.
-   */
+  /** Plays one item; an episode queues its season, anything else queues alone. */
   const playItem = useCallback(
     async (media: MediaSummary, options?: StartOptions) => {
       if (media.kind === 'episode' && media.playbackContext) {
@@ -747,7 +604,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
             return;
           }
         } catch {
-          // A season listing is a convenience. If it fails, play the one item.
+          // Fall back to playing the one item.
         }
       }
       await start([media], 0, options);
@@ -755,12 +612,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [mediaApi, start],
   );
 
-  /**
-   * Steps through the play order rather than the raw queue, so shuffle and
-   * repeat work without the rest of the runtime knowing they exist. Resolves
-   * false when there is nowhere to go, which is how the end of a queue is told
-   * apart from a successful advance.
-   */
+  /** Steps through the play order (shuffle and repeat). Resolves false at the end of the queue. */
   const advanceBy = useCallback(
     async (delta: number, wrap = repeatRef.current === 'all'): Promise<boolean> => {
       const { items, index } = queueRef.current;
@@ -770,7 +622,6 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           ? orderRef.current
           : buildOrder(items.length, shuffleRef.current, index);
       const position = order.indexOf(index);
-      // Titles that may not be played are passed over.
       const nextPosition = nextPlayablePosition(order.length, position < 0 ? 0 : position, delta, wrap, (candidate) =>
         !heldBack(items[order[candidate]!]),
       );
@@ -813,11 +664,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, repeat }));
   }, []);
 
-  /**
-   * Applies a queue edit. The playing item is identified by identity rather
-   * than position, so reordering or removing around it never silently switches
-   * track. Persistence keeps the resume position.
-   */
+  /** Applies a queue edit; callers pass the playing item's new index so edits never switch track. */
   const commitQueue = useCallback(
     (items: MediaSummary[], index: number) => {
       const bounded = Math.max(0, Math.min(items.length - 1, index));
@@ -865,8 +712,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       commitQueue(next, index);
-      // Removing the item that is playing hands the slot to whatever moved up
-      // into it, so playback continues rather than stopping dead.
+      // Removing the playing item plays whatever moved up into its slot.
       if (target === index) void load(next, Math.min(index, next.length - 1), { seekMs: 0 });
     },
     [commitQueue, load, queueStore, stop],
@@ -887,15 +733,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   const toggle = useCallback(() => {
     if (engineRef.current === 'audio') {
-      // The engine's own state is authoritative here: the notification and the
-      // headset can change it without React ever hearing about it.
+      // The engine's state is authoritative: the notification and headset change it too.
       void TrackPlayer.getPlaybackState().then(({ state }) =>
         state === 'playing' ? TrackPlayer.pause() : TrackPlayer.play(),
       );
       return;
     }
-    // While a seek holds the picture, Play and Pause decide what happens
-    // when the new generation is on, not the outgoing stream.
+    // During a seek hold, Play/Pause decide what happens once the new generation is on.
     const hold = seekHoldRef.current;
     if (hold) {
       hold.resume = !hold.resume;
@@ -913,20 +757,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   }, [player]);
 
   /**
-   * Moves production to where the viewer went, rather than asking for segments
-   * nobody is building.
+   * Moves production to the seek target with a seek-only PATCH. A transformed
+   * generation is produced forward within a bounded window; a segment far
+   * beyond it is refused instantly, and media3 treats that as fatal.
    *
-   * A transformed generation is produced forward from its origin and the node
-   * holds only a bounded window. Seeking an hour ahead asks for a segment
-   * hundreds past anything in flight, which the node refuses **instantly**, and
-   * media3 treats that as fatal on first occurrence rather than retrying. A seek-only PATCH repositions the generation cheaply: the
-   * plan state is kept and segment indices are plan-absolute.
-   *
-   * **The PATCH creates a new generation, and the stream URL carries the
-   * generation in its path.** A request against the old one answers 404 by
-   * design, so a retry loop cannot keep an abandoned encoder alive. The player
-   * is therefore repointed at the URL from the response *before* it resumes
-   * fetching — otherwise this trades an instant 500 for an instant 404.
+   * The PATCH makes a new generation whose URL differs (the old one answers
+   * 404), so the player is repointed before it resumes fetching.
    */
   const repositionTo = useCallback(
     async () => {
@@ -934,15 +770,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const media = mediaRef.current;
       const intent = seekIntentRef.current;
       if (!session || !media || !intent) return;
-      // The latest target at the moment of asking, as core binds a queued
-      // seek to the intent when it dispatches it.
+      // The latest target at the moment of asking.
       const targetMs = intent.targetMs;
       const myGeneration = ++generationRef.current;
       const request = new AbortController();
       seekRequestRef.current = request;
-      // From here the node may supersede the generation the player is still
-      // reading, and a fragment of it answers 410. That is our doing, not the
-      // node's, and must not fail over.
+      // From here the old generation's fragments may answer 410; that is our
+      // doing and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       console.log('[macha] [playback] seek-needs-generation', {
         sessionId: session.sessionId,
@@ -957,10 +791,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         const resume = seekHoldRef.current?.resume ?? true;
         seekHoldRef.current = undefined;
         if (resume) player.play();
-        // The stream that serves the target is on; the target stays pinned
-        // until the player reaches it or is seen tracking near it (a
-        // transformed generation begins at a random-access point, rarely the
-        // millisecond asked for). See `observeSeek`.
+        // The target stays pinned until the player tracks near it (a generation
+        // starts at a random-access point). See `observeSeek`.
         const pinned = seekIntentRef.current;
         if (pinned) seekIntentRef.current = { targetMs: pinned.targetMs, presented: true };
         bufferedRef.current = next.seekMs;
@@ -975,10 +807,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } catch (error) {
         if (generationRef.current !== myGeneration) return;
-        // The seek never landed: put the bar back where the player really
-        // is, and the picture back as it was. A pin left in place would hold
-        // the bar at a position playback never reached (core's
-        // `rollbackUnfulfilledSeek`).
+        // The seek never landed: restore the bar to the player's real position.
         seekIntentRef.current = undefined;
         pendingSeekRef.current = undefined;
         positionRef.current = observedPositionRef.current;
@@ -994,8 +823,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         }));
       } finally {
         if (seekRequestRef.current === request) seekRequestRef.current = undefined;
-        // Settled, success or failure: the tail is then bounded by the node's
-        // own deadline rather than left open.
+        // Once settled, the supersede window is bounded by the node's deadline.
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) {
@@ -1006,23 +834,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [mediaApi, player, playbackApi, reportStartProgress],
   );
 
-  /**
-   * A generation change this client asked for; see `selfSupersededGeneration`.
-   *
-   * A ref rather than state for the same reason `pendingSeekRef` is one: the
-   * failover callback is created once and would capture the first render's
-   * value for ever.
-   */
+  /** A generation change this client asked for; see `selfSupersededGeneration`. */
   const pendingSupersedeRef = useRef<PendingSupersede | undefined>(undefined);
 
   /**
-   * Tell the viewer about an error the supersede guard excused, if it is still
-   * an error once the guard's window has closed.
-   *
-   * Scoped to the generation it was armed under: anything that bumps the
-   * generation — a load, a seek, another switch, a failover — owns the screen
-   * from then on, and a player that has left `error` has recovered on its own.
-   * One timer at a time; a repeat of the same error re-arms rather than stacks.
+   * Reports an error the supersede guard excused if it persists after the
+   * guard's window. Scoped to the arming generation; one timer at a time.
    */
   const supersedeCheckRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const reportIfStillFailed = useCallback(
@@ -1052,31 +869,24 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => () => clearTimeout(seekDebounceRef.current), []);
 
   /**
-   * A seek, as the web client's coordinator makes it (`seekIntent.ts`): the
-   * bar moves to the target at once and stays there; the player is told
-   * directly when the generation it holds covers the target, and otherwise
-   * the picture is held and the node asked for a new generation, once per
-   * burst of presses, for the last of them.
+   * Moves the bar at once. Seeks within the current generation go straight to
+   * the player; otherwise the picture is held and the node is asked for a new
+   * generation, once per burst of presses. See `playback/seekIntent.ts`.
    */
   const seekTo = useCallback(
     (positionMs: number) => {
-      // Whole milliseconds: a lock-screen or headset seek arrives as seconds
-      // times 1000 and can be fractional, and the wire, the bar and a stored
-      // resume point all mean whole milliseconds.
+      // Whole milliseconds: lock-screen and headset seeks can be fractional.
       const bounded = Math.round(Math.max(0, Math.min(durationRef.current || Number.MAX_SAFE_INTEGER, positionMs)));
       positionRef.current = bounded;
       pendingSeekRef.current = { targetMs: bounded, atMs: Date.now() };
       setState((current) => ({ ...current, positionMs: bounded }));
       if (engineRef.current === 'audio') {
-        // The music path has the same exposure and is deliberately not fixed
-        // here: a seek beyond production on a transformed track is still
-        // refused. Correcting it means reloading the track at the new URL
-        // rather than writing a position, which is separate work.
+        // Known gap: a seek beyond production on a transformed track is still
+        // refused; fixing it means reloading the track at a new URL.
         void TrackPlayer.seekTo(bounded / 1000);
         return;
       }
-      // Once a new generation is on its way, every seek in the burst goes the
-      // same way: the generation on the player is about to be replaced.
+      // Once a new generation is on its way, the rest of the burst follows it.
       const negotiating = seekDebounceRef.current !== undefined || seekRequestRef.current !== undefined;
       const plan = negotiating ? { kind: 'reposition' as const } : seekPlan(sessionRef.current, bounded, bufferedRef.current);
       if (plan.kind === 'local') {
@@ -1089,11 +899,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         seekHoldRef.current = { resume: !viewerPausedRef.current };
         player.pause();
       }
-      // A newer target supersedes the request in flight, as core aborts it.
-      // Its generation is retired first, so the rejection the abort causes
-      // is a superseded request and not a seek that failed: read as a
-      // failure, it would roll the bar back to the outgoing stream's position
-      // and drop the new target, and further presses would count from there.
+      // Abort the in-flight request, retiring its generation first so the
+      // abort's rejection is not taken as a failed seek and rolled back.
       if (seekRequestRef.current) {
         seekRequestRef.current.abort();
         seekRequestRef.current = undefined;
@@ -1116,10 +923,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * A fresh session on the node that reaped this one, at the current position.
-   *
-   * Spends no failover budget and charges no node — the node answered honestly.
-   * Returns whether a replacement was installed (or the attempt was superseded,
-   * which is nobody's failure); `false` means fail over instead.
+   * Spends no failover budget. Returns false when failover should run instead.
    */
   const regenerateSource = useCallback(
     async (session: PlaybackSession, media: MediaSummary): Promise<boolean> => {
@@ -1141,8 +945,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined, tooSlow: undefined }));
         return true;
       } catch (error) {
-        // Includes the node having left the registry
-        // (`REGENERATION_ENDPOINT_GONE_CODE`), where failing over is right.
+        // Includes the node having left the registry, where failing over is right.
         console.log('[macha] [playback] regenerate-failed', { code: playbackFailureCode(error), error: String(error) });
         return generationRef.current !== myGeneration;
       } finally {
@@ -1157,23 +960,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * Replace the source with an equivalent one from another node.
-   *
-   * A player error mid-stream is usually a fact about the node rather than the
-   * media, so the viewer should get the picture back rather than a failure
-   * screen. Core picks the replacement, skipping nodes known to have failed
-   * this generation, and records the failure so ranking learns from it. This
-   * is a reload, not a seamless hand-off: the picture stops and resumes at the
-   * same position.
-   *
-   * Returns whether a replacement was installed, so the caller can fall back
-   * to telling the viewer when there is nowhere left to go.
+   * Replaces the source with an equivalent one from another node (core picks it
+   * and records the failure). A reload, not a seamless hand-off. Returns false
+   * when there is nowhere left to go.
    */
   const failoverSource = useCallback(async (): Promise<boolean> => {
-    // The failed player keeps reporting the error for as long as it is on
-    // screen, and admitting a replacement is not instant — so without this every
-    // repeat of the same failure starts another failover, spends the budget and
-    // churns the UI. One at a time.
+    // One at a time: the failed player repeats its error while it is up.
     if (failoverInFlightRef.current) return true;
     const session = sessionRef.current;
     const media = mediaRef.current;
@@ -1181,29 +973,19 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       console.log('[macha] [playback] failover-declined', { reason: 'no-session' });
       return false;
     }
-    // An error under a seek we asked for, on a generation the node is still
-    // producing, says we asked for something that does not exist yet — not that
-    // the node is failing. Failing over on it abandons a working node and throws
-    // away every frame it had built.
-    //
-    // No budget spent and no failure recorded: there is nothing here to learn
-    // about the endpoint. `repositionTo` is what actually resolves this case;
-    // this only stops the wrong remedy running first.
+    // An error under our own seek or generation change is not the node's fault;
+    // `repositionTo` resolves it. No budget spent, nothing recorded.
     if (!errorBlamesEndpoint(session, pendingSeekRef.current, Date.now(), pendingSupersedeRef.current)) {
-      // Asked of the guard itself rather than of the ref: the ref is never
-      // cleared, so its presence alone would label every later decline.
+      // Ask the guard, not the ref: the ref is never cleared.
       const superseded = selfSupersededGeneration(pendingSupersedeRef.current, session, Date.now());
       console.log('[macha] [playback] failover-declined', {
         reason: superseded ? 'generation-superseded-by-us' : 'seek-outstanding',
       });
-      // Declining the failover must not mean declining to tell anyone. If the
-      // player is still in error once the guard's own window has closed, the
-      // new generation is what failed; see `supersededErrorCheck`.
+      // Still report it if the error outlasts the guard's window.
       if (superseded) reportIfStillFailed(generationRef.current);
       return true;
     }
-    // **Trust the error only if it persists**; see `errorSettleMs`. One at a time while waiting, like the failover
-    // itself: the failed player repeats its error for as long as it is up.
+    // Trust the error only if it persists; see `errorSettleMs`. One at a time.
     failoverInFlightRef.current = true;
     const erroredGeneration = generationRef.current;
     console.log('[macha] [playback] player-error-settling', { settleMs: errorSettleMs(session) });
@@ -1217,8 +999,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       console.log('[macha] [playback] player-error-cleared', { settleMs: errorSettleMs(session) });
       return true;
     }
-    // Ask the node that issued the session whether it still holds it. It
-    // records nothing against the node either way, so asking is free.
+    // Ask the issuing node whether it still holds the session; this records nothing.
     let outcome: ProbeOutcome;
     try {
       outcome = classifyProbe({ alive: await playbackApi.sessionAlive(session) });
@@ -1229,10 +1010,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     const recovery = recoveryAfterProbe(outcome, positionRef.current, lastRegenerationPositionRef.current);
     console.log('[macha] [playback] session-probe', { outcome, recovery, positionMs: positionRef.current });
     if (recovery === 'regenerate' && (await regenerateSource(session, media))) return true;
-    // A second early failure on the same file, mode and cap is a quality no
-    // node converts at real speed, and another node would fail the same way;
-    // see `tooSlowToPlay`. Asked before the budget, as core asks it before
-    // its failover.
+    // A repeated early failure means no node converts this quality at real
+    // speed; see `tooSlowToPlay`. Checked before the failover budget.
     const slow = tooSlowToPlay(
       earlyStallsRef.current,
       session,
@@ -1251,8 +1030,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         viewerChose: choiceRef.current.chosenByViewer,
       });
       if (slow.verdict.kind === 'step-down') {
-        // One at a time, as a failover is: the failed player repeats its
-        // error until the lower quality is on it.
+        // One at a time, as for failover.
         failoverInFlightRef.current = true;
         try {
           await stepDownRef.current(slow.verdict.step);
@@ -1271,9 +1049,6 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       }));
       return true;
     }
-    // Playback that has been fine for a while earns a fresh budget: the limit
-    // is there to stop a broken title cycling nodes, not to ration recovery
-    // across a whole film.
     if (Date.now() - lastFailoverAtRef.current > FAILOVER_BUDGET_RESET_MS) failoverAttemptsRef.current = 0;
     if (failoverAttemptsRef.current >= MAX_FAILOVER_ATTEMPTS) {
       console.log('[macha] [playback] failover-declined', {
@@ -1285,21 +1060,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     failoverAttemptsRef.current += 1;
     lastFailoverAtRef.current = Date.now();
     failoverInFlightRef.current = true;
-    // Stop the dead source now rather than leaving it to keep failing behind
-    // the replacement being built.
+    // Stop the dead source while the replacement is built.
     player.pause();
 
-    // **Bumping the generation means taking ownership of `busy`**, cleared in
-    // the `finally` under the same generation guard as every other path that
-    // bumps it. A superseded `load` returns early and leaves `busy` to whoever
-    // superseded it, so without this the Play button stays disabled until the
-    // app is restarted.
+    // Bumping the generation means owning `busy`: a superseded `load` leaves it
+    // to whoever superseded it.
     setBusy(true);
     const myGeneration = ++generationRef.current;
     const resumeMs = positionRef.current;
-    // Logged because a short outage is recovered by the platform player's own
-    // retry and never reaches here at all — so "did it fail over, or did
-    // ExoPlayer just reconnect?" is otherwise indistinguishable from outside.
+    // Logged to tell a failover from ExoPlayer's own reconnect.
     console.log('[macha] [playback] failover-attempt', {
       from: session.endpoint?.baseUrl,
       attempt: failoverAttemptsRef.current,
@@ -1312,18 +1081,14 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       if (generationRef.current !== myGeneration) return true;
       sessionRef.current = next;
       applySource(player, next, media, nowPlayingArtworkUrl(mediaApi, media));
-      // A transformed generation starts at the seek point it was cut for; a
-      // direct one is the whole file and has to be told where to resume.
+      // Only a direct source needs telling where to resume.
       if (next.mode === 'direct' && resumeMs > 0) player.currentTime = resumeMs / 1000;
       player.play();
       setState((current) => ({ ...current, status: 'ready', session: next, buffering: true, error: undefined, tooSlow: undefined }));
       return true;
     } catch (error) {
-      // The account is at its session cap. No node refused us and none would
-      // have answered differently, so this is not a recovery that failed — it
-      // is a recovery that was never available. Give the attempt back: the
-      // budget exists to stop a broken title cycling nodes, and spending it
-      // here leaves the next genuine failure with nothing.
+      // The account is at its session cap: no node would answer differently,
+      // so refund the attempt and say why.
       if (!spendsFailoverBudget(error)) {
         failoverAttemptsRef.current = Math.max(0, failoverAttemptsRef.current - 1);
         console.log('[macha] [playback] failover-declined', {
@@ -1332,8 +1097,6 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           attempts: failoverAttemptsRef.current,
         });
         if (generationRef.current !== myGeneration) return true;
-        // And say so. Left silent, the viewer gets a paused player and no
-        // reason.
         setState((current) => ({
           ...current,
           status: 'failed',
@@ -1343,12 +1106,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
       console.log('[macha] [playback] failover-failed', { error: String(error) });
-      // Superseded work is not a failure anyone should hear about.
+      // Superseded work is not a failure.
       return generationRef.current !== myGeneration;
     } finally {
       failoverInFlightRef.current = false;
-      // A recovery that has itself been superseded must not clear the flag
-      // out from under whatever replaced it.
+      // A superseded recovery must not clear the flag under whatever replaced it.
       if (generationRef.current === myGeneration) {
         setBusy(false);
         setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
@@ -1356,18 +1118,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mediaApi, player, playbackApi, regenerateSource, reportIfStillFailed, reportStartProgress]);
 
-  // Held in a ref so the player's listeners never have to resubscribe when the
-  // services object is rebuilt.
+  // A ref so the player's listeners need not resubscribe when services rebuild.
   const failoverRef = useRef(failoverSource);
   useEffect(() => {
     failoverRef.current = failoverSource;
   }, [failoverSource]);
 
   /**
-   * `stated` is true for an update whose transform is already whole: a
-   * picked quality carries core's instruction for its file, which
-   * `statedUpdate` would replace with one judged from the file playing now,
-   * and whose cap it would restate.
+   * `stated` marks an update whose transform is already complete (a picked
+   * quality), which `statedUpdate` must not rewrite from the current file.
    */
   const sendUpdate = useCallback(
     async (update: PlaybackUpdate, stated: boolean): Promise<boolean> => {
@@ -1378,9 +1137,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const resumeMs = positionRef.current;
       setBusy(true);
       setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
-      // From here the node may supersede the generation the player is still
-      // reading, and a fragment of it answers 410. That is our doing, not the
-      // node's, and must not fail over.
+      // From here the old generation's fragments may answer 410; that is our
+      // doing and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
       try {
         const positioned = positionedUpdate(update, session, resumeMs);
@@ -1416,13 +1174,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         return true;
       } catch (error) {
         if (generationRef.current !== myGeneration) return false;
-        // The existing source is still playing; say that rather than core's
-        // "request failed", which reads as a dead player to someone watching.
+        // The existing source is still playing; the message must say so.
         setState((current) => ({ ...current, buffering: false, error: updateRefusalMessage(error) }));
         return false;
       } finally {
-        // Settled, success or failure: the tail is then bounded by the node's
-        // own deadline rather than left open.
+        // Once settled, the supersede window is bounded by the node's deadline.
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) {
@@ -1436,11 +1192,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 
   const applyUpdate = useCallback(
     async (update: PlaybackUpdate) => {
-      // A mode or a cap from the sheet's other controls is no longer the
-      // quality the viewer picked, and a retry must not put it back. Only
-      // once it lands: a switch back into transcode can be refused (429
-      // `resource_limit`, the slot taken meanwhile), and then the pick is
-      // still what is playing.
+      // A mode or cap change replaces the picked quality, but only once it
+      // lands: it can be refused (429 `resource_limit`), leaving the pick playing.
       const preferences = update.preferences;
       const replacesPick = preferences?.mode !== undefined || preferences?.maxHeight !== undefined;
       if ((await sendUpdate(update, false)) && replacesPick) {
@@ -1466,8 +1219,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         file: step.mediaId,
         switching: step.mediaId !== undefined && step.mediaId !== session.mediaId,
       });
-      // Remembered only once it plays, so a refused switch leaves a retry on
-      // what was actually playing.
+      // Remembered only once it plays, so a refused switch does not change what retry plays.
       if (await sendUpdate(versionUpdate(step, session, filesRef.current), true)) {
         versionRef.current = step;
         choiceRef.current = { chosenByViewer: true, quality: step.quality, mode: step.instruction.mode };
@@ -1476,8 +1228,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     [sendUpdate],
   );
 
-  // Play's own choice, stepped down to a quality a node keeps up with: still
-  // Play's choice, and said so where notices show, where it stays.
+  // Steps automatic play down to a quality a node keeps up with; still automatic.
   const stepDown = useCallback(
     async (step: VersionStep) => {
       const session = sessionRef.current;
@@ -1489,8 +1240,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     },
     [sendUpdate],
   );
-  // The failover above is declared before `sendUpdate`, so it reaches this
-  // through a ref, as the player's listeners reach the failover.
+  // A ref because the failover above is declared before `sendUpdate`.
   const stepDownRef = useRef(stepDown);
   useEffect(() => {
     stepDownRef.current = stepDown;
@@ -1499,30 +1249,23 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const retry = useCallback(async () => {
     const { items, index } = queueRef.current;
     if (items.length === 0) return;
-    // The viewer's pick of quality survives a retry, as core's runtime keeps
-    // the file a picked version named; automatic play is chosen afresh.
+    // A picked quality survives a retry; automatic play chooses afresh.
     await load(items, index, { seekMs: positionRef.current, version: versionRef.current });
   }, [load]);
 
-  // Platform player events are the authority for transport state; React never
-  // polls, and never writes back a position the player did not report.
+  // Player events are the authority for transport state; React never polls.
   useEffect(() => {
     const subscriptions = [
       player.addListener('timeUpdate', ({ currentTime, bufferedPosition }) => {
-        // Two engines, one state: stand down unless this one owns playback.
         if (engineRef.current !== 'video') return;
-        // Nothing of ours is on the player yet; see `presentedRef`.
+        // See `presentedRef`.
         if (!presentedRef.current) return;
-        // The player counts from the start of the *generation*; everything
-        // above this line means the title's timeline. Convert once, here, at
-        // the point the figure arrives — see `generationOriginMs`. Without it
-        // a rebuilding seek leaves the bar near zero, mismatches the seek
-        // target below and checkpoints the wrong resume position.
+        // The player counts from the generation's start; convert to the title's
+        // timeline once, here.
         if (currentTime > 0) progressedRef.current = true;
         const positionMs = titlePositionMs(sessionRef.current, Math.round(currentTime * 1000));
         observedPositionRef.current = positionMs;
-        // A seek the viewer made pins the bar to its target until the stream
-        // that serves it is on and tracking; see `observeSeek`.
+        // A viewer's seek pins the bar until its stream is tracking; see `observeSeek`.
         const intent = seekIntentRef.current;
         if (intent) {
           const next = observeSeek(intent, positionMs);
@@ -1549,48 +1292,38 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           bufferedMs,
         }));
         checkpoint(positionMs, durationMs || durationRef.current);
-        // One count per started item, once the listener has clearly committed
-        // to it. Seeking backwards must not count the same play twice.
+        // One play count per started item.
         const playing = mediaRef.current;
         if (playing && positionMs >= PLAY_COUNT_THRESHOLD_MS && countedPlayRef.current !== playing.id) {
           countedPlayRef.current = playing.id;
           musicLibrary.recordPlay(playing.id);
         }
       }),
-      // expo-video ducks by halving the viewer-facing volume and, because its
-      // `volume` setter also assigns `userVolume`, its own unduck restores the
-      // ducked value. Nothing inside the library ever puts this back, and the
-      // halvings compound. `restoredVolume` returns undefined once the value
-      // matches, which is what stops this write re-triggering itself.
+      // expo-video's unduck restores the ducked volume (its `volume` setter also
+      // sets `userVolume`), so halvings compound. Restore it ourselves;
+      // `restoredVolume` returns undefined once it matches, ending the loop.
       player.addListener('volumeChange', ({ volume }) => {
         if (engineRef.current !== 'video') return;
         const restore = restoredVolume(volume, intendedVolumeRef.current);
         if (restore === undefined) return;
-        // Logged because the duck is invisible from JS otherwise: expo-video
-        // reports no focus event, so without this there is no way to tell a
-        // restore that fired from one that never needed to.
+        // expo-video reports no focus event, so this log is the only trace.
         console.log('[macha] [playback] volume-restored', { from: volume, to: restore });
         player.volume = restore;
       }),
       player.addListener('playingChange', ({ isPlaying }) => {
         if (engineRef.current !== 'video') return;
-        // A picture held for a seek is not the viewer pausing; see `seekHoldRef`.
+        // A seek hold is not the viewer pausing.
         if (seekHoldRef.current) return;
         setState((current) => ({ ...current, playing: isPlaying }));
       }),
       player.addListener('statusChange', ({ status, error }) => {
         if (engineRef.current !== 'video') return;
         if (status === 'error') {
-          // Try another node before saying anything. A stream that stops
-          // mid-playback is far more often the node than the title, and the
-          // viewer would rather have the picture back than an explanation.
+          // Try another node first: a mid-stream stop is usually the node, not the title.
           setState((current) => ({ ...current, buffering: true }));
           void failoverRef.current().then((swapped) => {
             if (swapped) return;
-            // The player's own message is a codec or network trace
-            // ("MediaCodecVideoRenderer error, index=0") and expo-video never
-            // says more, so the honest sentence is the one that claims only
-            // what is known. The trace goes to the log.
+            // The player's message is a codec trace; it goes to the log only.
             console.log('[macha] [playback] player-failed', { message: error?.message });
             setState((current) => ({
               ...current,
@@ -1617,13 +1350,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       player.addListener('playToEnd', () => {
         if (engineRef.current !== 'video') return;
         const media = mediaRef.current;
-        // Tearing down clears the current item before it clears the source, and
-        // replacing a source with null can itself emit playToEnd. Without this
-        // guard, closing the player would advance into the next queue item
-        // instead of stopping.
+        // Teardown clears the item before the source, and `replace(null)` can
+        // emit playToEnd; closing must not advance.
         if (!media) return;
-        // An end the player never played to is the one `load`'s own
-        // `replace(null)` produces; see `progressedRef`.
+        // See `progressedRef`.
         if (!progressedRef.current) {
           console.log('[macha] [playback] play-to-end-ignored', { mediaId: media.id, reason: 'no-progress-since-load' });
           return;
@@ -1634,13 +1364,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
           durationMs: durationRef.current,
         });
         if (durationRef.current > 0 && belongsInContinueWatching(media)) {
-          // Reaching the end retires the item from Continue Watching rather
-          // than leaving it parked one second from the credits.
+          // Reaching the end retires the item from Continue Watching.
           continueWatching.update(progressFor(media, durationRef.current, durationRef.current));
         }
         if (repeatRef.current === 'one') {
-          // Repeat-one is a local transport operation: no new session, no
-          // renegotiation, just play the same generation again from the top.
+          // Repeat-one replays the same generation; no new session.
           player.currentTime = 0;
           player.play();
           return;
@@ -1655,9 +1383,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     };
   }, [advanceBy, checkpoint, continueWatching, musicLibrary, player, stop]);
 
-  // The native audio player is the authority for music transport. Its events
-  // are the only way React learns about a pause from the notification, the
-  // lock screen, a headset button or an audio-focus loss.
+  // The native audio player is the authority for music transport, including
+  // changes from the notification, lock screen, headset or focus loss.
   useEffect(() => {
     void ensureAudioEngine().catch(() => undefined);
     const subscriptions = [
@@ -1722,13 +1449,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   }, [advanceBy, checkpoint, continueWatching, musicLibrary, stop]);
 
   /**
-   * Transport events from the notification, lock screen, headset and Bluetooth.
-   *
-   * These are registered here, not only in the background service: on Android
-   * that service is a headless task the platform may never start while the app
-   * is alive, which would leave the notification's buttons doing nothing.
-   * Pausing on an unplugged headset lives here too — music suddenly playing out
-   * loud on a train is the behaviour nobody wants.
+   * Remote transport events (notification, lock screen, headset, Bluetooth).
+   * Registered here as well as in the background service, because Android may
+   * never start that headless task while the app is alive.
    */
   useEffect(() => {
     const subscriptions = [
@@ -1747,8 +1470,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     };
   }, [seekTo, skipNext, skipPrevious, stop]);
 
-  // The headless service reaches the runtime through this table when it does
-  // run, so there is one implementation of what Next means either way.
+  // The headless service, when it runs, calls these, so there is one implementation.
   useEffect(() => {
     setAudioRemoteHandlers({
       play: () => void TrackPlayer.play(),
@@ -1766,8 +1488,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     downloadManager.resumeInterrupted();
   }, [downloadManager]);
 
-  // Backgrounding is the one moment a checkpoint is guaranteed to matter: the
-  // process may not get another chance to write one.
+  // Checkpoint on backgrounding: the process may not get another chance.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active') checkpoint(positionRef.current, durationRef.current, true);
@@ -1775,7 +1496,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [checkpoint]);
 
-  // Reconfiguring the connection invalidates any lease held on the old cluster.
+  // Reconfiguring the connection invalidates any session on the old cluster.
   const previousGeneration = useRef(generation);
   useEffect(() => {
     if (previousGeneration.current === generation) return;
@@ -1836,12 +1557,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Hands a negotiated session to the platform player.
- *
- * Stream URLs are short-lived capability URLs and are loaded without the
- * anonymous session's Authorization header, which is only for session control.
- * `contentType` is set explicitly because a Macha HLS URL has no `.m3u8` extension for the
- * player to recognise.
+ * Hands a session's stream to the player. Stream URLs are capability URLs, so
+ * no Authorization header; `contentType` is explicit because Macha HLS URLs
+ * have no `.m3u8` extension.
  */
 function applySource(
   player: VideoPlayer,
@@ -1862,23 +1580,14 @@ function applySource(
   player.replace(source, true);
 }
 
-/**
- * The second line of the lock-screen and notification transport.
- *
- * A track wants its artist, an episode its series. Falling back to the generic
- * subtitle would print "Track 3" on the lock screen.
- */
+/** The lock-screen second line: a track's artist and album, or an episode's series. */
 function nowPlayingArtist(media: MediaSummary): string {
   const music = media.musicContext;
   if (music) return [music.artist?.title, music.album.title].filter(Boolean).join(' — ') || 'Macha';
   return media.playbackContext?.series.title ?? 'Macha';
 }
 
-/**
- * Describes one track for the native audio player, which owns the notification
- * and lock-screen presentation. Artist and album are separate fields here —
- * unlike expo-video's metadata, which only has an artist line to fold them into.
- */
+/** Describes one track for the native audio player, which owns the notification and lock screen. */
 function audioTrackFor(
   media: MediaSummary,
   url: string,
@@ -1899,16 +1608,11 @@ function audioTrackFor(
 
 /** Remux and transcode always deliver HLS; Direct Play hands over the original bytes. */
 function isHlsSession(session: PlaybackSession): boolean {
-  // Decided once when the session is decoded, so the audio engine and core's
-  // Direct/Remux badge can never disagree about what is being served.
+  // Decided once at decode, so the audio engine and the mode badge agree.
   return session.source.isManifest;
 }
 
-/**
- * A directly loadable artwork URL for the transport notification. Prefers the
- * item's own art, then the album cover a track inherits. The platform fetches
- * this itself, so it must be a plain URL the node will serve.
- */
+/** Artwork URL for the transport notification: the item's own art, else a track's album cover. */
 function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string | undefined {
   const ref =
     media.artwork?.poster ??
@@ -1916,30 +1620,18 @@ function nowPlayingArtworkUrl(mediaApi: MediaApi, media: MediaSummary): string |
     media.musicContext?.artwork ??
     media.artwork?.backdrop;
   if (!ref) return undefined;
-  // The lock-screen notification loads this URL itself, in a process that has
-  // no access to the session token — so only a self-authenticating source is
-  // usable. Taking the first entry regardless would put an authenticated
-  // per-node URL on the notification, which fails as a blank cover with
-  // nothing anywhere to say why.
+  // The notification fetches this without the session token, so only a
+  // self-authenticating URL works; an authenticated one shows a blank cover.
   return mediaApi.artworkUrls(ref).find((source) => !source.requiresAuthorization)?.url;
 }
 
 
 
 /**
- * What to ask the node for, and how long the media actually runs.
- *
- * The server does not choose: it reports what a file is and performs exactly
- * what it is told, so asking for `direct` on something this device cannot
- * demux yields the file and a black screen rather than an error. The decision
- * comes from `@machafoundation/core` so that the phone, TV and web clients
- * cannot drift apart on the same file. A viewer's explicit choice wins
- * outright, and with no technical facts at all the answer is transcode, the
- * one instruction that is always playable.
- *
- * The runtime comes back with it because the technical profile is the only
- * place the client reliably learns it: the catalogue does not carry a duration,
- * and a transformed session describes a stream that is still being produced.
+ * What to ask the node for, and the media's runtime. The server performs
+ * exactly what it is told, so the decision is core's (shared by every client).
+ * A viewer's choice wins; with no technical facts the answer is transcode.
+ * The runtime comes from the technical profile, the only reliable source.
  */
 async function chooseInstruction(
   mediaApi: MediaApi,
@@ -1952,7 +1644,7 @@ async function chooseInstruction(
   instruction: PlaybackInstruction;
   durationMs: number;
   mediaId?: string;
-  /** A height cap and the streams named, where a version or automatic play chose them. */
+  /** Height cap and named streams, where a version or automatic play chose them. */
   preferences?: PlaybackPreferencesUpdate;
   versions?: PlaybackVersions;
   files?: readonly PlaybackMediaFacts[];
@@ -1960,31 +1652,24 @@ async function chooseInstruction(
   const mediaId = media.mediaIds[0];
   const capabilities = deviceCapabilities();
   const overrides = devicePlaybackOverrides();
-  // Every file of the item. Asked for on every path: the qualities offered
-  // during play are drawn from them, whichever one is playing.
+  // Every file of the item, on every path: the qualities offered during play come from them.
   const files = await playbackApi.facts({ itemId: media.id }).catch(() => undefined);
 
   if (version) {
-    // A quality the viewer picked: core's instruction for its file, never
-    // capped by the ceiling and never re-ranked. Without facts it still
-    // names its file and mode; there are just no streams to name.
+    // A picked quality: never capped or re-ranked.
     const start = versionStart(version, files ?? [], media.mediaIds, capabilities, overrides, preferences, playbackApi.transcodeRate);
     return { ...start, ...(files ? { files } : { versions: undefined }) };
   }
 
   if (requested) {
-    // The viewer named the mode, so no facts are needed to choose one — but
-    // the runtime still is, and asking for it must not fail the playback.
-    // A resume names the file it left; otherwise the file is ours to pick
-    // (`fileToPlay`), and the runtime and audio codec are read from it.
+    // The viewer named the mode. A resume names its file; otherwise pick one
+    // (`fileToPlay`) and read the runtime and audio codec from it.
     const named = preferences?.mediaId !== undefined && media.mediaIds.includes(preferences.mediaId) ? preferences.mediaId : undefined;
     const chosenMediaId = named ?? fileToPlay(files, media.mediaIds, capabilities, overrides);
     const stated = files?.find((entry) => entry.mediaId === chosenMediaId) ?? files?.[0];
     return {
       instruction: {
-        // The viewer named the mode, not the audio codec: a remux of a title
-        // this device cannot decode the audio of must still transcode it, and
-        // the mode has to be renamed with it. See `transformFor`.
+        // Audio this device cannot decode is still transcoded; see `transformFor`.
         ...transformFor(
           requested,
           audioCopyable(
@@ -1993,7 +1678,6 @@ async function chooseInstruction(
           ),
         ),
         reasons: [],
-        // The viewer said so. Nothing was inferred, so nothing was assumed.
         assumed: [],
       },
       durationMs: stated?.profile.durationMs ?? 0,
@@ -2002,11 +1686,8 @@ async function chooseInstruction(
     };
   }
 
-  // Automatic play: the best file at or below this device's ceiling, named
-  // on the session with its streams. The ceiling is read now, so a phone
-  // that moved onto mobile data since the detail screen drew is capped by it.
-  // A resume names the file it left: automatic play chooses how, not which,
-  // as core's coordinator does. The sheet still offers every file.
+  // Automatic play: the best file within the device's current ceiling. A resume
+  // keeps its file (choosing only how), but every file is still offered.
   const named = preferences?.mediaId !== undefined ? files?.filter((file) => file.mediaId === preferences.mediaId) : undefined;
   const candidates = named && named.length > 0 ? named : files;
   const chosen = candidates
@@ -2028,8 +1709,6 @@ async function chooseInstruction(
 
   const profile = mediaId ? await mediaApi.mediaProfile(mediaId).catch(() => undefined) : undefined;
   if (!profile) {
-    // Not an assumption about an optional input: there are no facts at all,
-    // which `reasons` already says plainly.
     return {
       instruction: { mode: 'transcode', video: 'transcode', audio: 'transcode', reasons: ['no-technical-facts'], assumed: [] },
       durationMs: 0,
@@ -2039,21 +1718,16 @@ async function chooseInstruction(
   return {
     instruction: choosePlaybackInstruction(catalogued, capabilities, { overrides }),
     durationMs: catalogued.durationMs,
-    // Judged from the first file's catalogue profile, so it names that file
-    // only when it is the item's only one, as core does with no facts.
+    // Judged from the first file, so only named when it is the only one.
     ...(media.mediaIds.length === 1 ? { mediaId } : {}),
   };
 }
 
 /**
- * Creates the session, giving up one ambition at a time if the node refuses.
- *
- * `operations` should make this unnecessary — the chooser no longer asks for
- * what the node cannot perform. It stays because the gate depends on the node
- * reporting honestly and on the client having reached the node that executes,
- * and the cost of being wrong is the viewer getting nothing at all. Degrading
- * is one step and one direction — a copy becomes a transcode, never the
- * reverse — so it converges and cannot loop.
+ * Creates the session, degrading one step per refusal (copy to transcode,
+ * never back, so it terminates). A safety net: the chooser already respects
+ * the node's advertised `operations`, but that relies on the node reporting
+ * honestly.
  */
 async function createSession(
   playbackApi: ClusterPlaybackApi,
@@ -2069,14 +1743,10 @@ async function createSession(
     try {
       return await playbackApi.create(media, attempt, seekMs, preferences, onStartProgress);
     } catch (error) {
-      // Only a refusal degrades. An unreachable node or a server fault says
-      // nothing about the instruction, and asking for less would not help.
-      //
-      // Classified rather than `instanceof`-tested: core's resolver raises its
-      // own `MachaPlaybackError`, which an identity test would never match.
+      // Only a refusal of the instruction degrades: not unreachability, a
+      // server fault or the account session cap. Classified, not `instanceof`,
+      // because core raises its own error classes.
       const kind = classifyCreateRefusal(error);
-      // The account cap is not about the instruction. Every node answers it
-      // identically, so degrading burns the viewer's time proving that.
       if (kind !== 'degrade') throw error;
       refusal = error;
       attempt = degradeInstruction(attempt);

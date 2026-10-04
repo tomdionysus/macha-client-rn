@@ -22,9 +22,7 @@ describe('describeMediaAccess', () => {
     expect(describeMediaAccess(facts({ session: session({ roles: ['media_viewer'] }) }))).toEqual({ kind: 'granted' });
   });
 
-  // Roles are capabilities rather than a ladder, so nothing else implies this
-  // one. A manager who is not also a viewer genuinely may not read the
-  // catalogue, and the server says so.
+  // Roles are capabilities, not a ladder.
   it('does not let another role stand in for the media role', () => {
     expect(describeMediaAccess(facts({ session: session({ roles: ['manager', 'manage_users'] }) }))).toEqual({
       kind: 'denied',
@@ -33,11 +31,7 @@ describe('describeMediaAccess', () => {
   });
 
   it('denies a session that carries no roles at all, and says so distinctly', () => {
-    // An empty array is not "the wrong role": it is a session granted nothing,
-    // which core says means either a registered-users-only cluster or a
-    // signed-in viewer degraded to anonymous by a credential-less re-mint.
-    // Both are answered by signing in, and neither by asking an administrator
-    // for a role, so the two denials must not share a message.
+    // The remedy differs from `no-role`: sign in, not ask an admin for a role.
     expect(describeMediaAccess(facts({ session: session({ roles: [] }) }))).toEqual({
       kind: 'denied',
       reason: 'no-roles',
@@ -51,18 +45,13 @@ describe('describeMediaAccess', () => {
     });
   });
 
-  // The branch this type exists for, and the one a two-state gate gets wrong.
-  // Each of these would read as "denied" to an implementation that treated
-  // absent roles as refusal, and each would put a fully privileged viewer on a
-  // login screen.
+  // Reading any of these as denied would put a privileged viewer on a login screen.
   describe('does not mistake silence for refusal', () => {
     it('while the session lifecycle is still running', () => {
       expect(describeMediaAccess(facts({ settled: false, hasToken: false, known: false }))).toEqual({ kind: 'unknown' });
     });
 
     it('when a mint failed in transport rather than being refused', () => {
-      // Offline. The cluster has said nothing, so neither do we — this is what
-      // keeps a phone away from home out of the login screen.
       expect(describeMediaAccess(facts({ hasToken: false, known: false }))).toEqual({ kind: 'unknown' });
     });
 
@@ -71,16 +60,11 @@ describe('describeMediaAccess', () => {
       expect(describeMediaAccess(facts({ known: true, session: undefined }))).toEqual({ kind: 'unknown' });
     });
 
-    // A settled lifecycle that produced a token still says nothing about roles
-    // until the whoami lands. Reading the absent session as "no roles" is the
-    // same error wearing a different hat.
     it('even though the lifecycle has settled and holds a token', () => {
       expect(describeMediaAccess(facts({ settled: true, hasToken: true, known: false }))).toEqual({ kind: 'unknown' });
     });
   });
 
-  // A refusal outranks a missing whoami: the node has already answered the only
-  // question that matters, so waiting for a second answer would strand the gate.
   it('prefers a stated refusal over an unanswered whoami', () => {
     expect(describeMediaAccess(facts({ mintRefused: true, hasToken: false, known: false, session: undefined }))).toEqual({
       kind: 'denied',
@@ -90,9 +74,6 @@ describe('describeMediaAccess', () => {
 });
 
 describe('mayRequestMedia', () => {
-  // Optimistic on unknown, deliberately. The server is the real gate; this only
-  // decides whether asking is worth the round trip, and refusing to ask while
-  // we do not know is how an app locks out the people it should serve.
   it('asks the cluster unless it has actually been refused', () => {
     expect(mayRequestMedia({ kind: 'granted' })).toBe(true);
     expect(mayRequestMedia({ kind: 'unknown' })).toBe(true);

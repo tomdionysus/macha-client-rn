@@ -8,10 +8,7 @@ import { colors, radius, space } from './theme';
 
 export { UNAVAILABLE_OPACITY } from './theme';
 
-/**
- * The availability marker at the top left of a title's artwork: icons alone
- * on the phone. See `playback/availability.ts` for the ruling.
- */
+/** Availability icon at the top left of a title's artwork; rules in `playback/availability.ts`. */
 export function AvailabilityBadge({
   item,
   size = 18,
@@ -33,10 +30,7 @@ export function AvailabilityBadge({
   );
 }
 
-/**
- * Whether a title is held back: unavailable on the cluster and not on the
- * disk. Such a title is greyed out and not selectable.
- */
+/** True when a title is unavailable on the cluster and not downloaded: greyed out and not selectable. */
 export function useUnavailable(item: MediaSummary): boolean {
   return heldBack(item, useMacha().downloads);
 }

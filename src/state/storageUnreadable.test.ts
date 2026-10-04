@@ -4,11 +4,8 @@ import { unreadableRows } from '../test/async-storage';
 import { clientStore } from './storage';
 
 /**
- * A row larger than Android's CursorWindow (a play queue holding a whole
- * library, say) makes a `multiGet` of every Macha key throw. Starting empty
- * then means the Connect screen, as if never configured, and a fresh client
- * id minted over the real one. One unreadable row must cost that row, not the
- * store. Its own file because `hydrate()` runs once per process.
+ * A row over Android's CursorWindow makes `multiGet` throw; it must cost only
+ * that row. Its own file because `hydrate()` runs once per process.
  */
 describe('ClientStore.hydrate with a row too big to read', () => {
   it('keeps every other key', async () => {

@@ -15,20 +15,10 @@ import { useToast } from './Toast';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
 /**
- * The download control for a single item.
- *
- * It is a state display as much as a button: not downloaded, queued,
- * transferring with a percentage, stored, or failed and retryable. Tapping a
- * stored item asks before deleting, because the bytes are the point.
- *
- * A title with more than one file opens a chooser first:
- * a download is a copy of one file, so the viewer names which. A title none
- * of whose files this device can play off the disk cannot be downloaded: the
- * button is grey, and tapping it says "Not available for this device".
- *
- * `files` are the title's playback facts where the screen already has them
- * (the title page), so the verdict shows before a tap. Without them (a row
- * in a list) the facts are fetched on the tap, rather than once per row.
+ * Download control and state for one item: idle, queued, progress, stored or
+ * failed. A title with several files opens a chooser; one with no file this
+ * device can play is greyed and explains on tap. Pass `files` when the screen
+ * already has the facts; otherwise they are fetched on tap, not once per row.
  */
 export function DownloadButton({
   item,
@@ -46,9 +36,6 @@ export function DownloadButton({
   const record = downloadStateOf(snapshot, item.mediaIds);
   const size = compact ? 18 : 20;
 
-  // The icon under the finger changes state immediately, but on a dense list
-  // that is a very small movement to notice, and the transfer itself happens
-  // somewhere the viewer is not looking.
   const [choosing, setChoosing] = useState(false);
   const [fetched, setFetched] = useState<readonly PlaybackMediaFacts[] | undefined>(undefined);
   const [checking, setChecking] = useState(false);
@@ -77,8 +64,7 @@ export function DownloadButton({
       setChecking(false);
       if (current) setFetched(current);
     }
-    // Without facts (the node cannot be asked) the download goes ahead: the
-    // manager checks again before it fetches anything.
+    // Without facts, enqueue anyway: the manager checks again before fetching.
     if (current && !anyPlayableHere(current)) unavailable();
     else if (current && current.length > 1) setChoosing(true);
     else enqueue();
@@ -162,10 +148,7 @@ function anyPlayableHere(files: readonly PlaybackMediaFacts[]): boolean {
   return files.some((file) => playableHere(file, capabilities, overrides));
 }
 
-/**
- * The title's files, one row each; picking one downloads it. A file this
- * device cannot play off the disk is listed, greyed, and says so.
- */
+/** One row per file; files this device cannot play are listed but disabled. */
 function DownloadChooser({
   visible,
   files,
@@ -228,8 +211,7 @@ function Control({
 }
 
 const styles = StyleSheet.create({
-  // A title page's Download sits in the header across from Back, so it looks
-  // like the header's other buttons.
+  // Matches the header buttons it sits beside on a title page.
   button: {
     width: TOUCH_TARGET,
     height: TOUCH_TARGET,

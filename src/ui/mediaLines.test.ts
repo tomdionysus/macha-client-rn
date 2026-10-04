@@ -4,10 +4,7 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 
 const mediaProfileSummary = (profile: CatalogueMediaProfile) => fileLines([profile])[0];
 
-/**
- * The phone's lines over core's facts (`technicalSummary`): these pin that
- * core's facts and the phone's layout read exactly as the web client's do.
- */
+/** Pins the phone's lines to read exactly as the web client's do. */
 function stream(partial: Partial<CatalogueMediaStreamProfile>): CatalogueMediaStreamProfile {
   return {
     index: 0, type: 'video', codec: '', profile: '', language: '', width: 0, height: 0, channels: 0,

@@ -17,8 +17,7 @@ export default function EpisodeScreen() {
   const detail = useAsync((signal) => media.details(id, signal), [media, generation, id]);
   const episode = detail.value as Episode | undefined;
 
-  // The rest of the season is loaded separately so the page renders as soon as
-  // the episode itself is known, rather than waiting on its siblings.
+  // Siblings load separately so the page renders as soon as the episode is known.
   const siblings = useAsync(
     async (signal) =>
       episode?.playbackContext ? media.episodesOfSeason(episode.playbackContext.season.id, signal) : [],

@@ -17,15 +17,11 @@ describe('describeProblems', () => {
   });
 
   it('reports an unconfigured client and nothing else', () => {
-    // There is no cluster yet, so it cannot be unreachable or refuse us, and
-    // saying so would be inventing two more problems out of one.
     expect(kinds(facts({ endpointsConfigured: false, networkDown: true, access: { kind: 'denied', reason: 'no-session' } }))).toEqual([
       'no-endpoints',
     ]);
   });
 
-  // The distinction one boolean cannot carry: only one of them is anything the
-  // viewer can act on.
   it('separates a device with no network from a cluster that will not answer', () => {
     expect(kinds(facts({ networkDown: true }))).toEqual(['network-down']);
     expect(kinds(facts({ clusterUnreachable: true }))).toEqual(['cluster-unreachable']);
@@ -40,9 +36,7 @@ describe('describeProblems', () => {
     expect(kinds(facts({ access: { kind: 'denied', reason: 'no-role' } }))).toEqual(['account-cannot-view']);
   });
 
-  // An account refusal outlives the outage, so it is not a consequence of one
-  // and must not be swallowed by it — otherwise it appears only later, as a
-  // surprise, once the network is back.
+  // A refusal outlives the outage, so it must not be hidden by it.
   it('reports an account refusal alongside an outage', () => {
     expect(kinds(facts({ networkDown: true, access: { kind: 'denied', reason: 'no-role' } }))).toEqual([
       'network-down',
@@ -50,8 +44,6 @@ describe('describeProblems', () => {
     ]);
   });
 
-  // The branch the whole three-state access model exists to protect. Silence is
-  // not a problem to report, or every cold start would raise one.
   it('reports nothing while access is merely unknown', () => {
     expect(kinds(facts({ access: { kind: 'unknown' } }))).toEqual([]);
   });
@@ -65,9 +57,6 @@ describe('describeProblems', () => {
 });
 
 describe('clusterMediaUnavailable', () => {
-  // "Are we offline" is only one of four ways the answer is no. A refused
-  // cluster answers every request promptly and can
-  // still play this viewer nothing.
   it('is true for a refusal, not only for an outage', () => {
     expect(clusterMediaUnavailable(describeProblems(facts()))).toBe(false);
     expect(clusterMediaUnavailable(describeProblems(facts({ clusterUnreachable: true })))).toBe(true);
@@ -79,8 +68,6 @@ describe('clusterMediaUnavailable', () => {
 describe('describeEmptyLibrary', () => {
   const copy = (f: ProblemFacts) => describeEmptyLibrary('films', describeProblems(f));
 
-  // The claim this client is only sometimes entitled to make. Saying it while
-  // refused tells a viewer their library is empty when it is full.
   it('only blames the catalogue when it can actually see one', () => {
     expect(copy(facts()).title).toBe('No films in this catalogue yet');
     expect(copy(facts({ access: { kind: 'denied', reason: 'no-role' } })).title).toBe('This account cannot view films');
@@ -90,13 +77,10 @@ describe('describeEmptyLibrary', () => {
     expect(copy(facts({ endpointsConfigured: false })).title).toBe('No Macha node configured');
   });
 
-  // Unknown access is not a refusal, so the ordinary sentence stands. Anything
-  // else would accuse the cluster on every cold start.
   it('says the ordinary thing while access is merely unknown', () => {
     expect(copy(facts({ access: { kind: 'unknown' } })).title).toBe('No films in this catalogue yet');
   });
 
-  // An outage passes on its own; a role does not. The actionable one wins.
   it('prefers the account refusal over a concurrent outage', () => {
     expect(copy(facts({ networkDown: true, access: { kind: 'denied', reason: 'no-role' } })).title).toBe(
       'This account cannot view films',
@@ -111,10 +95,7 @@ describe('describeEmptyLibrary', () => {
 });
 
 describe('a session granted no roles at all', () => {
-  // Say plainly when a session holds nothing. The distinction is the advice,
-  // not the mechanism — "ask for the role" is
-  // the wrong thing to tell someone whose signed-in session was replaced by an
-  // anonymous one, which is how this arises.
+  // Typically a signed-in session replaced by an anonymous one.
   const facts = {
     endpointsConfigured: true,
     networkDown: false,

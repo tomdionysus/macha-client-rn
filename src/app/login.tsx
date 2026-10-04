@@ -10,15 +10,9 @@ import { MachaLogo } from '../ui/Logo';
 import { colors, radius, space, type as typography } from '../ui/theme';
 
 /**
- * Sign in as somebody.
- *
- * Nothing is gained access to here in the usual sense. Every session belongs
- * to a user and empty credentials authenticate the `anonymous` one, so a
- * viewer already has a session before this screen is ever opened — this
- * exchanges it for one belonging to a named account. That is why it is reached
- * from the header and from Settings rather than standing in front of the app:
- * a cluster whose anonymous user may watch media is an ordinary configuration,
- * and a login wall would be a lie about what Macha requires.
+ * Sign in as a named user. Every viewer already holds a session (empty
+ * credentials authenticate `anonymous`), so this swaps it for a named one, and
+ * is reached from the header and Settings rather than gating the app.
  */
 export default function LoginScreen() {
   const { signIn } = useMacha();
@@ -36,20 +30,16 @@ export default function LoginScreen() {
     setBusy(true);
     setMessage(undefined);
     try {
-      // Playback stops first, and this is not tidiness. Signing in replaces
-      // the token rather than upgrading it, and a playback session created
-      // under the old one cannot be closed afterwards — the node then holds it
-      // against `max_video_transcodes` until `session_idle` at thirty minutes.
-      // On a one-slot node that is the whole transcode capacity, lost to a
-      // login.
+      // Stop playback first: sign-in replaces the token, and a playback session
+      // opened under the old one can no longer be closed, so the node holds it
+      // against `max_video_transcodes` until `session_idle` (30 min).
       await stop();
       await signIn({ username: username.trim(), password });
       setPassword('');
       router.back();
     } catch (error) {
-      // One sentence for any refused sign-in: a node answers an unknown
-      // username and a wrong password identically, and the wording must not
-      // reintroduce the difference.
+      // One message for every refusal: a node answers an unknown username and a
+      // wrong password identically, and the wording must not reveal which.
       setMessage(signInFailureMessage(error));
       setPassword('');
     } finally {

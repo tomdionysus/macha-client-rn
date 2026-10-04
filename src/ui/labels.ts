@@ -2,13 +2,8 @@ import type { MediaSortKey, SearchCategoryKey } from '@machafoundation/core';
 import type { MediaSummary } from '../types';
 
 /**
- * Every word a viewer reads about a catalogue item, composed here.
- *
- * Core writes no viewer text. It hands over structured data — `playbackContext`,
- * `musicContext` with the album's year, `seasonNumber`, `episodeNumber`,
- * `discNumber`, `trackNumber`, sort and category keys — and the wording is
- * each client's, worded as the other clients word it so they stay alike by
- * agreement rather than by a shared function.
+ * Viewer-facing wording for catalogue items. Core supplies structured data
+ * only; keep the wording in step with the other clients.
  */
 
 /** "Season 1 Episode 5", or "Episode 5" when the season is not known. */
@@ -18,10 +13,7 @@ export function episodeLabel(item: MediaSummary): string | undefined {
   return season === undefined ? `Episode ${item.episodeNumber}` : `Season ${season} Episode ${item.episodeNumber}`;
 }
 
-/**
- * "S01E05" — the compact form a season page lists, where the season is
- * already the page.
- */
+/** "S01E05", the compact form used on a season page. */
 export function episodeCode(item: Pick<MediaSummary, 'seasonNumber' | 'episodeNumber'>): string | undefined {
   if (item.episodeNumber === undefined) return undefined;
   const episode = `E${String(item.episodeNumber).padStart(2, '0')}`;
@@ -48,10 +40,7 @@ const SORT_LABELS: Record<MediaSortKey, string> = {
   recent: 'Recently added',
 };
 
-/**
- * "Sort By Title" — each choice reads as a whole, with no "Sort by" heading
- * over the control. Core keeps the keys and the orders.
- */
+/** "Sort By Title": each choice reads as a whole, with no heading over the control. */
 export function sortChoiceLabel(key: MediaSortKey): string {
   return `Sort By ${SORT_LABELS[key]}`;
 }
@@ -63,11 +52,7 @@ export const CATEGORY_LABELS: Record<SearchCategoryKey, string> = {
   music: 'Music',
 };
 
-/**
- * A playlist's name, or a placeholder when it has none. Core stores an
- * unnamed list, or a name that trims to nothing, as `''` and leaves the
- * placeholder to the host.
- */
+/** A playlist's name, or a placeholder for core's unnamed `''`. */
 export function playlistName(playlist: { name: string }): string {
   return playlist.name || 'Untitled playlist';
 }

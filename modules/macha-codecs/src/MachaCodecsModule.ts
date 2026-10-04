@@ -16,18 +16,14 @@ declare class MachaCodecsModule extends NativeModule<{}> {
   displayHdrTypes(): number[] | null;
 
   /**
-   * The largest standard 16:9 frame each video decoder type decodes at 24 fps,
-   * per lowercased MIME type; hardware decoders where the type has any. A
-   * type none of whose decoders manage 360p is absent.
+   * Largest standard 16:9 frame decodable at 24 fps, per lowercased MIME type,
+   * preferring hardware decoders. Types that cannot manage 360p are absent.
    */
   videoDecoderSizes(): Record<string, { width: number; height: number }>;
 }
 
 /**
- * `null` wherever the native module is not present.
- *
- * Optional rather than required on purpose: this module is Android-only, and
- * a missing probe must fall back to the declared list rather than throw on
- * import. iOS and web have no `MediaCodecList` and keep their static claims.
+ * `null` where the native module is absent (it is Android-only), so iOS and web
+ * fall back to their declared codec lists instead of throwing on import.
  */
 export default requireOptionalNativeModule<MachaCodecsModule>('MachaCodecs');

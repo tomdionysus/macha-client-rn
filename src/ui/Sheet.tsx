@@ -6,24 +6,19 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 
 interface SheetProps {
   visible: boolean;
-  /** Optional: a sheet whose options name themselves ("Sort By Title") needs no heading. */
+  /** Omit when the options name themselves. */
   title?: string;
   onClose(): void;
   children: React.ReactNode;
 }
 
-/**
- * A bottom sheet. Options live at the bottom of the screen because that is
- * where a thumb is, and dismissing by tapping the scrim keeps the escape
- * gesture available without a second control.
- */
+/** A bottom sheet, dismissed by tapping the scrim or the close button. */
 export function Sheet({ visible, title, onClose, children }: SheetProps) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" style={styles.scrim} onPress={onClose} />
-      {/* The side insets too: in landscape the system navigation sits on one
-          side, and without them its glyphs draw over the first option. */}
+      {/* Side insets: in landscape the system navigation sits on one side. */}
       <View
         style={[
           styles.sheet,

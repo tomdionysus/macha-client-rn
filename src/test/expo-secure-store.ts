@@ -1,8 +1,7 @@
 /**
- * The Keychain / Keystore, as its contract: synchronous get and set, and a
- * delete that is asynchronous only. `settle()` lets a test decide when a
- * pending delete lands, which is the ordering the real module does not
- * promise.
+ * Keychain / Keystore stub: synchronous get and set, asynchronous delete.
+ * `settle()` lets a test choose when pending deletes land, since the real
+ * module promises no ordering.
  */
 const values = new Map<string, string>();
 const pending: Array<() => void> = [];

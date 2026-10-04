@@ -10,11 +10,6 @@ import {
   trackNumberLabel,
 } from './labels';
 
-/**
- * Core composes no viewer text and hands over structured data only, so these
- * labels are the client's own, worded as the other clients word them.
- */
-
 const episode = (over: Partial<MediaSummary> = {}) =>
   ({ id: 'e', title: 'Truths', kind: 'episode', episodeNumber: 5, ...over }) as MediaSummary;
 
@@ -71,8 +66,7 @@ describe('sort and category wording', () => {
     expect(CATEGORY_LABELS).toEqual({ movies: 'Movies', shows: 'TV Shows', music: 'Music' });
   });
 
-  // Core stores an unnamed playlist as ''. A row reading blank looks like a
-  // rendering fault.
+  // A blank row would look like a rendering fault.
   it('gives an unnamed playlist a placeholder', () => {
     expect(playlistName({ name: '' })).toBe('Untitled playlist');
     expect(playlistName({ name: 'Road trip' })).toBe('Road trip');

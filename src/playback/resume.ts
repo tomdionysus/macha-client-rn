@@ -9,12 +9,9 @@ import {
 } from '@machafoundation/core';
 
 /**
- * Continue Watching that resumes as if the viewer never left: the title, the
- * file, and how it was playing. Core
- * builds this from its coordinator's snapshot; this client drives the
- * resolver directly and has no snapshot, so it builds the same
- * `PlaybackResumeState` from its own session and what it knows the viewer
- * chose. Core's `resumePreferences` reads it back.
+ * Continue Watching that resumes the title, file and way it was playing. Core
+ * builds this from its coordinator; this client has none, so it builds the same
+ * `PlaybackResumeState` itself. Core's `resumePreferences` reads it back.
  */
 
 /** What this client knows about who chose how the title plays. */
@@ -24,23 +21,16 @@ export interface PlaybackChoice {
   /** The quality playing, where it is one of the item's steps. */
   quality?: QualityClass;
   /**
-   * The mode the viewer picked, where they picked one. Not the session's:
-   * Remux on a file whose audio this device cannot decode is carried as
-   * transcode with the video copied, and resuming the session's mode would
-   * re-encode the picture.
+   * The mode the viewer picked, if any. Not the session's: a Remux with
+   * undecodable audio runs as transcode, and resuming that would re-encode video.
    */
   mode?: PlaybackMode;
 }
 
-/**
- * How the session is playing, as the node confirmed it: the streams it
- * selected rather than what was asked, since those are what the viewer saw
- * and heard.
- */
+/** How the session is playing, using the streams the node selected rather than those requested. */
 export function resumeStateOf(session: PlaybackSession, choice: PlaybackChoice): PlaybackResumeState {
   const preferences = session.preferences;
-  // The segment container the node is serving, which for HLS is the one a
-  // resume should ask for again; a direct session serves the file's own.
+  // The HLS segment container to ask for again; direct serves the file's own.
   const served = session.output.container;
   const container = served === 'fmp4' || served === 'mpegts' ? served : undefined;
   return {
@@ -56,20 +46,12 @@ export function resumeStateOf(session: PlaybackSession, choice: PlaybackChoice):
   };
 }
 
-/**
- * Whether a title belongs in Continue Watching: films and episodes only.
- * Music resumes from its own queue. An entry saved
- * without its media cannot be shown, so it does not belong either.
- */
+/** Whether a title belongs in Continue Watching: films and episodes only; music resumes from its queue. */
 export function belongsInContinueWatching(media: Pick<MediaSummary, 'kind'> | undefined): boolean {
   return media?.kind === 'movie' || media?.kind === 'episode';
 }
 
-/**
- * A Continue Watching entry: the item, and where a session is playing, its
- * file and how. Off the disk there is no session, and the entry is the
- * position alone.
- */
+/** A Continue Watching entry: the item, plus its file and resume state when a session is playing (none off the disk). */
 export function progressOf(
   media: MediaSummary,
   positionMs: number,

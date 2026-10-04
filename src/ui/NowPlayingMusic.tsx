@@ -27,12 +27,8 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 const NEXT_REPEAT: Record<RepeatMode, RepeatMode> = { off: 'all', all: 'one', one: 'off' };
 
 /**
- * The music presentation of the shared playback runtime.
- *
- * Video gets a picture and hiding chrome; music gets the opposite — the
- * controls are the screen, and nothing auto-hides. Same runtime underneath, so
- * moving between this, the video player and the mini player never touches the
- * session.
+ * Full-screen music player over the shared playback session; controls never
+ * auto-hide, and switching to the video or mini player leaves the session alone.
  */
 export function NowPlayingMusic({ onClose }: { onClose(): void }) {
   const insets = useSafeAreaInsets();
@@ -67,9 +63,7 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
   const artwork = media.artwork?.poster ?? media.artwork?.thumbnail ?? media.musicContext?.artwork;
   const artist = media.musicContext?.artist?.title;
   const album = media.musicContext?.album.title;
-  // Artist, album, year and track below the artwork. Each line shows only what
-  // the item carries: a stored track without `musicContext` has no album or
-  // artist until it is re-added.
+  // A stored track without `musicContext` has no album or artist line.
   const albumLine = media.musicContext ? albumLabel(media.musicContext.album) : undefined;
   const trackLine = trackNumberLabel(media);
   const RepeatGlyph = repeat === 'one' ? RepeatOneIcon : RepeatIcon;
@@ -119,8 +113,7 @@ export function NowPlayingMusic({ onClose }: { onClose(): void }) {
               </Text>
             ) : null}
             {trackLine ? <Text style={styles.track}>{trackLine}</Text> : null}
-            {/* The track's file, as every client shows it:
-                "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps". */}
+            {/* e.g. "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps" */}
             <MediaLines mediaIds={media.mediaIds} />
           </View>
           <Pressable

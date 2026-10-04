@@ -1,13 +1,10 @@
 import { fileSummaries, type CatalogueMediaProfile, type MediaTechnicalProfile, type TechnicalSummary } from '@machafoundation/core';
 
 /**
- * One line per file, the same on every client. The facts and their labels
- * are core's (`technicalSummary`, `fileSummaries`); what is left here is the
- * phone's layout: the separator, and wrapping only between fields.
- *
- * A film or an episode: "2h 31m · 3840×2160 (4K) · HEVC · TRUEHD · 7.1 ·
- * 47.4 Mbps", files highest resolution first.
- * A track: "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps".
+ * Technical lines per file. Facts and labels come from core (`fileSummaries`);
+ * this module only lays them out, e.g.
+ * "2h 31m · 3840×2160 (4K) · HEVC · TRUEHD · 7.1 · 47.4 Mbps" or
+ * "3:45 · FLAC · 24-bit · 96 kHz · Stereo · 2,304 kbps".
  */
 
 const SEPARATOR = ' · ';
@@ -18,23 +15,16 @@ export function summaryLine(summary: TechnicalSummary): string {
 }
 
 /**
- * One line per distinct file. Files whose facts read the same share one, as
- * core combines them.
+ * One line per distinct file; files with identical facts share a line.
  *
- * TODO: files identical in all of these are very likely the same media
- * stored twice. Report them to the server once it has a route for flagging
- * duplicates, rather than only hiding the repeat here.
+ * TODO: identical files are likely duplicates; report them once the server
+ * has a route for it.
  */
 export function fileLines(profiles: readonly (CatalogueMediaProfile | MediaTechnicalProfile)[]): string[] {
   return fileSummaries(profiles).map(({ summary }) => summaryLine(summary));
 }
 
-/**
- * A line as a narrow screen should wrap it: only between fields, never
- * inside one, so "926 kbps" is never split. Every space inside a field
- * becomes a no-break space, so a break can only fall at the separator, as
- * on the web client.
- */
+/** Makes a line wrap only at separators by turning spaces inside fields into no-break spaces. */
 export function wrapBetweenFields(line: string): string {
   return line
     .split(SEPARATOR)

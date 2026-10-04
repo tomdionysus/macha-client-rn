@@ -17,13 +17,8 @@ interface Props {
 }
 
 /**
- * Artwork, resolved across the cluster.
- *
- * Artwork objects are content-addressed, so any node holding the object will
- * serve it. The component walks its candidate URLs in order — the node's signed
- * capability URL first, then the authenticated per-node object URLs — and moves
- * to the next only when one actually fails. A failure is therefore never a
- * permanently blank poster while another node still has the bytes.
+ * Content-addressed artwork, resolved across the cluster: tries the signed
+ * capability URL, then each node's authenticated URL, advancing on failure.
  */
 export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, borderRadius = radius.md }: Props) {
   const { media } = useMacha();
@@ -31,8 +26,7 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
   const candidates = useMemo(() => (artwork ? media.artworkUrls(artwork) : []), [artwork, media]);
   const [attempt, setAttempt] = useState(0);
 
-  // A different artwork object restarts the walk; otherwise a card recycled
-  // onto new content would inherit the previous item's exhausted attempts.
+  // Reset so a recycled card does not inherit the previous item's failed attempts.
   useEffect(() => setAttempt(0), [artwork?.id]);
 
   const source = candidates[attempt];
@@ -52,18 +46,15 @@ export function Artwork({ artwork, fallbackText, contentFit = 'cover', style, bo
   return (
     <Image
       style={[styles.image, { borderRadius }, style]}
-      // Headers only where the source needs them. A signed capability URL is
-      // self-authenticating, and sending the session's Authorization header to
-      // something that did not ask for it is a habit worth not having.
+      // Signed capability URLs are self-authenticating; send no Authorization to them.
       source={{ uri: source.url, headers: source.requiresAuthorization ? headers : undefined }}
       contentFit={contentFit}
-      // Recycled cards must not show the previous poster while the new one
-      // loads; keying on the object identity forces a clean swap.
+      // Stops a recycled card showing the previous poster while loading.
       recyclingKey={artwork?.id}
       transition={160}
       cachePolicy="memory-disk"
       onError={() => setAttempt((current) => current + 1)}
-      // Success only, so core's host preference follows bytes that arrived.
+      // Only on success, so core's host preference follows working nodes.
       onLoad={() => media.noteArtworkLoaded(source.url)}
     />
   );

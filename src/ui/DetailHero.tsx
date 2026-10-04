@@ -15,12 +15,8 @@ interface Props {
 }
 
 /**
- * The top of every detail screen.
- *
- * A backdrop fills the width and fades into the page, with the poster inset
- * over it. Where there is no backdrop the poster carries the whole hero on its
- * own rather than leaving a grey slab — a home library has patchy artwork and
- * the layout has to stay dignified either way.
+ * Top of every detail screen: a fading backdrop with the poster inset over it,
+ * or the poster alone when there is no backdrop.
  */
 export function DetailHero({ item, facts, actions }: Props) {
   const { width } = useWindowDimensions();

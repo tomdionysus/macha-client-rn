@@ -11,7 +11,7 @@ import { OfflineLibrary } from './offlineLibrary';
 import { DownloadStore } from '../state/downloads';
 import { Connectivity } from '../state/connectivity';
 
-/** A catalogue that only ever fails, which is the whole of what `serve` is classifying. */
+/** A catalogue that only ever fails, to exercise `serve`'s classification. */
 function apiFailingWith(error: unknown, connectivity: Connectivity): MediaApi {
   const catalogue = { list: () => Promise.reject(error) };
   return new MediaApi(
@@ -23,13 +23,8 @@ function apiFailingWith(error: unknown, connectivity: Connectivity): MediaApi {
 
 describe('MediaApi.serve error classification', () => {
   it('treats a session that has not started as "could not ask", not as an unreachable cluster', async () => {
-    // `SessionNotStartedError` extends `MachaConnectionError`, which keeps the
-    // offline fallback working for a host that does nothing. Taken alone it
-    // would also route this through `reportUnreachable()`, and this error
-    // arrives before `start()` on every cold start, so a cluster that is up and
-    // answering would be marked offline on every launch. `shouldProbe()` then
-    // suppresses real requests for twenty seconds, and the viewer gets their
-    // downloads instead of their library.
+    // It arrives on every cold start; reporting it unreachable would suppress
+    // real requests until the next probe.
     const connectivity = new Connectivity();
     const api = apiFailingWith(new SessionNotStartedError('not-started'), connectivity);
 
@@ -38,8 +33,6 @@ describe('MediaApi.serve error classification', () => {
   });
 
   it('still records a genuine transport failure as unreachable', async () => {
-    // The guard above must not swallow the case it sits in front of: a node
-    // that cannot be reached is exactly what `Connectivity` exists to track.
     const connectivity = new Connectivity();
     const api = apiFailingWith(new MachaConnectionError('no route'), connectivity);
 
@@ -48,20 +41,14 @@ describe('MediaApi.serve error classification', () => {
   });
 
   it('is only distinguishable by class, which is why the order matters', () => {
-    // Pins the premise: if this ever stops being true, the branch ordering in
-    // `serve` is merely redundant
-    // rather than load-bearing, and someone should know which.
+    // If this stops holding, the branch order in `serve` is merely redundant.
     expect(new SessionNotStartedError('not-started')).toBeInstanceOf(MachaConnectionError);
   });
 });
 
 /**
- * What core's router actually throws. A walk that exhausts the cluster throws
- * `MachaClusterRouteError` around a `MachaEndpointError` around the original;
- * a 4xx ends the walk and comes out as core's own `MachaApiError`. What
- * survives a layer boundary is fields, never identity (core's rule,
- * `playbackFailureStatus`), so a bare `MachaConnectionError` alone proves
- * nothing about what the app meets.
+ * Errors as core's router throws them: an exhausted walk is a
+ * `MachaClusterRouteError` around a `MachaEndpointError` around the original.
  */
 describe('MediaApi.serve reads what the router throws', () => {
   const walked = (error: unknown) =>

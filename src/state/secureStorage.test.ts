@@ -4,11 +4,6 @@ import { secureStorage } from './secureStorage';
 
 const stub = SecureStore as unknown as typeof SecureStore & { settle(): void; reset(): void };
 
-/**
- * Core keeps the session token in `secureStorage`, which it reads and writes
- * synchronously. SecureStore deletes asynchronously only, so a delete issued
- * by a logout can land after the login that followed it.
- */
 describe('secureStorage', () => {
   beforeEach(() => stub.reset());
 
@@ -23,8 +18,7 @@ describe('secureStorage', () => {
     expect(secureStorage.getItem('macha.session.v1')).toBeNull();
   });
 
-  // Logout, then a quick login. A fire-and-forget delete would land after the
-  // login's write and erase the new token: a silent logout.
+  // Logout then a quick login: a late delete must not erase the new token.
   it('keeps a token written after a removal, whenever the removal settles', () => {
     secureStorage.setItem('macha.session.v1', 'token-a');
     secureStorage.removeItem('macha.session.v1');

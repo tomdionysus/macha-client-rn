@@ -1,119 +1,68 @@
 # Principles and laws
 
 [`docs/principles-and-laws.md`](docs/principles-and-laws.md) holds the laws
-every Macha project shares, numbered the same in every repo since 2026-09-24
-(Tom's ruling, on core's numbering): **1 control, 2 viewer, 3 loader, 4 do
-not shoot thyself in the foot**. Cite them by that number. Its client review
-gates apply to any material change here.
+shared by every Macha project, numbered the same everywhere: **1 control,
+2 viewer, 3 loader, 4 do not shoot thyself in the foot**. Its client review
+gates apply to any material change.
 
-**A citation must be accurate to the canonical text** (Tom, 2026-09-24): cite
-the law whose own words make the point. If the point comes from a principle,
-cite the principle by name instead. The web client once cited "Law 2" for
-"degraded states must be visible", which is the principle *Work is bounded
-and event-driven*. Who said or added something, and when, is never
-rewritten.
+Cite a law only for a point its own words make; otherwise cite the principle by
+name. Never rewrite who said or recorded something, or when, in `TODO/`.
 
 # Branches and releases
 
-Tom's convention across every Macha repo, set 2026-09-13.
-
-Work happens on `develop`, a long-lived branch with a deliberately generic name.
-Releases live on `main`, and a release **is** a tag on `main`.
-
-Tags are bare semver — `0.4.1`, never `v0.4.1` — and annotated rather than
-lightweight, so `git describe` and `--sort=v:refname` behave.
-
-**Do not name a branch after a version.** A version-named branch is a promise
-about what the next version will be, made before the work that decides it. This
-repo had a `release/0.5.0` carrying a patch within a day of its being created.
-
-**Put the version bump in the release commit**, so the tag points at a tree that
-is exactly what ships rather than at one missing its own version number.
-
-`npm run version:check` compares `package.json`, `app.json`, the tag and the
-`*vX.Y.Z*` line under the README's title (Tom, 2026-09-23), and
-derives `android.versionCode` as `major*10000 + minor*100 + patch`. Run it before
-tagging. It exists because **Android compares `versionCode` and ignores
-`versionName` entirely**: every build before 0.4.1 shipped `versionCode 1`, so
-0.1.0 and 0.4.0 were the same build as far as the package manager was concerned.
-The matching `versionName` drift went unnoticed for months for the same reason —
-nothing compared the two files.
+- Work on `develop`. Releases are annotated tags on `main`, bare semver
+  (`0.4.1`, not `v0.4.1`).
+- Never name a branch after a version.
+- Put the version bump in the release commit, so the tag is exactly what ships.
+- Run `npm run version:check` before tagging. It compares `package.json`,
+  `app.json`, the tag and the `*vX.Y.Z*` line under the README title, and
+  checks `android.versionCode = major*10000 + minor*100 + patch`. Android
+  compares only `versionCode`, so a stale one ships as the old build.
 
 # Core: linked on `develop`, published on `main`
 
-Tom's rule, 2026-09-20. `@machafoundation/core` is `file:../macha-ts` on
-`develop`, so this client and core move in parallel and `../macha-ts/dist` is
-what resolves — rebuild core before trusting a typecheck. A release on `main`
-pins the published `^x.y.z`, and **a `file:` dependency must never reach
-`main`**: that is a build that works only on one machine.
+On `develop`, `@machafoundation/core` is `file:../macha-ts` and
+`../macha-ts/dist` is what resolves: rebuild core before trusting a typecheck.
+`main` pins the published `^x.y.z`; **a `file:` dependency must never reach
+`main`**, and `version:check` refuses one.
 
-Before tagging: confirm the core version is really on npm (`npm view
-@machafoundation/core version time --json` — three versions were tagged and
-never published), switch `package.json` to it, `npm install` (not a lockfile
-edit), confirm `test -L node_modules/@machafoundation/core` **fails**, then
-typecheck, tests and a real `expo export` against the registry copy.
-`npm run version:check` refuses a `file:` dependency on a tagged commit or on
-`main`. `TODO/ACTIVE.md` has the full procedure.
+Before tagging: confirm the version is on npm (`npm view @machafoundation/core
+version time --json`), set it in `package.json`, `npm install`, confirm
+`test -L node_modules/@machafoundation/core` fails, then typecheck, test and
+run `expo export`. Full procedure in `TODO/ACTIVE.md`.
 
-# Expo HAS CHANGED
+# Expo
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
+Read the versioned docs at https://docs.expo.dev/versions/v57.0.0/ before
+writing code; the APIs have changed.
 
 # Tests
 
-`npm test` runs vitest. Logic only — no component rendering, deliberately:
-component tests here would mostly assert what the JSX already says, and the
-behaviour worth protecting is not in the views.
+`npm test` runs vitest over logic only; no component rendering.
 
-**Not jest-expo, despite it being what the Expo docs prescribe.** Its React
-Native resolver cannot load `@machafoundation/core` through the `file:` link: the barrel
-import resolves into a mix of the package's `src` and `dist`, and core's ESM
-`./host.js` specifiers then fail whatever `moduleNameMapper` you write. Vitest
-handles the ESM natively and matches what core and the web client already use.
-If you ever need to render components, that is the point at which a second
-toolchain becomes justified rather than gratuitous.
+Not jest-expo: its resolver cannot load core through the `file:` link (it mixes
+core's `src` and `dist`, and the ESM specifiers then fail). Vitest handles the
+ESM natively, as in core and the web client.
 
-`react-native` and AsyncStorage are aliased to stubs in `src/test/` rather than
-mocked per file — they are environment facts, not collaborators. A module that
-needs more than those stubs offer is a module whose logic wants separating from
-its runtime; `src/playback/policy.ts` was extracted from the provider for
-exactly that reason.
+`react-native` and AsyncStorage are aliased to stubs in `src/test/`. A module
+that needs more than those stubs should have its logic separated from its
+runtime, as `src/playback/policy.ts` is.
 
-**There is no linter.** `npm run lint` is `expo lint`, which, finding no
-ESLint, installs one into `package.json` and the lockfile without asking.
-It did so on 2026-09-24. Typecheck and tests are the gate.
+**Prove a test protects a fix**: check it fails against the code before the
+fix. Coverage for its own sake has caught nothing here.
 
-**Write a test to prove a specific fix, then check it fails against the code
-before the fix.** Every test here that protects something real was written that
-way. Coverage added to a module nobody has broken has, so far across this
-project, caught nothing.
+There is no linter. Do not run `npm run lint`: `expo lint` installs ESLint into
+`package.json` without asking. Typecheck and tests are the gate.
 
 # TODO
 
-`TODO/ACTIVE.md` and `TODO/COMPLETED.md` are where work lives — plans,
-experiments, findings and conclusions, not just task lines. Read ACTIVE before
-starting anything and add to it rather than holding a plan in a conversation.
+`TODO/ACTIVE.md` holds current plans and findings; read it before starting
+and add to it rather than keeping a plan in a conversation. Finished work moves
+to `TODO/COMPLETED.md` with what it measured, including experiments that were
+tried and reverted.
 
-Finished work moves to COMPLETED with what it measured, and **an experiment that
-was tried and reverted belongs there too**: a route found not to work is worth as
-much as one that shipped, and costs a day to rediscover. Two are already recorded
-that way — the warm-standby and player-priming attempts at seamless failover.
+# Verify before repeating
 
-# Inherited claims
-
-This is the newest client in the project, and its documentation decays faster
-than its code — the code at least fails when it is wrong. The README, the code
-comments and the assumptions here were written against a Macha and a set of
-sibling clients that have since moved.
-
-**An inherited claim is not evidence.** Check it before repeating it, and
-especially before repeating it to another session: a claim forwarded with a
-second name attached looks corroborated when it is only travelling. Every
-load-bearing correction this project has had came from someone opening the file;
-every wrong one came from a plausible mechanism that fitted the symptom and was
-never checked.
-
-`TODO/COMPLETED.md` records the ones caught so far. One caught on 2026-09-24:
-`isAuthRefusal` and the offline fallback tested error classes nothing in the
-app throws, and passed their tests only because the tests threw those
-classes.
+Documentation and comments decay faster than code. Treat any claim here, in
+the README or in a comment as unverified until you have opened the code it
+describes, especially before passing it to another session.

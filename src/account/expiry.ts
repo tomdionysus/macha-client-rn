@@ -1,13 +1,7 @@
 import { isSignedIn, type SessionIdentityChange } from '@machafoundation/core';
 import { describeAccount, type AccountState } from './marker';
 
-/**
- * How far ahead of the deadline the viewer is asked to log in again.
- *
- * Three days, so a phone picked up every other day still sees it before the
- * session lapses. Longer would nag through most of a 30-day session's last
- * week for something one tap fixes.
- */
+/** How far ahead of expiry to ask the viewer to log in again: long enough for a phone used every other day. */
 export const EXPIRY_WARNING_MS = 3 * 24 * 60 * 60 * 1000;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -19,18 +13,9 @@ export interface ExpiryNotice {
 }
 
 /**
- * A warning that a signed-in session is about to lapse, or nothing.
- *
- * **Why this exists.** Core's refresh timer does not refresh, it re-mints, and
- * a re-mint presents no credentials. So 30 days after logging in, a viewer
- * becomes anonymous mid-use with nothing said, and the library can empty in
- * front of them. The deadline is known in advance: the whoami this client
- * already reads carries `expires_unix_ms`. So the honest fix is to ask before
- * it arrives rather than explain afterwards.
- *
- * Only for a named account, as core's `isSignedIn` decides through
- * `describeAccount`. An anonymous session lapses too, but is re-minted as the
- * same nobody, so there is nothing to warn about.
+ * A warning that a signed-in session is about to lapse, or nothing. Core's
+ * expiry re-mint carries no credentials, so a lapsed login silently becomes
+ * anonymous. Named accounts only; anonymous sessions lose nothing.
  */
 export function sessionExpiryNotice(state: AccountState, nowMs: number): ExpiryNotice | undefined {
   if (describeAccount(state).kind !== 'signedIn' || !state.session) return undefined;
@@ -54,15 +39,10 @@ function count(n: number, unit: string): string {
 }
 
 /**
- * A notice that a named account's session was replaced by one that is not
- * signed in, or nothing.
- *
- * Core records the replacement in `lastIdentityChange` and does not say why:
- * a 401 cannot tell an expiry from a revoke or a password change, so this
- * does not say "expired" either. A deliberate logout clears the record in
- * core, and logging back in replaces it with a change *to* the account, so
- * neither shows this. It lasts until then, or until the app restarts, since
- * core keeps the record in memory only.
+ * A notice that a named account's session was replaced by one not signed in,
+ * or nothing. Does not say "expired": core's `lastIdentityChange` cannot tell
+ * expiry from revocation. A deliberate logout or a new login clears it, as
+ * does a restart (core keeps it in memory).
  */
 export function sessionEndedNotice(
   state: AccountState & { identityChange?: SessionIdentityChange },

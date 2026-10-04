@@ -1,11 +1,6 @@
 import { Platform } from 'react-native';
 
-/**
- * The Macha palette, matching the web client's `styles/base.css`:
- * a near-black neutral ground with a highly saturated, very dark crimson
- * accent. Phone screens are viewed in the dark far more often than a TV, so
- * the client is dark-only rather than following the system scheme.
- */
+/** The Macha palette, matching the web client's `styles/base.css`. Dark-only by design. */
 export const colors = {
   background: '#0e0e0f',
   backgroundLift: '#141416',
@@ -41,7 +36,7 @@ export const colors = {
   ok: '#59c07b',
   scrim: 'rgba(6, 6, 7, 0.72)',
 
-  /** Availability markers, as every client draws them. */
+  /** Availability markers, shared with the other clients. */
   markerRed: '#ff4d4f',
   markerYellow: '#ffc53d',
   markerDisc: '#08080ac9',
@@ -74,11 +69,7 @@ export const type = {
   micro: { fontSize: 11, fontWeight: '500' as const, letterSpacing: 0.8 },
 } as const;
 
-/**
- * The smallest comfortable touch target. Every interactive control in the
- * client is at least this tall — the web/TV client could rely on a focus
- * ring and a pointer, a phone cannot.
- */
+/** Minimum height of every interactive control, in points. */
 export const TOUCH_TARGET = 44;
 
 export const monospace = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });

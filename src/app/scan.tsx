@@ -4,14 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { readScannedEndpoint } from '../scan/endpoint';
 import { QrScanner } from '../ui/QrScanner';
 
-/**
- * Scanning a node address into the connect screen.
- *
- * The camera itself is `QrScanner`, which reports payloads and interprets
- * none of them. This screen supplies the interpretation — a Macha node address
- * — and is the only thing that would need writing again for a code that means
- * something else.
- */
+/** Scans a node address into the connect screen; `QrScanner` reads codes, this screen interprets them. */
 export default function ScanScreen() {
   const router = useRouter();
   const [message, setMessage] = useState<string | undefined>(undefined);
@@ -20,15 +13,15 @@ export default function ScanScreen() {
     (data: string) => {
       const endpoint = readScannedEndpoint(data);
       if (!endpoint) {
-        // The only feedback available for a refusal: the screen does not move,
-        // and a phone held at arm's length is not being read closely.
+        // Haptic as well as text: the screen does not move, and a phone at arm's
+        // length is not read closely.
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         setMessage('That code is not a node address.');
         return;
       }
-      // Only ever pushed from /connect, so dismissing returns the viewer to the
-      // screen they left with the address filled in. The fallback is for the
-      // deep link — `macha://scan` opens this route with nothing beneath it.
+      // Only pushed from /connect, so dismissing returns there with the address
+      // filled in. The fallback covers the `macha://scan` deep link, which has
+      // nothing beneath it.
       const target = { pathname: '/connect', params: { scanned: endpoint } } as const;
       if (router.canDismiss()) router.dismissTo(target);
       else router.replace(target);

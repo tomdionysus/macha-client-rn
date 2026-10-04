@@ -10,11 +10,7 @@ import { MINI_PLAYER_HEIGHT } from './chrome';
 import { Spinner } from './Status';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
-/**
- * The docked presentation of the one owned playback runtime. Navigating out of
- * the full player does not stop or renegotiate anything — it only swaps which
- * view is drawn, so this bar is showing the same session the full screen was.
- */
+/** Docked view of the current playback session; the same session as the full player. */
 export function MiniPlayer() {
   const router = useRouter();
   const { status, media: playingMedia, playing, buffering, positionMs, durationMs, toggle, stop, error } = usePlayback();

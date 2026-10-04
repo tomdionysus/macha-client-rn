@@ -14,18 +14,9 @@ export interface DownloadsSnapshot {
 }
 
 /**
- * Live view of the download registry.
- *
- * The manager owns the state and pushes change notifications; this only
- * re-reads. Progress arrives while the app is in the foreground, and the
- * record itself is authoritative for anything that happened while it was not.
- *
- * Everything below is derived from the snapshot `useSyncExternalStore` hands
- * back, and nothing is read off the store directly. That is deliberate: a
- * direct read is keyed on the store singleton, whose identity never changes, so
- * the React Compiler caches it against a dependency that can never invalidate.
- * Subscribing is not enough — the subscribed value has to be the one the
- * records are built from, or the screen keeps showing what it drew first.
+ * Live view of the download registry. Derive everything from the snapshot,
+ * never from the store directly: the React Compiler caches reads keyed on the
+ * store singleton forever.
  */
 export function useDownloads(): DownloadsSnapshot {
   const { downloadManager } = useMacha();
@@ -35,8 +26,7 @@ export function useDownloads(): DownloadsSnapshot {
     downloadManager.getSnapshot,
   );
 
-  // Merge in-flight byte counts over the persisted record, so progress reads
-  // live without the manager having to write every tick to storage.
+  // In-flight byte counts are kept in memory, not persisted on every tick.
   const records = snapshot.records.map((record) => {
     const live = snapshot.live.get(record.mediaId);
     return live ? { ...record, bytesWritten: live.bytesWritten, bytesTotal: live.bytesTotal ?? record.bytesTotal } : record;
@@ -66,14 +56,7 @@ export function downloadStateOf(
   return undefined;
 }
 
-/**
- * The stored, playable copy of a catalogue item.
- *
- * `DownloadStore.localFor` answers the same question, but off the store, which
- * makes it invisible to React. This reads the live snapshot instead, so a
- * screen that shows or hides something based on what is downloaded actually
- * changes when a download finishes or is removed.
- */
+/** The stored, playable copy of an item; the reactive counterpart of `DownloadStore.localFor`. */
 export function localCopyOf(
   snapshot: DownloadsSnapshot,
   item: Pick<MediaSummary, 'id' | 'mediaIds'>,

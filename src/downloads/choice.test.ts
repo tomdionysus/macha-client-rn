@@ -2,12 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { MediaSummary, MediaTechnicalProfile, PlaybackCapabilities, PlaybackMediaFacts } from '@machafoundation/core';
 import { NOT_AVAILABLE_HERE, downloadChoices, downloadTarget, playableHere } from './choice';
 
-/**
- * Download opens a chooser on a title with more than one file, a download is
- * always a copy of the file named, and a file this
- * device cannot play off the disk cannot be downloaded ("Not available for
- * this device").
- */
 const phone: PlaybackCapabilities = {
   platform: 'android',
   videoCodecs: ['h264', 'hevc'],

@@ -2,22 +2,13 @@ import { playbackFailureDetail, playbackFailureStatus } from '@machafoundation/c
 import { isUnreachable, NO_NODE_ANSWERED_TEXT, noNodeAnswered } from './errors';
 
 /**
- * Viewer text for every failure outside playback, which has its own in
- * `playback/policy.ts`.
+ * Viewer text for failures outside playback (playback's is in
+ * `playback/policy.ts`).
  *
- * Core's `.message` is log text: shown to a viewer it reads *"Macha endpoint
- * https://macnessa.macha.network failed: Macha catalogue request failed:
- * ..."*, two of core's envelopes and a node address.
- *
- * The same shape as `createFailureMessage`, for the same reasons: one lead per
- * kind of failure, saying only what is known, keyed on status and code read
- * through core's accessors because they sit a `cause` or two down; and the
- * server's own sentence in brackets where it stated one, because it is the
- * only place the actual reason appears. **Never `.message` as a fallback** —
- * no detail means the server said nothing, and the lead stands alone.
- *
- * The accessors carry `playback` in their names and walk any chain; core says
- * so and asks that nobody write a second walk because of the name.
+ * One lead per kind of failure, keyed on status read through core's accessors
+ * (which walk any `cause` chain despite the `playback` in their names), plus
+ * the server's own detail in brackets where it gave one. Never fall back to
+ * `.message`: that is core's log text, with envelopes and a node address.
  */
 
 const UNREACHABLE = 'Could not reach the server. Check your connection and try again.';
@@ -52,12 +43,9 @@ export function refreshFailureMessage(error: unknown): string {
 }
 
 /**
- * A sign-in the cluster did not accept.
- *
- * A node answers an unknown username and a wrong password identically, and in
- * the same time; one sentence for any 401 keeps that true here. 403 is a
- * refusal to mint at all — anonymous access switched off, or the account
- * disabled — and the server's sentence is the only thing that says which.
+ * A sign-in the cluster did not accept. One sentence for any 401, so an unknown
+ * user and a wrong password stay indistinguishable. A 403 (anonymous access
+ * off, account disabled) says which only in the server's detail.
  */
 export function signInFailureMessage(error: unknown): string {
   const status = playbackFailureStatus(error);
@@ -67,12 +55,8 @@ export function signInFailureMessage(error: unknown): string {
 }
 
 /**
- * A logout whose revoke failed.
- *
- * By the time this throws the phone has already forgotten the session — core
- * clears it unconditionally — so what failed is telling the cluster. The
- * session stays valid on every node until it expires, and that is the honest
- * thing to say.
+ * A logout whose revoke failed. Core has already cleared the local session; the
+ * server's copy stays valid until it expires.
  */
 export function signOutFailureMessage(error: unknown): string {
   const lead = 'Logged out on this device, but the server could not be told, so the old session stays valid until it expires.';
@@ -80,11 +64,8 @@ export function signOutFailureMessage(error: unknown): string {
 }
 
 /**
- * A download that did not finish.
- *
- * Stored on the record and shown in the downloads list, so it outlives the
- * failure. A local failure — the file system, a missing file — carries no
- * detail and gets the lead alone; its native wording is not the viewer's.
+ * A download that did not finish; stored on the record. Local failures carry
+ * no detail and get the lead alone, never their native wording.
  */
 export function downloadFailureMessage(error: unknown): string {
   return explain(error, 'The download did not finish.');

@@ -2,25 +2,21 @@ import type { PlaybackSession } from '@machafoundation/core';
 import { generationOriginMs, seekRequiresReposition } from './policy';
 
 /**
- * A seek as the web client makes it, through core's coordinator (`seek`,
- * `seekBy`, `onPlayerEvent`), mirrored here because this client drives the
- * resolver itself. It must behave exactly as the web client's does.
+ * A seek as core's coordinator makes it (`seek`, `seekBy`, `onPlayerEvent`),
+ * mirrored because this client drives the resolver itself.
  *
- * **The target is pinned the moment the viewer seeks**, and the bar shows it
- * until the stream asked for is on the player and has shown it is tracking.
- * The outgoing stream plays on while the node builds the new one, so a bar
- * that followed it would make a seek back read as a seek forward, then jump.
- *
- * **Successive seeks build on the target, not on the outgoing stream**, so
- * three presses of back-ten go back thirty.
+ * The target is pinned when the viewer seeks and shown on the bar until the
+ * requested stream is presented and tracking; the outgoing stream keeps
+ * playing meanwhile and would make the bar jump. Successive seeks build on the
+ * target, so three back-tens go back thirty.
  */
 export interface SeekIntent {
   /** Where the viewer asked to be, on the title's timeline. */
   targetMs: number;
   /**
-   * The stream that serves the target is on the player: at once for a seek
-   * within the playing generation, once the node answers for a new one.
-   * Until then every report is the outgoing stream's and says nothing.
+   * The stream serving the target is on the player: at once for a seek within
+   * the playing generation, else once the node answers. Reports before that are
+   * the outgoing stream's.
    */
   presented: boolean;
   /** The last report since presentation that did not reach the target. */
@@ -31,9 +27,8 @@ export interface SeekIntent {
 export const SEEK_REACHED_TOLERANCE_MS = 1_500;
 
 /**
- * How long a seek needing a new generation waits for the next one before
- * asking the node: core's `UNCACHED_SEEK_DEBOUNCE_MS`. Presses in a burst
- * become one request, for the last target.
+ * Debounce before a seek needing a new generation asks the node, so a burst of
+ * presses becomes one request: core's `UNCACHED_SEEK_DEBOUNCE_MS`.
  */
 export const UNCACHED_SEEK_DEBOUNCE_MS = 300;
 
@@ -43,15 +38,12 @@ export function seekBase(intent: SeekIntent | undefined, positionMs: number): nu
 }
 
 /**
- * A player report against a pinned seek: the intent still pinned, or
- * undefined once released.
+ * A player report against a pinned seek: the intent still pinned, or undefined once released.
  *
- * Released when the report reaches the target; or, once the stream asked
- * for is presented, by two reports in a row that moved, because a player can
- * settle somewhere near the target rather than on it (a transformed
- * generation starts at a random-access point) and the pin must not outlive
- * that. Never on movement before presentation: the outgoing stream is still
- * playing and still moving, and releasing on it snaps the bar back.
+ * Released when a report reaches the target, or, once presented, after two
+ * consecutive reports that moved (the player may settle near the target, at a
+ * random-access point). Never released on movement before presentation: that
+ * is the outgoing stream, and releasing would snap the bar back.
  */
 export function observeSeek(intent: SeekIntent, reportedMs: number): SeekIntent | undefined {
   if (Math.abs(reportedMs - intent.targetMs) <= SEEK_REACHED_TOLERANCE_MS) return undefined;
@@ -61,19 +53,12 @@ export function observeSeek(intent: SeekIntent, reportedMs: number): SeekIntent 
 }
 
 /**
- * Whether a seek can be served by the player from the generation it holds,
- * and where on that generation's own timeline, or needs the node to build a
- * new one.
+ * Whether the player can serve a seek from its current generation (and where
+ * on that generation's timeline), or the node must build a new one.
  *
- * **Both directions.** A transformed generation begins where it was asked
- * for, and nothing before that exists in it: a seek back past its origin, clamped
- * locally, would send the viewer *forward* to the generation's start. Core's
- * `generationLocalPosition` returns nothing there, and the coordinator asks
- * the node. Ahead, the bound is what the player has buffered
- * (`seekRequiresReposition`).
- *
- * No session is a downloaded original, and Direct is a byte range over a
- * complete file: both are always local.
+ * Both directions: nothing before a transformed generation's origin exists, so
+ * a seek back past it repositions (as core's `generationLocalPosition`); ahead,
+ * the bound is the buffered end. Downloads and Direct play are always local.
  */
 export function seekPlan(
   session: PlaybackSession | undefined,

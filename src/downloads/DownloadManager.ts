@@ -14,20 +14,12 @@ const MEDIA_DIR = `${FileSystem.documentDirectory}macha/media/`;
 const ARTWORK_DIR = `${FileSystem.documentDirectory}macha/artwork/`;
 
 /**
- * One at a time, deliberately.
- *
- * A node advertises `max_sessions` and every download
- * holds a real playback session while it runs. Fanning out an album would eat
- * the whole budget and compete with someone actually watching something.
+ * One at a time: each download holds a playback session against the node's
+ * `max_sessions`, and fanning out would starve real viewers.
  */
 const CONCURRENCY = 1;
 
-/**
- * Progress is reported far faster than it is worth reacting to. On a LAN the
- * node serves direct streams at tens of MB/s, so the callback fires constantly;
- * persisting and re-rendering on every one starves the very transfer being
- * measured. These bound that work without hiding real progress.
- */
+/** Progress callbacks fire constantly on a fast link; these throttle re-renders and storage writes. */
 const NOTIFY_INTERVAL_MS = 400;
 const PERSIST_INTERVAL_MS = 2_000;
 
@@ -45,23 +37,17 @@ export interface DownloadProgressSnapshot {
 /**
  * Downloads original media for offline playback.
  *
- * Macha has no durable download endpoint: the only route serving bytes is the
- * playback stream URL, which is scoped to a session and whose pipeline is
- * reclaimed after about a minute idle. So a download is a short-lived
- * `direct`-mode session, streamed straight to disk, and torn down immediately
- * afterwards. The transfer itself runs in a native background session, so
- * leaving the app does not kill an in-flight file.
+ * Macha has no download endpoint, only session-scoped stream URLs, so each
+ * download is a short-lived `direct` session streamed to disk and stopped
+ * afterwards. The transfer runs in a native background session, so it
+ * survives the app being backgrounded.
  */
 export class DownloadManager {
   private readonly listeners = new Set<() => void>();
   private running = false;
   private active: string | undefined;
   private cancelled = new Set<string>();
-  /**
-   * The transfer in flight, so a cancel can stop it. A flag alone is read
-   * only when the transfer finishes, so a cancelled film would keep arriving,
-   * all of it to be deleted at the end.
-   */
+  /** The transfer in flight, so a cancel can stop it immediately rather than at completion. */
   private transfer: { mediaId: string; task: FileSystem.DownloadResumable } | undefined;
   /** In-flight byte counts, held in memory rather than written to storage. */
   private readonly live = new Map<string, LiveProgress>();
@@ -73,15 +59,8 @@ export class DownloadManager {
     private readonly playbackApi: ClusterPlaybackApi,
     private readonly mediaApi: MediaApi,
     /**
-     * Where finished transfers are reported, so ranking can use measured
-     * throughput rather than latency alone.
-     *
-     * A download is the only transfer on this client that JS can time. Playback
-     * and artwork are both owned by native modules that never expose the bytes,
-     * and core's own recorder only sees its JSON reads — which are catalogue
-     * listings, so a viewer who opens the app and resumes a download without
-     * browsing produces no other evidence at all. Optional because nothing here
-     * should fail to download for want of a measurement.
+     * Receives measured throughput so endpoint ranking can use it. Downloads are
+     * the only bulk transfer JS can time; playback and artwork are native.
      */
     private readonly registry?: EndpointRegistry,
   ) {}
@@ -102,16 +81,9 @@ export class DownloadManager {
   }
 
   /**
-   * The whole state as one object whose identity changes only when something
-   * actually changed.
-   *
-   * Caching is not an optimisation here, it is the contract twice over.
-   * `useSyncExternalStore` requires a snapshot that is stable between
-   * notifications — a fresh object per call is an endless render loop. And the
-   * value has to be the state itself rather than a revision counter, because a
-   * counter is only reactive if the reader keeps it: a hook that subscribes and
-   * discards the result has no input the React Compiler can see, so it caches
-   * the derived records against the store singletons and never recomputes them.
+   * The whole state as one object whose identity changes only on a change.
+   * `useSyncExternalStore` needs that stability, and returning the state itself
+   * (not a revision counter) gives the React Compiler an input to recompute on.
    */
   getSnapshot = (): DownloadProgressSnapshot => {
     this.cached ??= { records: this.store.all(), active: this.active, live: new Map(this.live) };
@@ -132,19 +104,15 @@ export class DownloadManager {
   }
 
   /**
-   * Queues items that are not already stored or in flight, then starts the
-   * pump. Returns how many were actually added, so a caller can tell the
-   * viewer whether anything happened — asking for an album that is already
-   * downloaded is a legitimate thing to do and deserves a different answer
-   * than one that started twelve transfers.
+   * Queues items not already stored or in flight, then starts the pump.
+   * Returns how many were added, so the caller can say whether anything happened.
    */
   enqueue(items: readonly MediaSummary[], options: { mediaId?: string } = {}): number {
     let queued = 0;
     for (const media of items) {
       const target = downloadTarget(media, options.mediaId);
       if (!target) continue;
-      // Any of the title's files already stored or on its way counts: a
-      // title is downloaded once, whichever file it was.
+      // A title is downloaded once, whichever of its files it was.
       const busy = media.mediaIds.some((mediaId) => {
         const existing = this.store.get(mediaId);
         return existing && (existing.state === 'complete' || existing.state === 'downloading' || existing.state === 'queued');
@@ -217,8 +185,7 @@ export class DownloadManager {
     if (this.running) return;
     this.running = true;
     try {
-      // Strictly sequential: `CONCURRENCY` documents the intent, and the loop
-      // enforces it without a worker pool to get wrong.
+      // Strictly sequential; `CONCURRENCY` documents the intent.
       void CONCURRENCY;
       for (;;) {
         const next = this.store.pending().find((record) => record.state === 'queued');
@@ -248,30 +215,22 @@ export class DownloadManager {
     try {
       await FileSystem.makeDirectoryAsync(MEDIA_DIR, { intermediates: true }).catch(() => undefined);
 
-      // A download always wants the original bytes, whatever this device can
-      // decode: it is a copy of the file, not a viewing decision. Storing a
-      // transcode would mean keeping something strictly worse than the source.
+      // Always the original bytes: a download is a copy, not a viewing decision.
       const instruction: PlaybackInstruction = {
         mode: 'direct',
         video: 'copy',
         audio: 'copy',
         reasons: [],
-        // Stated outright rather than chosen, so no optional input was
-        // consulted and none was defaulted behind our back.
         assumed: [],
       };
-      // Which file to name, since the server refuses a create that names none
-      // on a multi-file item. The one the viewer chose, where they did;
-      // otherwise the one playback would pick: under Direct, a file this
-      // device plays as it is, where there is one.
+      // The server requires a file on multi-file items: the viewer's choice,
+      // else the one playback would pick.
       const files = await this.playbackApi.facts({ itemId: record.media.id }).catch(() => undefined);
       const capabilities = deviceCapabilities();
       const overrides = devicePlaybackOverrides();
       const fileId = record.fileChosen ? mediaId : fileToPlay(files, record.media.mediaIds, capabilities, overrides);
-      // A copy always plays off the disk as it is, so a file this device
-      // cannot play is not downloaded at all. The button says so before a
-      // tap; this catches what arrives without one, like an album's Download.
-      // Without facts the download goes ahead.
+      // A copy plays as it is, so skip a file this device cannot play (e.g. one
+      // queued via an album). Without facts, go ahead.
       const named = files?.find((file) => file.mediaId === (fileId ?? record.media.mediaIds[0]));
       if (named && !playableHere(named, capabilities, overrides)) {
         this.store.patch(mediaId, { state: 'failed', error: `${NOT_AVAILABLE_HERE}.` });
@@ -280,23 +239,17 @@ export class DownloadManager {
       session = await this.playbackApi.create(record.media, instruction, 0, fileId ? { mediaId: fileId } : undefined);
       fileUri = `${MEDIA_DIR}${safeName(mediaId)}${extensionFor(session)}`;
 
-      // Built from the progress callbacks so the measurement covers the body
-      // transfer only — the session POST and cluster walk above are not this
-      // link's throughput. See `throughputSample.ts`.
+      // From progress callbacks, so it times the body only, not session setup.
       let observed: TransferObservation | undefined;
 
       const resumable = FileSystem.createDownloadResumable(
         session.source.url,
         fileUri,
-        // A native background session keeps the transfer alive when the app is
-        // backgrounded. Progress callbacks stop firing until it returns to the
-        // foreground, which is why the record is the source of truth, not state.
+        // Callbacks pause while backgrounded, so the record, not memory, is the truth.
         { sessionType: FileSystem.FileSystemSessionType.BACKGROUND },
         ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
           const bytesTotal =
             totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : session?.source.sizeBytes;
-          // Memory only. Storage sees this at most every couple of seconds, and
-          // the UI at most a few times a second.
           this.live.set(mediaId, { bytesWritten: totalBytesWritten, bytesTotal });
           const now = Date.now();
           observed = observed
@@ -346,8 +299,7 @@ export class DownloadManager {
       this.store.patch(mediaId, { state: 'failed', error: downloadFailureMessage(error) });
     } finally {
       if (this.transfer?.mediaId === mediaId) this.transfer = undefined;
-      // The lease goes back immediately whether or not the bytes arrived — a
-      // download must never hold a session slot it is no longer using.
+      // Always release the session slot.
       if (session) await this.playbackApi.stop(session).catch(() => undefined);
       this.live.delete(mediaId);
       this.active = undefined;
@@ -356,21 +308,9 @@ export class DownloadManager {
   }
 
   /**
-   * Tell the registry what this download measured, when it measured anything.
-   *
-   * Attribution is by URL, the seam core exposes: `recordTransferByUrl`
-   * matches the URL against the registry's endpoints and files the sample
-   * against whichever one served it. A sample filed against the wrong node
-   * would be worse than none, since ranking would act on it, so a URL core
-   * cannot match is silently dropped rather than guessed at. The match holds
-   * while media is served from the node's own base URL.
-   *
-   * Every sample here comes from whichever node the registry already preferred,
-   * because that is the node the session resolver picked. Throughput therefore
-   * accumulates on the incumbent and rarely on a challenger, so it will mostly
-   * confirm a ranking rather than overturn one. That is a known limit of
-   * sampling from downloads, recorded in `TODO/ACTIVE.md`; it is not a reason
-   * to record nothing.
+   * Reports measured throughput to the registry, which attributes it by URL and
+   * drops a URL it cannot match. Samples mostly come from the already-preferred
+   * node, so they confirm a ranking more often than overturn one.
    */
   private recordThroughput(session: PlaybackSession, observed: TransferObservation | undefined): void {
     if (!this.registry || !observed) return;
@@ -379,10 +319,7 @@ export class DownloadManager {
     this.registry.recordTransferByUrl(session.source.url, sample.bytes, sample.durationMs);
   }
 
-  /**
-   * Stores the cover next to the media. Artwork failing is not a download
-   * failure: a track with no picture is still perfectly playable offline.
-   */
+  /** Stores the cover next to the media; failure here does not fail the download. */
   private async storeArtwork(media: MediaSummary, mediaId: string): Promise<string | undefined> {
     const ref =
       media.artwork?.poster ?? media.artwork?.thumbnail ?? media.musicContext?.artwork ?? media.artwork?.backdrop;
@@ -390,9 +327,7 @@ export class DownloadManager {
     try {
       await FileSystem.makeDirectoryAsync(ARTWORK_DIR, { intermediates: true }).catch(() => undefined);
       const target = `${ARTWORK_DIR}${safeName(mediaId)}.img`;
-      // This downloader sends no Authorization header, so only a
-      // self-authenticating source can be stored; an item with no signed URL
-      // simply keeps no cover.
+      // No Authorization header here, so only a signed URL will do.
       const source = this.mediaApi.artworkUrls(ref).find((candidate) => !candidate.requiresAuthorization);
       if (!source) return undefined;
       const result = await FileSystem.downloadAsync(source.url, target);
@@ -403,16 +338,12 @@ export class DownloadManager {
   }
 }
 
-/** `macha:<sha256>` is not a legal filename on every platform; the identity is preserved, not the punctuation. */
+/** Media ids like `macha:<sha256>` are not legal filenames everywhere. */
 function safeName(mediaId: string): string {
   return mediaId.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
-/**
- * The stored file keeps the original's extension where the server reveals one.
- * Players sniff content anyway, but a correct extension makes the file
- * recognisable if it is ever inspected outside the app.
- */
+/** The original's extension where the server reveals one, else the format, else `.bin`. */
 function extensionFor(session: PlaybackSession): string {
   const path = session.sourceInfo.path ?? '';
   const match = /\.([a-zA-Z0-9]{1,5})$/.exec(path);

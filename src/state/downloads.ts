@@ -4,20 +4,11 @@ import { readValidatedJson, writeJson } from './storage';
 export type DownloadState = 'queued' | 'downloading' | 'complete' | 'failed';
 
 export interface DownloadRecord {
-  /**
-   * The content-addressed media identity (`macha:<sha256>`), and the primary
-   * key. It is immutable and survives the file being moved or re-imported on
-   * the server, so a stored copy can never silently drift from what it claims
-   * to be — which a catalogue id cannot promise.
-   */
+  /** Primary key: the content-addressed file id (`macha:<sha256>`), immutable unlike a catalogue id. */
   mediaId: string;
   /** Catalogue id, for linking back into the library when it is reachable. */
   itemId: string;
-  /**
-   * The viewer named this file in the download chooser, so `mediaId` is the
-   * file to copy. Otherwise the download takes the file
-   * playback would pick.
-   */
+  /** The viewer chose this file; otherwise the download takes the file playback would pick. */
   fileChosen?: boolean;
   state: DownloadState;
   /** `file://` URI of the stored original, once complete. */
@@ -28,11 +19,7 @@ export interface DownloadRecord {
   bytesWritten?: number;
   error?: string;
   updatedAt: number;
-  /**
-   * An offline snapshot of the item. Without it a downloaded file is
-   * unbrowsable in airplane mode — you would have the bytes and no way to find
-   * or name them.
-   */
+  /** Snapshot of the item, so the download can be browsed offline. */
   media: MediaSummary;
 }
 
@@ -133,12 +120,8 @@ export class DownloadStore {
 }
 
 /**
- * The offline view of a downloaded item.
- *
- * The locally stored cover is placed in the same slot the server's signed
- * capability URL normally occupies, so every existing component — cards, rows,
- * the now-playing screen, the notification — renders it with no idea it came
- * off the disk. Nothing downstream needs an offline code path.
+ * The offline view of a downloaded item, with the stored cover in the slot a
+ * signed artwork URL normally fills, so components need no offline path.
  */
 export function offlineMedia(record: DownloadRecord): MediaSummary {
   if (!record.artworkUri) return record.media;

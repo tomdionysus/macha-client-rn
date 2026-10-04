@@ -1,11 +1,7 @@
 import type { ClusterNodeStatus, PlaybackSession } from '@machafoundation/core';
 
-/**
- * How a node is named to the viewer: the operator's name where the server
- * sends one (`node_name`, such as "Corvus FI-1"). The web client's rules, so
- * every client names a node alike. An address stays an address wherever one
- * is actually needed, as on the connect screen.
- */
+// How a node is named to the viewer, by the same rules as the web client:
+// the operator's name (`node_name`) where the server sends one.
 
 /** A status node: its name, else its host, else a short id. */
 export function statusNodeName(node: ClusterNodeStatus): string {
@@ -13,13 +9,9 @@ export function statusNodeName(node: ClusterNodeStatus): string {
 }
 
 /**
- * Where a session is served from: core's endpoint name (the node's own, as
- * the registry knows it), else the address's hostname, else the address with
- * its scheme dropped. Undefined for a session that names no endpoint.
- *
- * `||`, not `??`, on the hostname: React Native's `URL` answers `''` for a
- * hostname it cannot read rather than throwing (its `Libraries/Blob/URL.js`
- * matches only `http(s)://`), and that means unread, not unnamed.
+ * Where a session is served from: core's endpoint name, else the address's
+ * hostname, else the address without its scheme. `||` because React Native's
+ * `URL` returns `''` for a hostname it cannot parse rather than throwing.
  */
 export function sessionNodeName(session: Pick<PlaybackSession, 'endpoint'>): string | undefined {
   const name = session.endpoint?.name?.trim();

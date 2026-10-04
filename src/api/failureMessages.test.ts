@@ -15,9 +15,8 @@ import {
   signOutFailureMessage,
 } from './failureMessages';
 
-// What core hands a screen: its own envelope around the node's answer, and the
-// endpoint wrapper around that. Only `detail` is the server's; every `message`
-// on the way out is core's log text, node address included.
+// Core's endpoint wrapper around its API error. Only `detail` is the server's;
+// every `message` is core's log text.
 function wrapped(inner: Error): MachaEndpointError {
   return new MachaEndpointError(
     `Macha endpoint https://macnessa.macha.network failed: ${inner.message}`,
@@ -44,18 +43,13 @@ describe('failure messages never show core\'s log text', () => {
     expect(message()).not.toMatch(LOG_TEXT);
   });
 
-  // The server's sentence is the only place the actual reason appears, so it
-  // is quoted rather than discarded.
   it('quotes the server where it stated a reason', () => {
     expect(loadFailureMessage(catalogue500)).toContain('(database is locked)');
-    // A refusal to mint at all says why only in the server's sentence.
     expect(signInFailureMessage(new SessionAuthError('x', 403, 'anonymous_disabled', 'anonymous access is disabled'))).toContain(
       '(anonymous access is disabled)',
     );
   });
 
-  // No detail means no layer stated a sentence: the lead stands alone rather
-  // than falling back to `.message`.
   it('says nothing of its own invention when the server said nothing', () => {
     const bare = wrapped(new MachaApiError('Macha catalogue request failed: 500 Internal Server Error', 500));
     expect(loadFailureMessage(bare)).not.toContain('(');
@@ -72,14 +66,10 @@ describe('failure messages are keyed on what happened', () => {
     ]) {
       expect(loadFailureMessage(error)).toMatch(/Could not reach the server/);
     }
-    // A wrapped refusal is kind `transport` too, because `endpointFailure`
-    // defaults there for any status it does not name. The status decides.
+    // Core files a wrapped refusal under `transport` too; the status decides.
     expect(loadFailureMessage(wrapped(new MachaApiError('x', 403, 'forbidden')))).not.toMatch(/Could not reach/);
   });
 
-  // The web client's sentence: every node was tried and none answered,
-  // refused, gone or slower than core waits for one. Usually a
-  // passing slowness, so it says to try again before it says to check.
   it('says no server answered when the route tried every node and reached none', () => {
     const exhausted = new MachaClusterRouteError(['a', 'b'], true, new MachaConnectionError('fetch failed'));
     expect(loadFailureMessage(exhausted)).toBe(
@@ -94,8 +84,7 @@ describe('failure messages are keyed on what happened', () => {
     expect(loadFailureMessage(wrapped(new MachaApiError('x', 429, 'rate_limited')))).toMatch(/busy/);
   });
 
-  // A node answers an unknown username and a wrong password identically, and
-  // the sentence here must not reintroduce the difference.
+  // Must not reveal whether the username exists.
   it('gives one sentence for any refused sign-in', () => {
     const wrongPassword = signInFailureMessage(new SessionAuthError('x', 401, 'unauthorized'));
     const unknownUser = signInFailureMessage(new SessionAuthError('y', 401, 'unauthorized'));
@@ -103,7 +92,6 @@ describe('failure messages are keyed on what happened', () => {
     expect(wrongPassword).toMatch(/username or password/);
   });
 
-  // By the time the revoke fails the local sign-out has already happened.
   it('says the phone is signed out when only the revoke failed', () => {
     expect(signOutFailureMessage(new MachaConnectionError('fetch failed'))).toMatch(/^Logged out on this device/);
   });

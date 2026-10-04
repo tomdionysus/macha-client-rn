@@ -35,9 +35,8 @@ interface ScreenProps {
 }
 
 /**
- * Standard screen chrome: safe-area handling, a compact header that leaves the
- * maximum amount of a phone screen for content, the Macha watermark, and
- * bottom padding that clears the docked navigation and mini player.
+ * Standard screen chrome: safe areas, a compact header, the watermark, problem
+ * reporting, and bottom padding that clears the docked navigation and mini player.
  */
 export function Screen({
   title,
@@ -159,23 +158,14 @@ const styles = StyleSheet.create({
 });
 
 /**
- * The one warning in the app: a triangle beside the screen's own actions.
- *
- * Deliberately small and non-blocking. Every state it stands for is one the app
- * carries on working in — the viewer's own downloads play throughout — so this
- * is a thing to notice, not a thing to be interrupted by.
- *
- * It stands for whatever is actually wrong, not only "offline": a viewer does
- * not care which of four internal facts produced a smaller library; they care
- * what it is and whether it is theirs to fix. Tapping it says so.
+ * The app's one warning: a small, non-blocking header triangle for any current
+ * problem (not only offline). Tapping it explains.
  */
 function ProblemBadge({ problems, onPress }: { problems: readonly Problem[]; onPress(): void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      // The label carries the problem itself: a screen reader announcing
-      // "warning, button" has told somebody there is a problem and refused to
-      // say what, which is worse than not marking it at all.
+      // Announce the problem itself, not just "warning".
       accessibilityLabel={`${problems.map((problem) => problem.title).join('. ')}. Tap for detail.`}
       hitSlop={8}
       onPress={onPress}
@@ -185,12 +175,7 @@ function ProblemBadge({ problems, onPress }: { problems: readonly Problem[]; onP
   );
 }
 
-/**
- * One quiet line under the header, so the commonest case needs no tap at all.
- *
- * The first problem only. `describeProblems` returns root causes in the order
- * they bite, and a header is not the place for a list — the rest is a tap away.
- */
+/** One line under the header naming the first problem; `describeProblems` orders them by impact. */
 function ProblemNotice({ problem }: { problem: Problem }) {
   return (
     <View style={problemStyles.notice}>
@@ -209,8 +194,7 @@ function ProblemSheet({
   visible: boolean;
   onClose(): void;
 }) {
-  // Nothing to explain is not an empty sheet: the badge that opens this is gone
-  // by then, and a sheet left open through a recovery should close itself.
+  // Closes itself when every problem clears.
   if (problems.length === 0) return null;
 
   return (
@@ -258,7 +242,7 @@ const problemStyles = StyleSheet.create({
   },
 });
 
-/** A round header action, sized for a thumb rather than a cursor. */
+/** A round header action button. */
 export function HeaderButton({
   label,
   onPress,

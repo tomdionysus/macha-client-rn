@@ -39,11 +39,7 @@ import { episodeCode } from '../ui/labels';
 /** Chrome fades out this long after the last touch, but only while playback is actually running. */
 const CONTROLS_HIDE_DELAY_MS = 3_500;
 
-/**
- * A transport control that changes playback gets a light tap. Full-screen video
- * hides the usual visual feedback of a button press, so touch is doing the work
- * the chrome cannot.
- */
+/** Haptic tap for transport controls: full-screen video hides the usual press feedback. */
 function tap(): void {
   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
@@ -83,8 +79,7 @@ export default function PlayerScreen() {
   } = usePlayback();
 
   const [chromeVisible, setChromeVisible] = useState(true);
-  // The wait notice counts seconds, so a start redraws once a second while
-  // it lasts, and not otherwise.
+  // The wait notice counts seconds, so tick once a second only while starting.
   const [now, setNow] = useState(() => Date.now());
   const starting = status === 'loading';
   useEffect(() => {
@@ -94,9 +89,8 @@ export default function PlayerScreen() {
     return () => clearInterval(timer);
   }, [starting]);
   const node = session ? sessionNodeName(session) : undefined;
-  // Under the spinner: a start that is taking a while, with what the node
-  // says it is doing; or a new stream being built behind the one playing,
-  // named as a change. The web's words (`startProgress.ts`).
+  // Under the spinner: a slow start with the node's reported progress, or a new
+  // stream being built behind the one playing. Wording matches the web client.
   const spinnerNote = starting
     ? startWaitNotice(
         true,
@@ -124,16 +118,9 @@ export default function PlayerScreen() {
   }, [audioOnly]);
 
   /**
-   * Force landscape, or hand rotation back to the device.
-   *
-   * This asks for landscape while the phone is lying flat or held in a
-   * rotation lock, which is most of the time someone is watching something.
-   *
-   * The button reads the *measured* orientation rather than a flag of its own,
-   * so rotating by hand keeps the icon honest — a remembered "we are
-   * fullscreen" boolean would be wrong the moment the viewer turned the phone
-   * back themselves. Releasing unlocks rather than forcing portrait, so the
-   * device decides, exactly as it does on arriving here.
+   * Force landscape, or hand rotation back to the device. Reads the measured
+   * orientation rather than a flag, so the icon stays right when the viewer
+   * rotates by hand; releasing unlocks rather than forcing portrait.
    */
   const toggleLandscape = useCallback((currentlyLandscape: boolean) => {
     void (currentlyLandscape
@@ -151,9 +138,8 @@ export default function PlayerScreen() {
     armHide();
   }, [armHide]);
 
-  // Paused, buffering, failed or audio-only playback keeps its controls: there
-  // is nothing to reveal by hiding them, and a stalled screen with no chrome
-  // looks broken.
+  // Paused, buffering, failed or audio-only playback keeps its controls: hiding
+  // them reveals nothing, and a stalled screen with no chrome looks broken.
   useEffect(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (playing && !optionsOpen && !audioOnly && status === 'ready') armHide();
@@ -289,10 +275,8 @@ export default function PlayerScreen() {
             </Pressable>
           </View>
 
-          {/* Not over a failure: the failure panel paints first, so this row
-              would cover its message, and none of the three can do anything
-              for a failed player. The top bar stays: it holds the Playback
-              menu the failure message points to. */}
+          {/* Hidden on failure: it would cover the failure message and can do nothing
+              for a failed player. The top bar stays for its Playback menu. */}
           {status !== 'failed' ? (
             <View style={styles.transport} pointerEvents="box-none">
               <Pressable
@@ -392,13 +376,10 @@ export default function PlayerScreen() {
       ) : null}
 
       {/*
-        A refusal that did not stop playback still has to reach the viewer.
-        `status` stays as it was when a mode or quality change is refused — the
-        existing source carries on — so the failure panel above never renders.
-
-        Rendered after the chrome so it paints over the bottom bar: placed
-        before it, the bar covers the last line of a long message. The film is
-        still playing, so this sits above the transport rather than over it.
+        A refused mode or quality change leaves `status` and the source unchanged,
+        so the failure panel never shows; the error surfaces here instead. Rendered
+        after the chrome so the bottom bar cannot cover it, and above the transport
+        because the film is still playing.
       */}
       {chromeVisible && error && status !== 'failed' ? (
         <View style={styles.notice} pointerEvents="none">

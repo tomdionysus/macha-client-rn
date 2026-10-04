@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MediaSummary } from '../types';
 import { searchOffline } from './offlineLibrary';
 
-/**
- * Search over what is downloaded, held to the same rules as core's live
- * search in `MachaMediaApi.search`: "the", "a" and "an" never trigger a search
- * and are never matched on, at least two characters must be left, and the
- * Movies / TV Shows / Music toggles narrow the results, none on meaning
- * nothing. Otherwise the same query answers differently offline.
- */
+// Offline search must follow core's live-search rules.
 
 const item = (title: string, kind: MediaSummary['kind'], extra: Partial<MediaSummary> = {}) =>
   ({ id: `${kind}:${title}`, title, kind, ...extra }) as MediaSummary;

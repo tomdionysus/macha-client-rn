@@ -4,12 +4,9 @@ import type { Playlist } from '@machafoundation/core';
 import type { MusicLibraryView } from '../state/musicLibrary';
 
 /**
- * Playlists, subscribed properly.
- *
- * The subscribed value has to be the array itself, not a revision counter
- * beside it. Subscribing and then calling `list()` anyway leaves the call
- * keyed on the store singleton, which the React Compiler will happily cache
- * against forever — the list then never changes after its first render.
+ * Playlists. The snapshot must be the array itself: calling `list()` beside a
+ * revision counter keys on the store singleton, which the React Compiler caches
+ * forever.
  */
 export function usePlaylists(): Playlist[] {
   const { playlists } = useMacha();
@@ -17,12 +14,8 @@ export function usePlaylists(): Playlist[] {
 }
 
 /**
- * Per-device listening state: favourites, play counts, recently played.
- *
- * Callers read several different projections of it, so what comes back is a
- * handle with the same reads on it rather than one prepared snapshot — but a
- * *new* handle each time the state changes, so those projections are keyed on
- * something that can actually invalidate.
+ * Per-device listening state (favourites, play counts, recently played), as a
+ * read handle that is replaced on every change so memoised projections invalidate.
  */
 export function useMusicLibrary(): MusicLibraryView {
   const { musicLibrary } = useMacha();

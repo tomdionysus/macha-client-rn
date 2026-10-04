@@ -10,12 +10,8 @@ import { Sheet } from './Sheet';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
 /**
- * The play queue, as a thing you can see and change.
- *
- * Reordering is by explicit move-up/move-down controls rather than drag. A
- * long-press drag inside a scrolling modal needs a gesture library and its own
- * pile of platform quirks; two buttons are unambiguous, reachable one-handed
- * and work with a screen reader.
+ * The editable play queue. Reordering uses move up/down buttons rather than
+ * drag, which would need a gesture library and is worse with a screen reader.
  */
 export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): void }) {
   const { queue, queueIndex, playing, jumpTo, removeFromQueue, moveInQueue } = usePlayback();
@@ -100,7 +96,7 @@ export function QueueSheet({ visible, onClose }: { visible: boolean; onClose(): 
   );
 }
 
-/** A static three-bar mark for the playing row — cheaper and calmer than an animation in a list. */
+/** Static now-playing bars. */
 function Bars() {
   return (
     <View style={styles.bars}>

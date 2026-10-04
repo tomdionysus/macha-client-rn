@@ -78,10 +78,9 @@ describe('connectionKindOf', () => {
 });
 
 /**
- * A 0.58.0 node refuses a create on a file with several audio streams that
- * names none (`choice_required`), and core's resolver answers that refusal
- * with the node's first candidate: here the French track, not the default
- * English one. So the streams are named.
+ * The node refuses a create on a multi-audio file that names no stream
+ * (`choice_required`), and core's resolver then takes the node's first
+ * candidate (French here, not the default English), so streams are named.
  */
 describe('automaticStart', () => {
   it('names the default audio stream of the file it plays', () => {
@@ -119,18 +118,13 @@ describe('versionStart', () => {
 describe('versionUpdate', () => {
   const steps = playbackVersions([uhd, fhd], phone, { mediaIds: ['uhd', 'fhd'] }).steps;
 
-  /**
-   * A picked file is played as it is. The Mode path restates the session's
-   * cap into any transcode that names none, which is right there and wrong
-   * here: without the explicit `null`, a file picked after a capped step
-   * keeps the cap.
-   */
+  /** Without the explicit `null`, a file picked after a capped step would keep the cap via the Mode-path restatement. */
   it('lifts a cap when the viewer picks a file played as it is', () => {
     const transcodedFile = { quality: 2160 as const, source: 'file' as const, mediaId: 'uhd', instruction: { mode: 'transcode' as const, video: 'transcode' as const, audio: 'transcode' as const, reasons: [], assumed: [] } };
     const capped = session({ maxHeight: 720 });
     const update = versionUpdate(transcodedFile, capped, [uhd, fhd]);
     expect(update.preferences?.maxHeight).toBeNull();
-    // And it survives the restating core's coordinator applies to a mode change.
+    // It survives the restatement core applies to a mode change.
     expect(restatePreferencesClearedByMode(update, capped, undefined).preferences?.maxHeight).toBeNull();
   });
 
@@ -145,11 +139,7 @@ describe('versionUpdate', () => {
     expect(update.preferences?.mediaId).toBeUndefined();
   });
 
-  /**
-   * The Martian's 4K file carries a forced English track (foreign dialogue
-   * only) flagged default beside the full one. A switch across files keeps
-   * the kind that was playing.
-   */
+  /** A 4K file with a default-flagged forced English track beside the full one: a file switch keeps the kind playing. */
   it('keeps a forced subtitle track forced across files, and a full one full', () => {
     const sub = (index: number, forced: boolean, isDefault: boolean): MediaTechnicalStream =>
       ({ index, type: 'subtitle', codec: 'subrip', profile: '', language: 'eng', default: isDefault, forced });
@@ -194,11 +184,7 @@ describe('playingStep', () => {
   });
 });
 
-/**
- * A phone cannot play 2160p, so it is not offered; a setting
- * offers everything. What is offered is core's, from the screen this phone
- * states as its limit; what is left here is whether it is worth a button.
- */
+/** What is offered is core's (from the screen limit, or everything with the setting); this decides only whether it is worth a button. */
 describe('offersVersions', () => {
   const screen = { ...phone, maxWidth: 2400, maxHeight: 1080 };
 
@@ -231,12 +217,7 @@ describe('qualityLabel', () => {
   });
 });
 
-/**
- * The server measures each node's transcode rate per kind of picture, and
- * automatic play passes over one no node converts at real speed, which would
- * only stall. The rate has to reach `playbackVersions` on every path this
- * client starts by.
- */
+/** Automatic play skips a picture no node transcodes at real speed, so the measured rate must reach `playbackVersions` on every start path. */
 describe('the measured transcode rate', () => {
   // A phone that decodes neither file, so both convert their picture.
   const h264Only: PlaybackCapabilities = { ...phone, videoCodecs: ['h264'] };
@@ -260,8 +241,7 @@ describe('the measured transcode rate', () => {
   });
 });
 
-// The web client's cases for `qualityChoiceText`, word for word: the
-// sentence is the same on every client.
+// The web client's cases for `qualityChoiceText`; every client says the same sentence.
 describe('why Play chooses the file it does, as one sentence from every fact', () => {
   const instruction = (video: 'copy' | 'transcode', audio: 'copy' | 'transcode') =>
     ({ mode: video === 'transcode' || audio === 'transcode' ? 'transcode' : 'direct', video, audio, reasons: [], assumed: [] }) as VersionStep['instruction'];

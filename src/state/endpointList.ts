@@ -1,17 +1,8 @@
 import type { ConnectionCheckResult } from '@machafoundation/core';
 import { SERVER_UNREACHABLE_MESSAGE } from '../api/errors';
 
-/**
- * The node list as rows, because a newline cannot be typed.
- *
- * On a phone a URL keyboard's action key is Go, and neither `multiline` nor
- * `submitBehavior="newline"` persuades it to insert a line break instead of
- * submitting, so a multiline box never reaches its second line. Each node
- * gets a row of its own and a control adds another. Pasting a list still works, and
- * is the one case that needs parsing: what arrives in a single row may be a
- * whole list, and it gets split across rows rather than left as text no
- * separator in this app would later split.
- */
+// The node list is edited as one row per address, because a URL keyboard's Go
+// key cannot insert a newline. A pasted list is split across rows.
 
 /** Whitespace, newlines, commas and semicolons. No address contains any of them. */
 const SEPARATORS = /[\s,;]+/;
@@ -26,14 +17,7 @@ export function normalizeRows(rows: readonly string[]): string[] {
   return rows.length > 0 ? [...rows] : [''];
 }
 
-/**
- * One row edited.
- *
- * A value carrying separators is a paste of several addresses, and it expands
- * into a row each. Typing is the ordinary case and replaces the row as given —
- * including leaving it empty, because a half-deleted row is still a row
- * somebody is working in.
- */
+/** One row edited. A value with separators is a paste and expands to a row each; otherwise it replaces the row, even if empty. */
 export function editRow(rows: readonly string[], index: number, value: string): string[] {
   const next = normalizeRows(rows);
   if (index < 0 || index >= next.length) return next;
@@ -44,8 +28,7 @@ export function editRow(rows: readonly string[], index: number, value: string): 
   }
 
   const parts = splitEndpointEntries(value);
-  // A paste of nothing but separators leaves the row as it was rather than
-  // deleting it, which is what someone who pasted by accident expects.
+  // A paste of only separators leaves the row as it was.
   if (parts.length === 0) return next;
   next.splice(index, 1, ...parts);
   return next;
@@ -65,13 +48,7 @@ export function addRow(rows: readonly string[]): string[] {
   return next[next.length - 1]?.trim() === '' ? next : [...next, ''];
 }
 
-/**
- * An address adopted from somewhere other than the keyboard — a scanned code.
- *
- * It fills the first empty row rather than appending, because a fresh screen
- * is one empty row and appending to it would leave a blank above the thing the
- * viewer just scanned. An address already in the list is not added twice.
- */
+/** A scanned address: fills the first empty row, else appends; never duplicates. */
 export function adoptEndpoint(rows: readonly string[], endpoint: string): string[] {
   const next = normalizeRows(rows);
   if (next.some((row) => row.trim() === endpoint)) return next;
@@ -90,14 +67,9 @@ export type ConnectOutcome =
 
 /**
  * Turns core's `checkEndpointConfiguration` result into what the screen does.
- *
- * Every address is saved, not only those that answered: a node that is down
- * tonight is still in the cluster. Those that answered as Macha go first so
- * the first request starts on one known to answer, then those that merely
- * answered, then the rest.
- *
- * `acknowledged` is the viewer having already seen the "did not identify
- * itself" warning for these same addresses.
+ * Every address is saved (a node down now is still in the cluster), ordered:
+ * confirmed Macha, then merely answered, then the rest. `acknowledged` means
+ * the viewer already saw the "did not identify itself" warning.
  */
 export function connectOutcome(result: ConnectionCheckResult, acknowledged: boolean): ConnectOutcome {
   if (result.problem === 'no-endpoints') return { kind: 'refuse', message: NO_ENDPOINT_MESSAGE };

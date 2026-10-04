@@ -1,14 +1,7 @@
-// Accounts, roles and whoami are core's, and this file only re-exports them.
-//
-// Nothing about accounts is reimplemented locally: roles are resolved by the
-// server when a session is minted, `isSignedIn` is the only test for whether a
-// viewer chose to be anyone, and `hasRole` is a membership test with no
-// implication in it. A client that decides a `manager` can obviously also
-// import is reimplementing policy the server already decided.
-//
-// `ANONYMOUS_USERNAME` should almost never be compared against: the root and
-// anonymous accounts are protected by the server's `mutable` block rather than
-// by their names.
+// Accounts, roles and whoami, re-exported from core. Do not reimplement policy:
+// roles are resolved by the server, `isSignedIn` is the only signed-in test,
+// and `hasRole` is plain membership with no implied roles. Avoid comparing
+// against `ANONYMOUS_USERNAME`; the server protects accounts via `mutable`.
 export {
   ANONYMOUS_USERNAME,
   ClusterUsersApi,

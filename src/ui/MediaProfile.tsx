@@ -7,15 +7,8 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 import { colors, space, type as typography } from './theme';
 
 /**
- * One line per file, in the web client's style formatted for the device (see
- * `mediaLines.ts`). Every `macha:` file of the
- * item is read, and a file whose profile cannot be read is left out rather
- * than failing the others. Lines wrap at the device's width rather than
- * truncate, since every field carries something, and only between fields
- * (`wrapBetweenFields`).
- *
- * Advisory metadata, never a precondition for playback: a node that answers
- * `202 profile_pending` or 404 simply produces nothing here.
+ * One technical line per `macha:` file (see `mediaLines.ts`). Advisory only: a
+ * profile that fails, is pending (202) or missing (404) is just left out.
  */
 export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
   const { media, generation } = useMacha();
@@ -42,8 +35,6 @@ export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
 }
 
 const styles = StyleSheet.create({
-  // Placed below the synopsis: under the title the lines wrap awkwardly
-  // beside it.
   block: {
     paddingHorizontal: space.lg,
     marginTop: space.xxl,

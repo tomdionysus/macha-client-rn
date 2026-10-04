@@ -26,17 +26,12 @@ import {
   unreachableEndpointFailure,
 } from '@machafoundation/core';
 
-// Playback policy: the decisions this client makes about a session, kept apart
-// from the provider so they can be tested without the player or the React tree.
+// Playback decisions, kept apart from the provider so they test without the player or React.
 
 /**
- * A play order over the queue.
- *
- * Shuffle has to be stable: re-randomising on every skip breaks Previous and
- * lets a run repeat a track while others go unheard. The order is computed once
- * when shuffle is turned on and kept until it is turned off or the queue is
- * replaced. The current item is pinned to the front so enabling shuffle never
- * interrupts what is playing.
+ * A play order over the queue. Shuffle is computed once and kept until turned
+ * off or the queue is replaced, so Previous works and no track repeats early;
+ * the current item is pinned first so enabling shuffle never interrupts it.
  */
 export function buildOrder(length: number, shuffle: boolean, currentIndex: number): number[] {
   const sequential = Array.from({ length }, (_, index) => index);
@@ -48,12 +43,7 @@ export function buildOrder(length: number, shuffle: boolean, currentIndex: numbe
   }
   return currentIndex >= 0 && currentIndex < length ? [currentIndex, ...rest] : rest;
 }
-/**
- * Whether a copy of this audio would give the device something it can play.
- *
- * `undefined` (nothing known about the source audio) answers `true`, leaving
- * the node's own judgement in charge.
- */
+/** Whether this device can decode a copy of this audio; an unknown codec answers true, leaving it to the node. */
 export function audioCopyable(codec: string | undefined, decodable: readonly string[]): boolean {
   if (!codec) return true;
   return decodable.includes(codec.toLowerCase());
@@ -72,26 +62,14 @@ export function sessionAudioCodec(session: PlaybackSession | undefined): string 
 }
 
 /**
- * The stream work a named mode implies.
+ * The stream transform a viewer-named mode implies. `choosePlaybackInstruction`
+ * is not consulted: a viewer who names a mode may know something the facts do not.
  *
- * Direct and remux copy both streams; transcode re-encodes both. This spells
- * out the viewer's choice; `choosePlaybackInstruction` is deliberately not
- * consulted, because a viewer who names a mode may know something the facts
- * do not.
- *
- * The exception is this device's own audio decoders (`canCopyAudio`, from
- * `audioCopyable`). Remux asks for the container to be rewrapped, not for audio
- * the device cannot decode; copying it would play silent, and the server
- * cannot produce a first fMP4 fragment from copied (E-)AC-3. Video is left
- * alone.
- *
- * A remux that cannot copy the audio becomes a transcode, and the mode changes
- * with it: the server refuses a remux that re-encodes a stream, and a transcode
- * that re-encodes nothing, with a `400`.
- *
- * Direct has no transform to adjust. It is offered only when this device can
- * decode the video and open the file (`directUnavailableReason`); audio it
- * cannot decode still plays as silence.
+ * Remux whose audio this device cannot decode becomes a transcode (video copy,
+ * audio transcode): copied audio would play silent, the server cannot fragment
+ * copied (E-)AC-3, and it answers 400 to a remux that re-encodes or a transcode
+ * that re-encodes nothing. Direct is only offered when the video decodes and the
+ * file opens (`directUnavailableReason`); undecodable audio plays silent.
  */
 export function transformFor(
   mode: PlaybackMode,
@@ -102,19 +80,11 @@ export function transformFor(
   return { mode, video: 'copy', audio: 'copy' };
 }
 /**
- * Why Remux cannot play here, in a sentence for the viewer — or undefined when
- * it can.
+ * Why Remux cannot play here, as a sentence for the viewer, or undefined when it can.
  *
- * Remux copies the video, so it only plays when this device can decode that
- * video; otherwise the decoder refuses it and the viewer gets a black screen.
- * The option stays in the menu with the reason, rather than being hidden or
- * silently turned into a transcode.
- *
- * The judgement is core's `videoStreamObjection`, the same one that chooses
- * transcode on create, asked of the presented video stream against the HLS
- * decoder list because that is how a remux arrives (core's
- * `deliveryVideoCodecs` rule). An unreported bit depth is not an objection, so
- * a source the server could not probe is still offered.
+ * Remux copies the video, so it needs a decoder for it. Judged by core's
+ * `videoStreamObjection` against the HLS decoder list, since that is how a remux
+ * arrives. An unreported bit depth is not an objection.
  */
 export function remuxUnavailableReason(
   session: PlaybackSession,
@@ -126,15 +96,11 @@ export function remuxUnavailableReason(
 }
 
 /**
- * Why Direct play cannot play here, in a sentence for the viewer — or
- * undefined when it can.
+ * Why Direct play cannot play here, as a sentence for the viewer, or undefined when it can.
  *
- * Explained in the menu exactly as Remux is. Direct delivers the original file, so two things can rule it out that differ
- * from Remux: the video is judged against the **direct-play** decoders, not the
- * HLS list, and the **container** has to be one this device opens — core's
- * `containerIsPlayable`, the same test its chooser uses. The remedy named
- * differs with the cause: video this device cannot decode rules out Remux too,
- * so only Transcode helps; a container alone is exactly what Remux replaces.
+ * The video is judged against the direct-play decoders and the container must
+ * pass core's `containerIsPlayable`. Undecodable video needs Transcode; a
+ * container problem alone is what Remux fixes.
  */
 export function directUnavailableReason(
   session: PlaybackSession,
@@ -150,7 +116,7 @@ export function directUnavailableReason(
   return undefined;
 }
 
-/** The shared half: the presented video stream against a decoder list. */
+/** The presented video stream judged against a decoder list. */
 function videoUnavailableReason(
   session: PlaybackSession,
   judgedAgainst: PlaybackCapabilities,
@@ -165,7 +131,7 @@ function videoUnavailableReason(
   return `Unavailable: ${objectionSentence(objection, stream.bitDepth, capabilities.videoBitDepth)} Transcode will play it.`;
 }
 
-/** The viewer's version of a video objection: what is true, not the code for it. */
+/** A video objection in the viewer's words. */
 function objectionSentence(
   objection: PlaybackDecisionReason,
   sourceBitDepth: number | undefined,
@@ -189,15 +155,10 @@ function objectionSentence(
 }
 
 /**
- * Says where a new generation should start: where the viewer is.
- *
- * This client stands in for core's `PlaybackCoordinator`, which sends every
- * representation update with `seekMs` at the current position, except a
- * subtitle-only one (core's `isSubtitleOnlyPlaybackUpdate`) or a session that
- * cannot seek. Without it the node starts the new generation at `seekMs: 0`.
- *
- * A position the caller already stated wins; as in the coordinator, the
- * position is bound when the request is made.
+ * Starts a new generation at the viewer's position, as core's
+ * `PlaybackCoordinator` would; otherwise the node starts at `seekMs: 0`.
+ * Skipped for subtitle-only updates and unseekable sessions; a caller-stated
+ * `seekMs` wins.
  */
 export function positionedUpdate(update: PlaybackUpdate, session: PlaybackSession, positionMs: number): PlaybackUpdate {
   if (update.seekMs !== undefined) return update;
@@ -206,24 +167,17 @@ export function positionedUpdate(update: PlaybackUpdate, session: PlaybackSessio
 }
 
 /**
- * States the whole transform whenever an update names a mode.
- *
- * A bare `mode` is a legal request and the node restates the transform around
- * it, choosing `video` and `audio` itself. That is the one thing this client
- * must not allow: the node performs what it is told without asking what this
- * device can decode, so a transform it picked could come back as a file the
- * player cannot demux. Every other update — quality, audio track, subtitle
- * track — leaves the transform alone and passes through untouched.
+ * States the whole transform whenever an update names a mode. Given a bare
+ * `mode` the node picks `video` and `audio` without regard to this device's
+ * decoders. Updates that name no mode pass through untouched.
  */
 export function statedUpdate(update: PlaybackUpdate, session: PlaybackSession): PlaybackUpdate {
   const mode = update.preferences?.mode;
   // `'choose'` would ask the server to pick, which this client never does.
   if (!mode || mode === 'choose') return update;
-  // The server clears `max_height` and `max_bitrate` when a PATCH names `mode`;
-  // core's `restatePreferencesClearedByMode` restores the viewer's quality cap.
-  // The stated transform is spread last on purpose: spreading
-  // `update.preferences` last would put `remux` back over a corrected
-  // `transcode` and buy the 400 described in `transformFor`.
+  // A PATCH naming `mode` clears `max_height`/`max_bitrate` server-side, so restate
+  // the quality cap. `stated` is spread last so a corrected `transcode` is not
+  // overwritten by the requested `remux` (a 400; see `transformFor`).
   const stated = transformFor(mode, audioCopyable(sessionAudioCodec(session), decodableAudio()));
   return restatePreferencesClearedByMode(
     { ...update, preferences: { ...update.preferences, ...stated } },
@@ -238,23 +192,13 @@ export type CreateRefusal = 'degrade' | 'account-session-limit' | 'fatal';
 /**
  * Why a node refused to create a playback session.
  *
- * Never an `instanceof` test: core's `MachaPlaybackError` and this client's
- * `MachaApiError` carry the same fields, core wraps either in a
- * `MachaEndpointError`, and class identity does not survive the boundary
- * between core and a client. Duck-type on `status`/`code` instead.
+ * Duck-typed through core's accessors, never `instanceof`: class identity does
+ * not survive the core/client boundary, and `MachaEndpointError` carries
+ * `status`/`code` one level down in `cause`.
  *
- * - `degrade`: a `400` is the node rejecting this transform; asking for less
- *   (`degradeInstruction`) is the remedy.
- * - `account-session-limit`: the account holds as many sessions as it may.
- *   Degrading cannot help and every node answers identically. Core's
- *   `isAccountSessionLimit` keys on the code and walks the cause chain, so the
- *   set of account-scoped codes stays core's to track.
- * - `fatal`: everything else, including a `429` that is not the account cap. A
- *   node-wide limit is a different scope, and telling the viewer their account
- *   is at its limit would be false.
- *
- * Both readings go through core's accessors because `MachaEndpointError`
- * carries neither `status` nor `code`; they sit one link down in `cause`.
+ * - `degrade`: a 400 rejecting this transform; ask for less (`degradeInstruction`).
+ * - `account-session-limit`: the account's session cap; every node answers the same.
+ * - `fatal`: everything else, including a node-wide 429.
  */
 export function classifyCreateRefusal(error: unknown): CreateRefusal {
   if (!error || typeof error !== 'object') return 'fatal';
@@ -263,24 +207,16 @@ export function classifyCreateRefusal(error: unknown): CreateRefusal {
 }
 
 /**
- * Whether a failed recovery attempt should count against the failover budget.
- *
- * The failover budget stops a broken title cycling nodes for ever, and the
- * attempt is counted before the call is made. An account cap is not a node
- * failing and every node answers it identically, so charging it would exhaust
- * the budget before a genuine failure needed it.
+ * Whether a failed recovery attempt counts against the failover budget. An
+ * account cap is not a node failing, so it must not exhaust the budget.
  */
 export function spendsFailoverBudget(error: unknown): boolean {
   return classifyCreateRefusal(error) !== 'account-session-limit';
 }
 
 /**
- * What to put in front of a viewer whose account is at its session cap.
- *
- * Not core's "Macha playback request failed: ..." envelope, which reads as a
- * breakage when the node is working as designed. The server's own sentence,
- * which states the limit and the current count, is appended as a detail but
- * never parsed: its format is the server's.
+ * Viewer message for an account at its session cap. The server's sentence is
+ * appended as a detail but never parsed.
  */
 export function accountSessionLimitMessage(error: unknown): string {
   const detail = playbackFailureDetail(error);
@@ -289,22 +225,16 @@ export function accountSessionLimitMessage(error: unknown): string {
 }
 
 /**
- * What to put in front of a viewer whose title would not start.
+ * Viewer message for a title that would not start: one plain lead per failure
+ * kind, with the server's sentence in brackets where it gave one. Never
+ * `.message`, which is a log line with the node's address.
  *
- * Never `.message`, which is core's log line with both envelopes and the
- * node's address. One honest, plain lead per kind of failure, read through
- * core's accessors because the status and code sit one `cause` down, with the
- * server's own sentence in brackets where it stated one. Not for 401 and 403,
- * whose sentences describe tokens and roles to someone who can only log in.
- *
- * "Could not reach" is claimed only when no layer stated a status or a code:
- * core's `unreachableEndpointFailure` is true of any wrapped error without a
- * status, including a refusal this client raised itself with a code.
+ * "Could not reach" only when no layer stated a status or code, since
+ * `unreachableEndpointFailure` is also true of client-raised coded errors.
  */
 export function createFailureMessage(error: unknown): string {
   if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
-  // Core's code for a start that stopped reporting progress: a 504 with no
-  // server sentence behind it, worded as the web client words it.
+  // A start that stopped reporting progress: a 504 with no server sentence.
   if (playbackFailureCode(error) === START_NO_PROGRESS_CODE) return 'The node stopped making progress starting this stream.';
   const status = playbackFailureStatus(error);
   const detail = playbackFailureDetail(error);
@@ -323,12 +253,8 @@ export function createFailureMessage(error: unknown): string {
 }
 
 /**
- * What to put in front of a viewer whose jump to another point was refused.
- *
- * A refused rebuilding seek leaves the node's generation as it was, and
- * `seekTo` returns before touching the player's position, so the viewer is
- * still where they were. They may be paused, so this does not claim playback
- * carried on.
+ * Viewer message for a refused rebuilding seek. The player has not moved and
+ * may be paused, so it does not claim playback carried on.
  */
 export function seekRefusalMessage(error: unknown): string {
   if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
@@ -338,16 +264,9 @@ export function seekRefusalMessage(error: unknown): string {
 }
 
 /**
- * What to put in front of a viewer whose generation change was refused.
- *
- * Playback did not break, and the message must not say it did. A mode or
- * quality change is a `PATCH` against a session that is already playing; if
- * the node refuses it (a `429` transcode limit, a `503` pipeline start
- * failure), the existing source carries on untouched.
- *
- * The node's own sentence, read through core's `playbackFailureDetail`, is
- * appended as the only place the reason appears. No detail means no layer
- * stated one, and the lead stands alone.
+ * Viewer message for a refused mode or quality PATCH (e.g. a 429 transcode
+ * limit, a 503 pipeline failure). The existing source carries on, so the
+ * message must not say playback broke.
  */
 export function updateRefusalMessage(error: unknown): string {
   if (isAccountSessionLimit(error)) return accountSessionLimitMessage(error);
@@ -367,40 +286,23 @@ export interface PendingSeek {
   atMs: number;
 }
 
-/**
- * How near a report has to land before the seek counts as settled.
- *
- * Generous on purpose: a transformed stream seeks to the nearest keyframe, which
- * can be a second or so from the position asked for.
- */
+/** How near a report must land for a seek to count as settled; transformed streams seek to the nearest keyframe. */
 const SEEK_SETTLED_TOLERANCE_MS = 1_500;
 
 /**
- * How far above the serving node's hold a seek is still allowed to land.
- *
- * The hold is what the node spends: a fragment at the production frontier is
- * held until it exists, then answered. The player's handling of the answer
- * comes after that, so a window equal to the hold expires just as a healthy
- * node answers.
- *
- * Matches core's `HLS_WALK_HOLD_MARGIN_MS`, which covers the same distance. It
- * is not sized on media3's segment retry behaviour, which is unsettled (see
- * `TODO/ACTIVE.md`); if media3 retries, the margin is too small.
+ * Allowance above the node's segment hold for the player to handle the answer.
+ * Matches core's `HLS_WALK_HOLD_MARGIN_MS`. Not sized against media3's segment
+ * retry behaviour, which is unverified.
  */
 const SEEK_HOLD_MARGIN_MS = 2_000;
 
 /**
- * How long to wait before believing the player again regardless.
+ * How long a pending seek or supersede may excuse player reports and errors,
+ * so a seek that never lands cannot freeze the position for ever.
  *
- * Without this, a seek that never lands — a failed generation, a stream that
- * ends short of the target — would freeze the reported position permanently,
- * which is worse than the stale reports it filters.
- *
- * Derived from the serving node, never chosen here, so a long hold is not
- * called a failure and a short one is not over-excused. `segmentHoldMs` is the
- * serving node's figure; `SERVER_SEGMENT_HOLD_MS` is the published floor for a
- * node too old to say, a status call that has not landed, or a session without
- * the `view_status` role those figures ride on.
+ * The serving node's `segmentHoldMs` plus a margin; `SERVER_SEGMENT_HOLD_MS`
+ * stands in when the node has not said (older node, status not yet loaded, or
+ * no `view_status` role).
  */
 function seekDeadlineMs(session: PlaybackSession | undefined): number {
   const stated = session?.source.budgets?.segmentHoldMs;
@@ -410,54 +312,33 @@ function seekDeadlineMs(session: PlaybackSession | undefined): number {
 /**
  * Where a generation's media begins on the title's timeline.
  *
- * This client stands in for core's `PlaybackCoordinator`, which is why these
- * three functions exist. Core's `docs/choosing-playback.md` says hosts must not
- * consume `seekMs` / `seekOffsetMs` / `seekRequestedMs`, because the
- * coordinator converts between the title's timeline and the generation's. This
- * client drives `ClusterPlaybackResolver` directly and constructs no
- * coordinator, so nothing else converts. Do not delete this as a
- * double-correction without first checking whether a coordinator has appeared.
+ * Core's `PlaybackCoordinator` normally converts between title and generation
+ * timelines; this client drives `ClusterPlaybackResolver` without one, so these
+ * three functions do it. Not a double correction unless a coordinator is added.
  *
- * The origin is `seekMs`, not `seekOffsetMs`: the offset is how far into the
- * generation the request sits, which is 0 on transcode, and on remux the
- * remainder is already inside `seekRequestedMs`.
- *
- * Direct play is the whole file, so its origin is zero and the two timelines
- * coincide; `isManifest` is the discriminator rather than the mode.
+ * The origin is `seekMs`, not `seekOffsetMs` (0 on transcode; on remux the
+ * remainder is inside `seekRequestedMs`). Direct play is the whole file, origin 0.
  */
 export function generationOriginMs(session: PlaybackSession | undefined): number {
-  // No session is a downloaded original played off the disk: one timeline only.
+  // No session: a downloaded original played from disk.
   if (!session || !session.source.isManifest) return 0;
   return Math.max(0, session.seekMs ?? 0);
 }
 
-/**
- * A position the player reported, on the title's timeline.
- *
- * Everything above the player (the bar, Continue Watching, the seek-settled
- * check, the play-count threshold) is title-absolute; convert once, here.
- */
+/** A player-reported position on the title's timeline, which everything above the player uses. */
 export function titlePositionMs(session: PlaybackSession | undefined, reportedMs: number): number {
   return generationOriginMs(session) + Math.max(0, reportedMs);
 }
 
-/**
- * A title position as the player's own timeline expresses it.
- *
- * The inverse, for writing a position into the player: a title-absolute value
- * written to `currentTime` on a generation that started late lands past
- * everything the node has produced.
- */
+/** A title position on the player's own timeline, for writing to `currentTime`. */
 export function generationLocalMs(session: PlaybackSession | undefined, titleMs: number): number {
   return Math.max(0, titleMs - generationOriginMs(session));
 }
 
 /**
  * Whether a reported position is still the pre-seek one and should be ignored.
- *
- * Both engines keep reporting the old position for a few frames after a seek.
- * Accepting those drags the bar back before the seek lands and checkpoints the
- * stale position to Continue Watching.
+ * Both engines report the old position for a few frames after a seek, which
+ * would drag the bar back and checkpoint the stale position.
  */
 export function seekStillPending(
   session: PlaybackSession | undefined,
@@ -473,19 +354,11 @@ export function seekStillPending(
  * The volume to restore after expo-video ducked the player, or `undefined` to
  * leave it alone.
  *
- * expo-video ducks by halving `player.volume` in `AudioFocusManager.duckPlayer`,
- * and its `volume` setter also overwrites `userVolume`, the value
- * `unduckPlayer` restores from. Each duck therefore halves the volume
- * permanently, and they compound.
- *
- * On API 26+ the framework ducks at the mixer itself and never calls
- * `duckPlayer`, because `willPauseWhenDucked` is not set. Below API 26
- * (`minSdkVersion` is 24) expo-video's pre-O path does, so this guards Android
- * 7.x, and catches any other unrequested drop. Restoring does not undo the
- * platform's duck, which happens at the mixer.
- *
- * Returning `undefined` when the volume already matches keeps the caller
- * loop-safe: writing the value emits another `volumeChange`.
+ * expo-video's pre-API-26 duck halves `player.volume`, and the setter also
+ * overwrites the `userVolume` it restores from, so ducks compound permanently.
+ * API 26+ ducks at the mixer and never reaches this path; `minSdkVersion` is 24.
+ * Returning `undefined` when nothing dropped keeps the caller loop-safe, since
+ * writing the volume emits another `volumeChange`.
  */
 export function restoredVolume(reported: number, intended: number): number | undefined {
   return reported < intended ? intended : undefined;
@@ -494,40 +367,25 @@ export function restoredVolume(reported: number, intended: number): number | und
 /**
  * Whether a seek must reposition the *generation* rather than just the player.
  *
- * A transformed generation is produced forward from its origin, and the node
- * holds only a bounded window of it. A segment far past anything being built is
- * refused at once (`beyond_hold_window`), media3 treats that as a fatal source
- * error, and the error would otherwise be read as a bad node. Waiting does not
- * help; a seek-only PATCH moves production to the target cheaply, keeping the
- * plan state and segment URLs valid.
- *
- * Keyed on what the player has buffered, not on a copy of the node's
- * `segment_hold_window`, which this client cannot see. Buffered-end errs the
- * safe way: an unnecessary reposition costs one PATCH, a missed one costs a
- * healthy node and its work.
- *
- * Forward seeks only. A far backward seek may also fall outside the window, but
- * that is unverified and this does not guess.
+ * The node refuses a segment far past its production window
+ * (`beyond_hold_window`), which media3 treats as fatal and would read as a bad
+ * node; a seek-only PATCH moves production instead. Keyed on the player's
+ * buffered end because the node's window is not visible here, and a needless
+ * reposition is cheap. Forward seeks only: far backward seeks are unverified.
  */
 export function seekRequiresReposition(
   session: PlaybackSession | undefined,
   targetMs: number,
   bufferedEndMs: number,
 ): boolean {
-  // No session is a downloaded original played off the disk.
+  // No session: a downloaded original played from disk.
   if (!session) return false;
-  // Direct play is a byte range over a complete file: every offset already
-  // exists and the node will serve any of them.
+  // Direct play is a byte range over a complete file; every offset is servable.
   if (!session.source.isManifest) return false;
   return targetMs > bufferedEndMs;
 }
 
-/**
- * A generation change this client asked for, and how far along it is.
- *
- * `settledAtMs` is undefined while the `PATCH` is in flight and set the moment
- * it answers, success or failure.
- */
+/** A generation change this client requested; `settledAtMs` is set when the PATCH answers, either way. */
 export interface PendingSupersede {
   startedAtMs: number;
   settledAtMs?: number;
@@ -536,21 +394,11 @@ export interface PendingSupersede {
 /**
  * Whether this client has just superseded its own generation.
  *
- * The mode-switch counterpart of the pending-seek guard in
- * `errorBlamesEndpoint`. Every regenerate, mode switch and rebuilding seek
- * supersedes a generation, and a fragment from the old one answers
- * `410 generation_superseded`: the node is healthy and the remedy is a
- * different request to the same node. Failing over instead stops a picture
- * that would otherwise stay up while the new source is applied, spends
- * failover budget and charges a healthy node.
- *
- * In flight suppresses unconditionally; afterwards `seekDeadlineMs` bounds the
- * tail, because a fragment of the old generation can still be in the air just
- * after the swap.
- *
- * Deliberately narrow: outside this window an error must still blame the
- * endpoint, or a dead node leaves the viewer stuck. It covers only
- * supersession this client caused, since expo-video never surfaces the status.
+ * A fragment of the superseded generation answers `410 generation_superseded`
+ * from a healthy node; failing over on it would drop the picture, spend budget
+ * and blame the node. Suppresses while the PATCH is in flight and for
+ * `seekDeadlineMs` after. Kept narrow so a dead node still fails over;
+ * expo-video does not expose the status, so only self-caused supersession is covered.
  */
 export function selfSupersededGeneration(
   pending: PendingSupersede | undefined,
@@ -563,14 +411,9 @@ export function selfSupersededGeneration(
 }
 
 /**
- * How long a player error is given to clear before anything acts on it.
- *
- * An error is trusted only if it persists. expo-video does not say which source
- * an error came from, and a replaced source keeps reporting, so acting at once
- * could probe the new session or discard a fresh replacement. Waited out, a
- * stale error is dropped and a real one is still there. The window is the one
- * the seek and supersede guards use; the cost is that delay before a genuine
- * recovery starts.
+ * How long a player error must persist before anything acts on it. expo-video
+ * does not say which source an error came from and a replaced source keeps
+ * reporting, so only a persistent error is trusted.
  */
 export function errorSettleMs(session: PlaybackSession | undefined): number {
   return seekDeadlineMs(session);
@@ -580,14 +423,12 @@ export function errorSettleMs(session: PlaybackSession | undefined): number {
 export type ProbeOutcome = 'alive' | 'gone' | 'unknown-provenance' | 'unreachable';
 
 /**
- * Read the owning node's answer to "do you still hold this session?".
+ * Classify the owning node's answer to "do you still hold this session?".
  *
- * `false` is the node saying it reaped the session, the case the probe exists
- * for. A throw is either an id core cannot place
- * (`SESSION_PROVENANCE_UNKNOWN_CODE`, matched on code, not wording) or a probe
- * that could not be answered. Core recovers the node from the id, so a session
- * that was merely released answers `false` rather than throwing; the error must
- * therefore be attributed to the current generation before the probe.
+ * `false` means reaped. A throw is either an id core cannot place
+ * (`SESSION_PROVENANCE_UNKNOWN_CODE`, matched on code) or an unanswerable
+ * probe. A released session also answers `false`, so the error must be
+ * attributed to the current generation before probing.
  */
 export function classifyProbe(result: { alive: boolean } | { error: unknown }): ProbeOutcome {
   if ('alive' in result) return result.alive ? 'alive' : 'gone';
@@ -597,21 +438,14 @@ export function classifyProbe(result: { alive: boolean } | { error: unknown }): 
 /**
  * Regenerate on the same node, or fail over.
  *
- * `gone` regenerates on the node that held the session, without charging it:
- * every other node would answer `404` for a session it never had. Bounded as
- * core bounds it (`session-regeneration-made-no-progress`): a regeneration at
- * the same position, rounded to the millisecond, as the previous one fails over
- * instead of looping.
- *
- * `alive` fails over by choice. Core stops there, since a live session
- * answering `404` is a fragment past the end of a live plan, but expo-video
- * hides the status so this client cannot tell that case apart. Anything
- * unanswerable fails over too.
- *
- * `unknown-provenance` fails over where core's sequence stops, deliberately.
- * Every id here is core's own, so it arises only when the resolver was rebuilt
- * mid-playback and the serving node has left the cluster; that node is gone,
- * and stopping would end playback for nothing.
+ * - `gone`: regenerate on the same node without charging it (others would 404).
+ *   A repeat regeneration at the same millisecond fails over instead of looping,
+ *   as core's `session-regeneration-made-no-progress`.
+ * - `alive`: fail over; expo-video hides the status, so a live plan's past-end
+ *   404 cannot be told apart.
+ * - `unknown-provenance`: fail over (core stops). It arises only when the
+ *   resolver was rebuilt and the serving node has left the cluster.
+ * - `unreachable`: fail over.
  */
 export function recoveryAfterProbe(
   outcome: ProbeOutcome,
@@ -629,16 +463,10 @@ export function recoveryAfterProbe(
 export type SupersededErrorCheck = { kind: 'wait'; recheckAtMs: number } | { kind: 'report' };
 
 /**
- * When a declined error stops being excusable and has to reach the viewer.
- *
- * The guard suppresses the wrong remedy and must not also suppress the report.
- * `selfSupersededGeneration` cannot tell a stale fragment of the old generation,
- * which the swap cures, from the new generation failing (a decoder refusing it,
- * say), which would otherwise leave a black picture and no message.
- *
- * So wait out the guard's own window and then report, if the player is still
- * in error; that last check is the caller's. While the PATCH is in flight its
- * settle time is unknown, so look again a whole deadline later.
+ * When a declined error must reach the viewer. The guard cannot tell a stale
+ * old-generation fragment from the new generation failing, so wait out its
+ * window, then report if the caller finds the player still in error. While the
+ * PATCH is in flight, look again a whole deadline later.
  */
 export function supersededErrorCheck(
   pending: PendingSupersede | undefined,
@@ -651,16 +479,12 @@ export function supersededErrorCheck(
 }
 
 /**
- * Whether a player error is evidence about the *endpoint*.
+ * Whether a player error is evidence against the *endpoint*.
  *
- * A fatal error while a requested seek is outstanding, on a generation the node
- * is still producing, says the request was for something that does not exist
- * yet, not that the node is failing. Failing over on it abandons a working node
- * and its work. Core makes the same argument for a source that has never
- * delivered a frame.
- *
- * Deliberately narrow: outside that window an error still blames the endpoint,
- * so a dead node does not leave the viewer stuck.
+ * A fatal error during an outstanding seek on a generation still being
+ * produced means the target does not exist yet, not that the node failed.
+ * Kept narrow: outside that window an error blames the endpoint, so a dead
+ * node does not strand the viewer.
  */
 export function errorBlamesEndpoint(
   session: PlaybackSession | undefined,
@@ -668,26 +492,18 @@ export function errorBlamesEndpoint(
   nowMs: number,
   pendingSupersede?: PendingSupersede,
 ): boolean {
-  // Checked before the session guard because a mode switch is in flight
-  // whatever the current source looks like.
+  // Before the session guard: a mode switch is in flight whatever the current source.
   if (selfSupersededGeneration(pendingSupersede, session, nowMs)) return false;
   if (!session || !pendingSeek) return true;
-  // Direct play has no production to outrun; an error there is the node's.
+  // Direct play has no production to outrun.
   if (!session.source.isManifest) return true;
-  // Past the deadline the seek no longer excuses the endpoint.
   return nowMs - pendingSeek.atMs >= seekDeadlineMs(session);
 }
 
 /**
- * Which of an item's files to play, and how.
- *
- * The client chooses among an item's files and names the one it will play:
- * given only the item, the server plays its own first choice, which may not be
- * the file the client judged.
- *
- * The ranking is core's `chooseAmongFiles`, as core's coordinator uses it, and
- * nothing is re-ranked here. The duration is the chosen file's, since files of
- * one item need not match.
+ * Which of an item's files to play, and how. The file is always named, since
+ * the server would otherwise play its own first choice. Ranking is core's
+ * `chooseAmongFiles`; the duration is the chosen file's.
  */
 export function chooseFile(
   files: readonly PlaybackMediaFacts[],
@@ -701,14 +517,10 @@ export function chooseFile(
 }
 
 /**
- * Which file to play when the mode was decided elsewhere: the viewer named
- * it, or a download wants the original bytes.
- *
- * A file still has to be named, and the server may refuse a create that names
- * none on a multi-file item. This is the file `chooseFile` would play, as in
- * core's coordinator. An only file names itself without facts. With several
- * files and no facts nothing is named, and core's resolver falls back to
- * stored order and logs `media-unchosen-defaulted`.
+ * Which file to play when the mode was decided elsewhere (viewer choice or a
+ * download). The file `chooseFile` would pick; an only file names itself. With
+ * several files and no facts, none is named and core's resolver falls back to
+ * stored order.
  */
 export function fileToPlay(
   files: readonly PlaybackMediaFacts[] | undefined,

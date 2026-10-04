@@ -7,11 +7,7 @@ export interface IconProps {
   color?: string;
 }
 
-/**
- * Hand-drawn 24-grid glyphs rather than an icon font. The set is small, it
- * keeps the bundle free of a whole typeface, and every glyph can be tuned to
- * the same optical weight as the Macha mark.
- */
+/** A stroked glyph on a 24-unit grid; the set is hand-drawn rather than an icon font. */
 function icon(path: string) {
   return function Icon({ size = 24, color = colors.text }: IconProps) {
     return (
@@ -56,12 +52,12 @@ export const HeartIcon = icon('M12 20s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 7.6a4.4 
 export const DownloadIcon = icon('M12 3v12M7 11l5 5 5-5M4 20h16');
 export const DownloadedIcon = icon('M4 20h16M20 7l-9 9-4-4');
 export const CloudOffIcon = icon('M3 3l18 18M7 18h9a4 4 0 0 0 1.4-7.7A6 6 0 0 0 8 7.2M6.2 9.3A4 4 0 0 0 7 18');
-/** Fullscreen: corner brackets pushing out, and the same pulling in. */
+/** Enter and exit fullscreen. */
 export const ExpandIcon = icon('M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5');
 export const CollapseIcon = icon('M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5');
-/** A head and shoulders. The only account glyph; there are no avatars in Macha. */
+/** The account glyph; Macha has no avatars. */
 export const UserIcon = icon('M12 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4M5 20c0-3.4 3-5.4 7-5.4s7 2 7 5.4');
-/** Corner brackets and a sweep line — the scanner glyph, not a drawn QR. */
+/** QR scanner glyph. */
 export const ScanIcon = icon(
   'M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3M7 12h10',
 );
@@ -100,7 +96,7 @@ export function PauseIcon({ size = 24, color = colors.text }: IconProps) {
   );
 }
 
-/** Jump-back-10 and jump-forward-10, drawn as a circular arrow around the numeral. */
+/** Skip back by `seconds`; `ForwardIcon` is its mirror. */
 export function ReplayIcon({ size = 24, color = colors.text, seconds = 10 }: IconProps & { seconds?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -141,7 +137,7 @@ function Text({ x, y, value, color }: { x: number; y: number; value: string; col
 }
 
 
-/** The favourite control in its active state — a filled heart reads instantly. */
+/** Active favourite. */
 export function HeartFilledIcon({ size = 24, color = colors.progress }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -153,7 +149,7 @@ export function HeartFilledIcon({ size = 24, color = colors.progress }: IconProp
   );
 }
 
-/** Repeat-one: the repeat loop with a numeral in the middle. */
+/** Repeat one. */
 export function RepeatOneIcon({ size = 24, color = colors.text }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -171,9 +167,9 @@ export function RepeatOneIcon({ size = 24, color = colors.text }: IconProps) {
   );
 }
 
-/** A title some of whose pieces no reachable node holds. */
+/** Availability: partly held by reachable nodes. */
 export const WarningIcon = icon('M12 3.5 2.5 20h19zM12 10v4.5M12 17.2v.1');
-/** A title none of whose pieces a reachable node holds. */
+/** Availability: held by no reachable node. */
 export const BlockedIcon = icon('M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8');
-/** A title whose pieces have not been surveyed yet. */
+/** Availability: not yet surveyed. */
 export const QuestionIcon = icon('M9 9a3 3 0 1 1 4.2 2.75c-.7.3-1.2.95-1.2 1.7V14.5M12 18v.1');

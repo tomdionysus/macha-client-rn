@@ -4,14 +4,12 @@ import { errorBlamesEndpoint, seekRequiresReposition, seekStillPending } from '.
 
 const pending = { targetMs: 600_000, atMs: 1_000 };
 
-// A downloaded original played off the disk: no node, no stated hold, and the
-// published floor is what bounds the wait.
+// A downloaded original played from disk: no node, so the published floor bounds the wait.
 const noSession = undefined;
 
 describe('seekStillPending', () => {
   it('ignores the position the player was at before the seek', () => {
-    // The scrubber fighting the viewer: released at ten minutes, and the next
-    // timeUpdate still reports the two-minute mark it was playing from.
+    // Released at ten minutes, the next timeUpdate still reports two minutes.
     expect(seekStillPending(noSession, pending, 120_000, 1_100)).toBe(true);
   });
 
@@ -25,8 +23,7 @@ describe('seekStillPending', () => {
   });
 
   it('believes the player again once the seek has clearly not landed', () => {
-    // Otherwise a seek that never arrives freezes the position for good, which
-    // is worse than the snap-back the pending seek prevents.
+    // Otherwise a seek that never arrives freezes the position for good.
     expect(seekStillPending(noSession, pending, 120_000, 1_000 + 8_000)).toBe(false);
   });
 
@@ -40,9 +37,8 @@ describe('seekRequiresReposition', () => {
     ({ source: { isManifest: true }, ...overrides }) as unknown as PlaybackSession;
   const direct = () => ({ source: { isManifest: false } }) as unknown as PlaybackSession;
 
-  // An hour into a 2:43 film is hundreds of segments past production: the node
-  // refuses it as beyond_hold_window, media3 treats that as fatal at once, and
-  // the error reads as a bad node.
+// Far past production the node refuses with beyond_hold_window, media3
+// treats that as fatal, and the error reads as a bad node.
   it('repositions a transformed generation for a seek past what is buffered', () => {
     expect(seekRequiresReposition(transformed(), 3_600_000, 120_000)).toBe(true);
   });
@@ -52,8 +48,7 @@ describe('seekRequiresReposition', () => {
     expect(seekRequiresReposition(transformed(), 120_000, 120_000)).toBe(false);
   });
 
-  // Nothing buffered yet is not evidence that anything has been produced, and
-  // guessing otherwise is how the node gets asked for a segment nobody is building.
+// Nothing buffered is not evidence that anything has been produced.
   it('treats an empty buffer as nothing produced', () => {
     expect(seekRequiresReposition(transformed(), 1, 0)).toBe(true);
   });
@@ -68,9 +63,7 @@ describe('seekRequiresReposition', () => {
     expect(seekRequiresReposition(undefined, 3_600_000, 0)).toBe(false);
   });
 
-  // Backward seeks are deliberately untouched here: a bounded window implies
-  // they could also fall outside it, but nothing establishes that, and this
-  // does not guess about the server.
+// Backward seeks are left alone: nothing establishes they fall outside the window.
   it('does not act on backward seeks', () => {
     expect(seekRequiresReposition(transformed(), 10_000, 120_000)).toBe(false);
   });
@@ -80,21 +73,18 @@ describe('errorBlamesEndpoint', () => {
   const transformed = () => ({ source: { isManifest: true } }) as unknown as PlaybackSession;
   const direct = () => ({ source: { isManifest: false } }) as unknown as PlaybackSession;
 
-  // A fatal error 4.7 s after our own seek, on a healthy node, must not stop
-  // the session and rebuild it elsewhere.
+// A fatal error shortly after our own seek, on a healthy node, must not fail over.
   it('does not blame the node for an error under an outstanding seek', () => {
     expect(errorBlamesEndpoint(transformed(), { targetMs: 3_600_000, atMs: 1_000 }, 5_700)).toBe(false);
   });
 
-  // Failover must still work. A transformed stream failing in ordinary playback
-  // is precisely what it exists for, and this must not become a blanket excuse.
+// Failover must still work for ordinary playback failures.
   it('blames the node when no seek is outstanding', () => {
     expect(errorBlamesEndpoint(transformed(), undefined, 5_700)).toBe(true);
   });
 
   it('blames the node once the seek deadline has passed', () => {
-    // Past the node's hold and the margin above it, the seek is no longer a
-    // credible explanation and an error is the endpoint's again.
+    // Past the node's hold plus margin, the error is the endpoint's again.
     expect(errorBlamesEndpoint(transformed(), { targetMs: 3_600_000, atMs: 1_000 }, 1_000 + 8_000)).toBe(true);
   });
 
@@ -107,20 +97,16 @@ describe('errorBlamesEndpoint', () => {
   });
 });
 
-// The window an outstanding seek excuses an error for has to be the serving
-// node's own hold, not a copy of the published default: two independently
-// chosen constants that must relate will drift apart.
+// The excuse window is the serving node's own hold, not a copy of the published default.
 describe('the seek window against the node that stated it', () => {
   const held = (segmentHoldMs: number) =>
     ({ source: { isManifest: true, budgets: { deadlineMs: 30_000, segmentHoldMs } } }) as unknown as PlaybackSession;
-  // A node too old to report its budgets, or one whose status call has not
-  // landed: `budgets` is absent and the published floor applies.
+// No `budgets` (older node, or status not yet loaded): the published floor applies.
   const unstated = () => ({ source: { isManifest: true } }) as unknown as PlaybackSession;
   const seek = { targetMs: 3_600_000, atMs: 1_000 };
 
   it('excuses an error for as long as the node says it holds a fragment', () => {
-    // A node holding for ten seconds is producing, not failing, and a seek
-    // landing at nine is inside its own entitlement.
+    // A node holding for ten seconds is producing, not failing.
     expect(errorBlamesEndpoint(held(10_000), seek, 1_000 + 9_000)).toBe(false);
   });
 
@@ -129,14 +115,12 @@ describe('the seek window against the node that stated it', () => {
   });
 
   it('follows a node that holds for less, rather than excusing it for six seconds', () => {
-    // The direction that costs a viewer: a two-second hold excused for six is
-    // four seconds of a genuinely dead node read as our own outstanding seek.
+    // A two-second hold excused for six would read four seconds of a dead node as our seek.
     expect(errorBlamesEndpoint(held(2_000), seek, 1_000 + 5_000)).toBe(true);
   });
 
   it('allows the player its retry and first byte above the hold', () => {
-    // A seek can legitimately land a hold *plus* transport later, so a window
-    // of the hold alone would charge the node for an error at 6_001.
+    // A seek can land a hold *plus* transport later; the hold alone would blame the node at 6_001.
     expect(errorBlamesEndpoint(unstated(), seek, 1_000 + 7_000)).toBe(false);
   });
 
@@ -144,10 +128,8 @@ describe('the seek window against the node that stated it', () => {
     expect(errorBlamesEndpoint(unstated(), seek, 1_000 + 8_000)).toBe(true);
   });
 
-  // Both windows come off the same figure deliberately. They answer different
-  // questions — when to believe the player, and when to blame the node — but a
-  // seek that is still credible to one and expired to the other is exactly
-  // the drift to avoid.
+// Both windows derive from the same figure so believing the player and blaming
+// the node cannot drift apart.
   it('times a pending seek out on the same window it excuses an error for', () => {
     expect(seekStillPending(held(10_000), { ...seek, targetMs: 600_000 }, 120_000, 1_000 + 9_000)).toBe(true);
     expect(seekStillPending(held(10_000), { ...seek, targetMs: 600_000 }, 120_000, 1_000 + 12_000)).toBe(false);

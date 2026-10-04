@@ -4,17 +4,10 @@ import { loadFailureMessage } from '../api/failureMessages';
 import { AlertIcon } from './Icons';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme';
 
-/**
- * A spinner is only shown once a load has actually felt slow. Below this, a
- * flash of spinner is more disruptive than the wait it describes.
- */
+/** Delay before showing a spinner, so fast loads do not flash one. */
 const LOADING_INDICATOR_DELAY_MS = 600;
 
-/**
- * The one spinner. Always the progress colour; only the size follows the place:
- * `large` for a screen or the player, `small` inside a button or a row.
- * Nothing else in the app draws an `ActivityIndicator`.
- */
+/** The app's only spinner: `large` for a screen or the player, `small` in a button or row. */
 export function Spinner({ size = 'small' }: { size?: 'small' | 'large' }) {
   return <ActivityIndicator size={size} color={colors.progress} />;
 }
@@ -28,8 +21,7 @@ export function Loading({ label }: { label?: string }) {
   if (!visible) return <View style={styles.block} />;
   return (
     <View style={styles.block}>
-      {/* Large: the small grey default reads as a blank screen during a
-          long load. */}
+      {/* Large: a small one reads as a blank screen. */}
       <Spinner size="large" />
       {label ? <Text style={styles.caption}>{label}</Text> : null}
     </View>
@@ -75,10 +67,7 @@ export function InlineError({ message }: { message: string }) {
   );
 }
 
-/**
- * A banner asking the viewer to do something, rather than reporting a failure.
- * Tappable as a whole, since the whole of it is the action.
- */
+/** A tappable banner asking the viewer to act, rather than reporting a failure. */
 export function Notice({ title, detail, onPress }: { title: string; detail?: string; onPress(): void }) {
   return (
     <Pressable

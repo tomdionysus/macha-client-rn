@@ -45,10 +45,7 @@ export interface MusicLibraryView {
 
 /**
  * Per-device listening state: favourites, play counts and recently played.
- *
- * Macha models none of this and deliberately holds no per-viewer state, so it
- * lives here alongside Continue Watching. It is never uploaded. Everything is
- * keyed by catalogue id, so it survives the catalogue being unreachable.
+ * Macha holds no per-viewer state, so this is local only, keyed by catalogue id.
  */
 export class MusicLibraryStore {
   private readonly key: string;
@@ -60,14 +57,9 @@ export class MusicLibraryStore {
   }
 
   /**
-   * A handle onto this store whose identity changes whenever the state does.
-   *
-   * The store itself cannot be that handle: it is a singleton, so anything
-   * derived from it during render is compiled to a memo keyed on a value that
-   * never changes, and favourites and the recently-played order stay at
-   * whatever they were the first time the screen drew. A counter cannot be it
-   * either, because the caller reads through these methods rather than through
-   * the counter. So the handle is what callers already use, rebuilt on change.
+   * A handle onto this store whose identity changes whenever the state does,
+   * so React Compiler memos that read through it recompute. The singleton
+   * store itself never changes identity.
    */
   getSnapshot = (): MusicLibraryView => {
     this.cached ??= {

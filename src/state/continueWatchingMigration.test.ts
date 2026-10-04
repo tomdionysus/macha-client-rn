@@ -3,8 +3,7 @@ import { ContinueWatchingStore, type PlaybackProgress } from '@machafoundation/c
 import { clientStore } from './storage';
 import { adoptLegacyContinueWatching } from './continueWatchingMigration';
 
-// Stored in the legacy shape, which named the title `mediaId`; core reads that
-// as `itemId`.
+// Legacy shape: the title is `mediaId`, which core reads as `itemId`.
 const entry = (mediaId: string, positionMs = 60_000) => ({
   mediaId,
   positionMs,
@@ -38,8 +37,6 @@ describe('adoptLegacyContinueWatching', () => {
   });
 
   it('never drags a viewer back to where they were before upgrading', () => {
-    // The store already has something, so the viewer has watched since the
-    // rename. Adopting on top of that would resurrect stale positions.
     const store = new ContinueWatchingStore('client', clientStore);
     store.update(current('macha:current'));
     clientStore.setItem(legacyKey('client'), JSON.stringify([entry('macha:stale')]));
@@ -50,9 +47,7 @@ describe('adoptLegacyContinueWatching', () => {
   });
 
   it('sweeps the anonymous pool written before hydration finished', () => {
-    // Every store is built `new Store(clientId || 'anonymous')`, and clientId is
-    // empty during the first render — so a write in that window lands under a
-    // real key that nothing later reads.
+    // Stores are built with `clientId || 'anonymous'` before hydration.
     clientStore.setItem(legacyKey('anonymous'), JSON.stringify([entry('macha:early')]));
     const store = new ContinueWatchingStore('client', clientStore);
 

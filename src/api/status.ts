@@ -1,6 +1,5 @@
-// Wire types and the routed client are core's. `ClusterStatusRouter` reads
-// with failover, while `checkConnectivity` goes through `mutation` because it
-// is a diagnostic POST that makes the node act and must execute exactly once.
+// Re-exported from core. `ClusterStatusRouter` reads with failover;
+// `checkConnectivity` is a POST, so it runs exactly once via `mutation`.
 export { ClusterStatusRouter } from '@machafoundation/core';
 export type {
   ByteUsage,

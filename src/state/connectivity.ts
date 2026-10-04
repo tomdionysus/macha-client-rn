@@ -1,10 +1,6 @@
 /**
- * Whether the cluster is reachable, as one app-wide fact.
- *
- * Being away from your own network is an ordinary condition for a phone, not
- * an error, so this is a state the whole app reads rather than something each
- * screen discovers by failing. It is set by the API layer when a request fails
- * at the transport level, and cleared as soon as any request succeeds.
+ * Whether the cluster is reachable, as one app-wide fact. Set by the API layer
+ * on a transport failure and cleared by any success.
  */
 export class Connectivity {
   private offline = false;
@@ -28,13 +24,7 @@ export class Connectivity {
     };
   }
 
-  /**
-   * Whether a caller should attempt the network.
-   *
-   * Online, always. Offline, only occasionally — otherwise every screen pays a
-   * full request timeout before showing the downloads it could have shown
-   * instantly, which is precisely the experience offline mode exists to avoid.
-   */
+  /** Whether to attempt the network: always online, once per interval offline, so screens do not wait out timeouts. */
   shouldProbe(intervalMs = 20_000): boolean {
     if (!this.offline) return true;
     const now = Date.now();

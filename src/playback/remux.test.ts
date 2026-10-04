@@ -3,15 +3,10 @@ import type { PlaybackCapabilities, PlaybackSession, PlaybackStreamInfo } from '
 import { directUnavailableReason, remuxUnavailableReason } from './policy';
 
 /**
- * Remux copies the video, so it is only real when this device can decode it.
- * Otherwise the decoder refuses the copy as `NO_EXCEEDS_CAPABILITIES` and the
- * viewer gets a black screen: *Dark* S01E01, ten-bit HEVC Main 10 in
- * Matroska, on a device with no Main 10 and `videoBitDepth` 8, is the case
- * modelled here.
- *
- * Remux stays in the menu and says why it is unavailable. The judgement is core's `videoStreamObjection` — the same one
- * that chose transcode for this title on create — asked of the stream the
- * session is presenting.
+ * Remux copies the video, so it needs a decoder for it; otherwise the copy is
+ * refused (`NO_EXCEEDS_CAPABILITIES`) and the screen stays black. Modelled on
+ * ten-bit HEVC Main 10 in Matroska on a device with `videoBitDepth` 8. The
+ * judgement is core's `videoStreamObjection`, applied to the presented stream.
  */
 
 const A85: PlaybackCapabilities = {
@@ -60,8 +55,7 @@ describe('remuxUnavailableReason', () => {
   });
 
   it('refuses a codec the device cannot decode over HLS', () => {
-    // Remux arrives over HLS, so the HLS list is the one that counts — core's
-    // own `deliveryVideoCodecs` rule.
+    // Remux arrives over HLS, so the HLS list counts (core's `deliveryVideoCodecs`).
     const caps = { ...A85, hlsVideoCodecs: ['h264'] } as PlaybackCapabilities;
     expect(remuxUnavailableReason(session([video({ bitDepth: 8 })]), caps)).toBe(
       'Unavailable: this device cannot decode this video’s format. Transcode will play it.',
@@ -80,9 +74,7 @@ describe('remuxUnavailableReason', () => {
   });
 
   it('says nothing when the server did not report the bit depth', () => {
-    // Core's rule, and deliberately inherited: an unreported fact is not a
-    // reason to refuse. Matroska HEVC often lacks it, so this may be *Dark*
-    // — which only the device can settle, not this test.
+    // Core's rule: an unreported fact is not a reason to refuse.
     expect(remuxUnavailableReason(session([video({ bitDepth: undefined })]), A85)).toBeUndefined();
   });
 
@@ -92,15 +84,12 @@ describe('remuxUnavailableReason', () => {
 });
 
 /**
- * Direct play, greyed out on the same terms: otherwise a viewer who names it
- * gets a decoder refusal for a mode the menu offered without comment. Direct
- * delivers the original file, so it
- * is judged against the direct-play decoders (not the HLS list Remux uses) and
- * against the container, which Remux replaces and Direct does not.
+ * Direct play is greyed out on the same terms, judged against the direct-play
+ * decoders (not the HLS list) and against the container, which Direct cannot replace.
  */
 describe('directUnavailableReason', () => {
   it('refuses the A85 case, and points at the one mode that works', () => {
-    // Ten-bit video rules out Remux too, so Transcode is the only way.
+    // Ten-bit video rules out Remux too, so only Transcode works.
     expect(directUnavailableReason(session([video()]), A85)).toBe(
       'Unavailable: this video is 10-bit and this device can only decode 8-bit. Transcode will play it.',
     );
@@ -111,14 +100,13 @@ describe('directUnavailableReason', () => {
   });
 
   it('judges the video against the direct-play decoders, not the HLS list', () => {
-    // A codec the device decodes from a file but not over HLS is fine for
-    // Direct, which is the opposite of Remux.
+    // Decodable from a file but not over HLS is fine for Direct.
     const caps = { ...A85, hlsVideoCodecs: ['h264'] } as PlaybackCapabilities;
     expect(directUnavailableReason(session([video({ bitDepth: 8 })]), caps)).toBeUndefined();
   });
 
   it('refuses a container this device cannot open, and says Remux will play it', () => {
-    // Remux rewraps the streams, so only the container stands in the way.
+    // Remux rewraps the streams, so only the container is in the way.
     const avi = session([video({ codec: 'h264', profile: 'High', bitDepth: 8 })], 0, 'avi', 'avi');
     expect(directUnavailableReason(avi, A85)).toBe(
       'Unavailable: this device cannot open this file as it is. Remux will play it.',

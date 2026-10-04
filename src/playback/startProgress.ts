@@ -1,13 +1,11 @@
 import type { PlaybackStartProgress } from '@machafoundation/core';
 
 /**
- * What a start or a change is doing while the node prepares it (the server's
- * `start=async`), worded as the web words it: `startProgressText`,
- * `startWaitNotice` and `preparingStreamText`, word for word, so every client
- * says it alike.
+ * Viewer text for a start or change the node is preparing (`start=async`),
+ * worded as the web client's so every client agrees.
  */
 
-/** How long a start may take before the viewer is told about it: a quick start is not announced. */
+/** How long a start may take before the viewer is told about it. */
 export const START_WAIT_NOTICE_MS = 5_000;
 
 /** A whole percentage of `done` over `total`, when the node measured both. */
@@ -17,13 +15,10 @@ function measuredPercent(done: number | undefined, total: number | undefined): n
 }
 
 /**
- * The stage, and how far through it when the node measured that. Never an
- * estimate: a counter the node did not report shows no figure at all.
- *
- * `node` names where the work is happening. A change names it throughout,
- * because the viewer is watching one stream while another is built; a start
- * names it only while planning. `standalone` marks an open stage with an
- * ellipsis, for a line with nothing after it.
+ * The stage, and how far through it when the node measured that; never an
+ * estimate. `node` is named throughout a change (one stream plays while
+ * another builds) but only while planning on a start. `standalone` adds an
+ * ellipsis for a line with nothing after it.
  */
 export function startProgressText(progress: PlaybackStartProgress, node?: string, standalone = false): string | undefined {
   const on = node ? ` on ${node}` : '';
@@ -41,14 +36,9 @@ export function startProgressText(progress: PlaybackStartProgress, node?: string
 }
 
 /**
- * The note under the spinner while a title has not started yet: what is
- * being waited for, and for how long, once it has taken longer than a quick
- * start. A node that reports its progress says which stage it is in, and
- * `stage` is that sentence, replacing the general one.
- *
- * Only a start. A rebuffer mid-film has the picture behind it to say what is
- * going on, and a timer over that would turn every brief hesitation into an
- * announcement.
+ * The note under the spinner once a start takes longer than
+ * `START_WAIT_NOTICE_MS`; `stage` replaces the generic sentence when the node
+ * reports progress. Starts only: a mid-film rebuffer has the picture behind it.
  */
 export function startWaitNotice(starting: boolean, elapsedMs: number, stage?: string): string | undefined {
   if (!starting || elapsedMs < START_WAIT_NOTICE_MS) return undefined;
@@ -56,14 +46,9 @@ export function startWaitNotice(starting: boolean, elapsedMs: number, stage?: st
 }
 
 /**
- * The line while a new stream is prepared behind the one playing.
- *
- * A change (a seek, a mode or quality switch) is built on the node already
- * serving, so that node is named. A failover, and this client's regenerate
- * of a reaped session, arrive as a *start*, on a node this line cannot name:
- * the one it holds is the one being replaced. So a start is worded as a new
- * stream with no node, and a node that reports no progress keeps the plain
- * sentence.
+ * The line while a new stream is prepared behind the one playing. A change is
+ * built on the serving node, so it is named; a failover or regenerate arrives
+ * as a start on a node this cannot name, so it is worded without one.
  */
 export function preparingStreamText(progress: PlaybackStartProgress | undefined, node: string | undefined): string {
   const stage = progress && startProgressText({ ...progress, kind: 'change' }, progress.kind === 'change' ? node : undefined, true);

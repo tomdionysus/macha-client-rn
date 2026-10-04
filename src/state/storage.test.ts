@@ -2,40 +2,20 @@ import { describe, expect, it } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clientStore } from './storage';
 
-/**
- * One hydrate, deliberately. `clientStore` is a singleton and `hydrate()`
- * returns early once it has run, which is the behaviour the app wants and makes
- * a per-case fixture impossible without exporting the class purely for tests.
- * Everything is seeded first and asserted after the single pass.
- */
+/** One case: `clientStore` is a singleton and `hydrate()` runs once per process. */
 describe('ClientStore.hydrate', () => {
   it('restores what belongs to Macha and nothing else', async () => {
-    // Core's session cache. The key is hyphenated, `macha-session`, so a
-    // filter of `macha.` would exclude it: the signed-in token would be written
-    // every launch and never read back, and the viewer signed out on every cold
-    // start with nothing logged.
+    // Core's hyphenated legacy session key.
     await AsyncStorage.setItem('macha-session', '{"token":"t","expiresAtMs":1}');
-    // This client's own convention.
     await AsyncStorage.setItem('macha.endpoints.v1', '{"version":1,"urls":[]}');
-    // Keys this client owns that core's `isMachaStorageKey` registry does not
-    // list. They are here so that swapping core's helper in for `owned()` —
-    // which core's own doc comment recommends — fails loudly instead of
-    // silently ceasing to restore them. `macha.clientId.v1` is the worst of
-    // them: it namespaces every per-client store, so losing it orphans
-    // Continue Watching, the queue, the playlists and the music library too.
+    // Keys core's `isMachaStorageKey` does not list; guards against swapping it in for `owned()`.
     await AsyncStorage.setItem('macha.clientId.v1', 'client-1');
     await AsyncStorage.setItem('macha.discoveredEndpoints.v1', '{"version":1,"urls":[]}');
     await AsyncStorage.setItem('macha.downloads.v1.client-1', '{"version":1,"items":[]}');
     await AsyncStorage.setItem('macha.musicLibrary.v1.client-1', '{"favourites":[],"plays":{},"recent":[]}');
     await AsyncStorage.setItem('macha.progress.v1:client-1', '{"version":1,"items":[]}');
-    // Core's legacy Continue Watching key, which its
-    // `ContinueWatchingStore.read()` adopts when the current key is empty. Core
-    // reads through this store (`configureMachaHost({ storage: clientStore })`)
-    // and `getItem` answers only from the hydrated cache, so failing to hydrate
-    // this would silently defeat core's own migration.
+    // Core's legacy Continue Watching key; core's migration reads it through this cache.
     await AsyncStorage.setItem('macha-client-progress:client-1', '[]');
-    // Anchored on purpose: another library's key that merely begins with the
-    // same letters must not be pulled into this cache.
     await AsyncStorage.setItem('machaSomethingElse', 'x');
     await AsyncStorage.setItem('unrelated', 'y');
 

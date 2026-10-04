@@ -19,13 +19,7 @@ interface Props {
   shape?: CardShape;
 }
 
-/**
- * A whole library section, with a local filter.
- *
- * The filter is client-side on purpose: the list is already in memory, so
- * narrowing it should be instant and work with no node round trip. Catalogue
- * search — which looks beyond the current section — is a separate screen.
- */
+/** A whole library section with an in-memory title filter; catalogue search is a separate screen. */
 export function Library({ items, onOpen, noun, shape }: Props) {
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<MediaSortKey>(DEFAULT_LIBRARY_SORT);
@@ -33,9 +27,7 @@ export function Library({ items, onOpen, noun, shape }: Props) {
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    // Core's orders, which every other client offers too. Title is the
-    // indexed order — a leading article ignored, accents folded, numbers as
-    // numbers — so "The Matrix" files under M here as on the web and the TV.
+    // Core's orders; title ignores leading articles, so "The Matrix" files under M.
     const sorted = orderMedia(items, sort, LIBRARY_SORTS);
     if (!needle) return sorted;
     return sorted.filter((item) => item.title.toLowerCase().includes(needle));
@@ -59,9 +51,7 @@ export function Library({ items, onOpen, noun, shape }: Props) {
       </View>
       <SortControl sorts={LIBRARY_SORTS} value={sort} onChange={setSort} />
       {visible.length === 0 ? (
-        // A filter that matched nothing is the viewer's own doing and says so;
-        // everything else depends on whether this client can see a catalogue at
-        // all, which is not something a shelf should decide for itself.
+        // An empty unfiltered library is explained from the cluster's problems.
         filter ? (
           <EmptyState title={`No ${noun} match “${filter.trim()}”`} />
         ) : (

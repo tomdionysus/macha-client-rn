@@ -2,14 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { reclaimOrphans, SessionLedger, type LedgerStorage } from './sessionLedger';
 
 /**
- * Sessions a dead process left open, closed by the next one.
- *
- * A process that is gone cannot send a `DELETE`, but the next launch can:
- * core's `docs/resolver-direct.md` says a host that persists the ids it was
- * handed can close them after a restart, because `stop()` recovers the node
- * from the id and never throws or charges for an untracked one. Left open,
- * they hold the node's transcode slots until reaped, and every killed process
- * (every `install -r`) leaves some.
+ * Sessions a dead process left open, closed by the next launch. Core's
+ * `stop()` recovers the node from the id and never throws or charges for an
+ * untracked one; left open, orphans hold transcode slots until reaped.
  */
 
 const memory = (): LedgerStorage & { raw: Map<string, string> } => {
@@ -40,9 +35,8 @@ describe('SessionLedger', () => {
   });
 
   it('hands over the previous process’s ids once, and never this one’s', () => {
-    // The trap: services are rebuilt on every connection generation, so a
-    // reclaim that re-read the ledger each time would close the session
-    // playing right now. The snapshot is taken once, at hydration.
+    // Services are rebuilt per connection generation; re-reading would close the
+    // session now playing, so the snapshot is taken once.
     const storage = memory();
     new SessionLedger(storage).record('left-behind::1');
     const ledger = new SessionLedger(storage);
@@ -62,8 +56,7 @@ describe('SessionLedger', () => {
 
 describe('reclaimOrphans', () => {
   it('closes each orphan and forgets it, whether or not the close worked', async () => {
-    // A node that will not answer reaps the session on its own clock; keeping
-    // the id would retry it on every launch for ever.
+    // An unresponsive node reaps on its own clock; retrying every launch never ends.
     const ledger = new SessionLedger(memory());
     ledger.record('gone::1');
     ledger.record('refuses::2');

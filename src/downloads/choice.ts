@@ -25,10 +25,8 @@ export interface DownloadChoice {
 
 /**
  * Whether this device plays a file off the disk as it is. A downloaded copy
- * always plays Direct, with nobody to transcode it, so this is core's own
- * chooser asked about the device alone: container, video and audio all have
- * to pass. The node's operations are left out on purpose; the question is
- * the device's.
+ * always plays Direct, so this asks core's chooser about the device alone,
+ * ignoring the node's operations.
  */
 export function playableHere(
   file: PlaybackMediaFacts,
@@ -39,10 +37,9 @@ export function playableHere(
 }
 
 /**
- * The files of a title as a download chooser lists them:
- * core's summaries, largest first, with files that read the same offered
- * once. The size is the node's where it gives one; otherwise it is estimated
- * from the overall bitrate and the length, and says "about".
+ * A title's files for the download chooser: core's summaries, largest first,
+ * duplicates once. Size is the node's, else estimated from bitrate and length
+ * as "about".
  */
 export function downloadChoices(
   files: readonly PlaybackMediaFacts[],
@@ -67,10 +64,8 @@ export function downloadChoices(
 }
 
 /**
- * Which record a download is stored under, and whether the viewer named the
- * file. A named file keys the record, so the title reads as downloaded by
- * that file; otherwise the first file keys it and the download takes the
- * file playback would pick.
+ * The record key for a download: the viewer's chosen file, else the first
+ * file (and the download then takes whichever file playback would pick).
  */
 export function downloadTarget(
   media: Pick<MediaSummary, 'mediaIds'>,

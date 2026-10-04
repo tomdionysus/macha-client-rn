@@ -47,11 +47,7 @@ export function formatLanguage(code: string | undefined): string {
   return names ?? value.toUpperCase();
 }
 
-/**
- * Just enough of ISO 639 to name the tracks that actually turn up in a home
- * media library. Anything else falls back to the raw code, which is still more
- * useful than hiding it.
- */
+/** Common ISO 639 codes; anything else is shown as the raw code. */
 const LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
   cs: 'Czech',

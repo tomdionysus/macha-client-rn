@@ -71,16 +71,13 @@ export default function SettingsScreen() {
               setSigningOut(true);
               setSignOutError(undefined);
               try {
-                // Playback stops first: after the token changes, a session
-                // created under the old identity can no longer be closed, and
-                // the node holds it against `max_video_transcodes` for thirty
-                // minutes.
+                // Stop playback first: once the token changes, a session opened under the
+                // old identity cannot be closed and holds a transcode slot for thirty minutes.
                 await stop();
                 await signOut();
               } catch (error) {
-                // Signing out locally has already happened by the time this
-                // throws — what failed is the revoke, so the honest thing to
-                // report is that the old session is still live elsewhere.
+                // Local sign-out has already happened; only the revoke failed, so the old
+                // session is still live on the server.
                 setSignOutError(signOutFailureMessage(error));
               } finally {
                 setSigningOut(false);
@@ -97,10 +94,8 @@ export default function SettingsScreen() {
       <Section title="Connection">
         <ListRow
           title="Macha nodes"
-          // Every configured node, one per line, rather than the first two and
-          // a nothing. A seed list is a list: showing part of it invites the
-          // reading that only that many are allowed, and the whole point of
-          // seeding more than one is that the cluster survives losing a node.
+          // List every configured node: showing only some implies a limit, and seeding
+          // several is what lets the cluster survive losing one.
           detail={endpoints.length > 0 ? endpoints.join('\n') : 'Not configured'}
           detailLines={Math.max(endpoints.length, 1)}
           leading={<ServerIcon size={20} color={colors.textDim} />}
@@ -121,9 +116,8 @@ export default function SettingsScreen() {
           {account.kind === 'signedIn' ? (
             <ListRow
               title={account.username}
-              // The server's own role names, unprettified. It named what it
-              // granted, and a client that renames or groups them is inventing
-              // policy — a role this build does not recognise still shows.
+              // The server's role names verbatim: renaming or grouping them would invent
+              // policy, and unknown roles still show.
               detail={session?.roles.length ? session.roles.join(' · ') : 'No roles granted'}
               leading={<UserIcon size={20} color={colors.textDim} />}
             />
@@ -212,10 +206,9 @@ export default function SettingsScreen() {
 }
 
 /**
- * The ceilings on automatic play, kept on this device.
- * Unset, Wi-Fi plays up to the screen's own resolution and mobile data up to
- * core's default. A quality picked on a detail screen or in the player is
- * never capped by either.
+ * Automatic-play quality ceilings, stored on this device. Unset, Wi-Fi plays up
+ * to screen resolution and mobile data up to core's default. A quality picked
+ * explicitly is never capped.
  */
 type Connection = 'wifi' | 'cellular';
 

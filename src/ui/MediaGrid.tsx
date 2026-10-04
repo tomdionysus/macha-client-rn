@@ -11,13 +11,9 @@ interface Props {
 }
 
 /**
- * The library grid. Column count follows the viewport rather than being fixed,
- * so a small phone, a large phone and a phone in landscape each get cards of
- * roughly the same physical size instead of the same *number* of cards.
- *
- * It renders as a plain wrapping view because every caller already puts it
- * inside one scroll container; nesting a second virtualized list inside that
- * would break scroll handoff for a payload this size.
+ * Library grid with columns sized to the viewport, so cards keep roughly the
+ * same physical size. A plain wrapping view, not a virtualized list, because
+ * callers already scroll it and nested lists break scroll handoff.
  */
 export function MediaGrid({ items, onOpen, shape }: Props) {
   const { width: viewport } = useWindowDimensions();

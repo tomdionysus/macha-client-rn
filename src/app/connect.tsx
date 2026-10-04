@@ -20,9 +20,8 @@ import { MachaLogo } from '../ui/Logo';
 import { colors, radius, space, type as typography, TOUCH_TARGET } from '../ui/theme';
 
 /**
- * The connection gate. Macha has no accounts and no cloud directory, so the
- * only thing the client needs is the address of one node — everything else
- * (session, cluster membership, catalogue) follows from that.
+ * The connection gate. Macha has no accounts or cloud directory, so the client
+ * needs only one node's address; session, cluster and catalogue follow from it.
  */
 export default function ConnectScreen() {
   const { configure, endpoints } = useMacha();
@@ -33,15 +32,12 @@ export default function ConnectScreen() {
   const [rows, setRows] = useState<string[]>(endpoints.length > 0 ? [...endpoints] : ['']);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
-  // The addresses the viewer has already been warned did not identify
-  // themselves as Macha. A second tap on the same list saves it anyway.
+  // Addresses already warned as not identifying as Macha. A second tap on the
+  // same list saves it anyway.
   const warnedFor = useRef<string | undefined>(undefined);
 
-  // A scanned address takes the empty row a fresh screen starts with, or adds
-  // one of its own, rather than replacing what is already there — someone who
-  // has typed a seed has not asked for it to be thrown away. It is not
-  // connected with automatically either: an address that arrived from a camera
-  // is worth seeing before it is used.
+  // A scanned address fills the empty row or adds one, never replacing typed
+  // seeds, and is not connected to automatically: the viewer should see it first.
   const applied = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!scanned || applied.current === scanned) return;

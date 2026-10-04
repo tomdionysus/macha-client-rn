@@ -18,17 +18,13 @@ const HEALTH_COLOR: Record<ClusterHealth, string> = {
 };
 
 /**
- * Cluster health, read from the node's own status API rather than inferred
- * from whether playback happens to be working. Observations distinguish live
- * telemetry from stale and last-known, because on a home cluster a node that
- * is merely asleep should not read the same as one that has lost its disks.
+ * Cluster health from the node's status API. Observations distinguish live,
+ * stale and last-known telemetry, so a sleeping node does not read as a failed one.
  */
 export default function StatusScreen() {
   const { status, generation } = useMacha();
-  // No signal: core's status client does not take one, and neither does
-  // `router.request` (unlike `router.find`). `useAsync` discards a superseded
-  // result, so leaving this screen wastes an in-flight request rather than
-  // rendering a stale one.
+  // No abort signal: neither core's status client nor `router.request` takes one.
+  // `useAsync` discards superseded results, so leaving wastes a request, not a render.
   const snapshot = useAsync(() => status.status(), [status, generation]);
 
   const cluster = snapshot.value?.cluster;
@@ -111,10 +107,8 @@ function NodeCard({ node }: { node: ClusterNodeStatus }) {
       </View>
       <Text style={styles.nodeMeta}>
         {[
-          // The API endpoint verbatim, or nothing. `host`/`port` are the RPC
-          // bind address — not necessarily reachable, and not the right
-          // protocol for REST — so falling back to them would print an
-          // internal address under an API label.
+          // The API endpoint verbatim, or nothing: `host`/`port` are the RPC bind
+          // address, which may be unreachable and does not speak REST.
           node.api_endpoint,
           node.version,
           node.phase,

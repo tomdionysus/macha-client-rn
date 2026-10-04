@@ -17,7 +17,6 @@ import { audioCopyable, sessionAudioCodec, transformFor } from '../playback/poli
 import type { TranscodeRate } from '../playback/quality';
 import type { SessionLedger } from '../playback/sessionLedger';
 
-// The session model and its wire decoding are core's.
 export type {
   PlaybackOptions,
   PlaybackOutputInfo,
@@ -32,35 +31,24 @@ export type {
   PlaybackUpdate,
 } from '@machafoundation/core';
 
-/**
- * What a start or change is doing while a node prepares it (the server's
- * `start=async`): core long-polls the node and reports each stage, and still
- * resolves to the ready session. Direct sessions never go pending.
- */
+/** Stage reports while a node prepares a start or change (`start=async`). Direct sessions never go pending. */
 export type StartProgressListener = (progress: PlaybackStartProgress) => void;
 
 /**
- * Playback sessions across the cluster.
+ * Playback sessions across the cluster: a thin adapter over core's
+ * `ClusterPlaybackResolver` taking whole sessions and explicit instructions.
  *
- * A thin adapter over core's `ClusterPlaybackResolver`, kept because this
- * client's callers speak in whole sessions and explicit instructions while
- * core's resolver speaks in session ids and preferences. Same shape as the
- * status API: core does the work, this supplies the vocabulary.
- *
- * `capabilities` goes to `resolve` for diagnostics only — it is never sent to a
- * node. The instruction is the decision, and it is made here by
- * `choosePlaybackInstruction` before the call, because the server performs what
- * it is told without asking what this device can decode.
+ * The node performs whatever transform it is told, so the instruction is
+ * decided client-side; capabilities passed to core are for diagnostics only.
  */
 export class ClusterPlaybackApi {
   private readonly resolver: ClusterPlaybackResolver;
   private readonly factsApi: ClusterPlaybackFactsApi;
 
   /**
-   * `ledger` writes down every session id handed out, so the next process can
-   * close what a killed one left open; see `sessionLedger.ts`. Recorded when a
-   * session is handed out and forgotten only when a close succeeds — a failed
-   * close is exactly the case the next launch exists to retry.
+   * `ledger` records every session id handed out and forgets it only on a
+   * successful close, so the next launch can close what a killed process left
+   * open (see `sessionLedger.ts`).
    */
   constructor(
     router: ClusterEndpointRouter,
@@ -76,12 +64,7 @@ export class ClusterPlaybackApi {
     return session;
   }
 
-  /**
-   * An instruction is a complete transform, so it is spread over the caller's
-   * preferences rather than merged under them: naming a mode restates the whole
-   * transform, and a stale `video`/`audio` surviving from an earlier preference
-   * would contradict it.
-   */
+  /** The instruction is a complete transform, so it overrides any `video`/`audio` in `preferences`. */
   create(
     media: MediaSummary,
     instruction: PlaybackInstruction,
@@ -101,19 +84,10 @@ export class ClusterPlaybackApi {
   }
 
   /**
-   * A replacement session for a generation whose node stopped serving it.
-   *
-   * Core records the failed endpoint and skips it, along with every node
-   * already known to have failed this generation. The transform is restated
-   * for the same reason it is on create: the node performs what it is told,
-   * and a replacement that quietly picked its own could come back as something
-   * this device cannot decode.
-   *
-   * Deliberately no prepared standby. Core supports one and the web client uses
-   * it, but a session's pipeline is reclaimed after about a minute idle, so a
-   * standby built on the first sign of trouble is usually dead by the time it
-   * is wanted. Admitting a fresh session is cheap; the player reload is the
-   * expensive part.
+   * A replacement session on another node, skipping every node that has failed
+   * this generation. The transform is restated so the replacement stays
+   * decodable. No prepared standby: idle pipelines are reclaimed after about a
+   * minute, so one would usually be dead when wanted.
    */
   failover(
     session: PlaybackSession,
@@ -127,8 +101,7 @@ export class ClusterPlaybackApi {
         media,
         deviceCapabilities(),
         seekMs,
-        // Same judgement as a mode switch: a replacement must not be asked to
-        // copy audio this device cannot decode. See `transformFor`.
+        // Never copy audio this device cannot decode.
         transformFor(
           session.preferences.mode,
           audioCopyable(sessionAudioCodec(session), deviceCapabilities().audioCodecs ?? []),
@@ -137,29 +110,22 @@ export class ClusterPlaybackApi {
         { onStartProgress },
       )
       .then((next) => {
-        // Core releases the session it replaced; this one is now the holding.
+        // Core releases the replaced session.
         this.ledger?.forget(session.sessionId);
         return this.held(next);
       });
   }
 
-  /**
-   * Whether the node that issued this session still holds it. Pinned to that
-   * node, no walk, and **nothing recorded against it either way** — core's
-   * rule, so that asking cannot cost the node anything.
-   */
+  /** Whether the issuing node still holds this session. Pinned, and records nothing against the node. */
   sessionAlive(session: PlaybackSession): Promise<boolean> {
     return this.resolver.sessionAlive(session.sessionId);
   }
 
   /**
-   * A fresh session on the **same** node, for one that node reaped.
-   *
-   * Core closes the old session first and waits for it, because the node's one
-   * transcode slot is held by the session being replaced; no endpoint is
-   * charged. The transform is restated as on `failover`, for the same reason.
-   * Throws with `REGENERATION_ENDPOINT_GONE_CODE` when the node has left the
-   * registry, and the caller then fails over.
+   * A fresh session on the same node, for one that node reaped. Core closes the
+   * old one first, as it holds the node's transcode slot. Throws with
+   * `REGENERATION_ENDPOINT_GONE_CODE` if the node has left; the caller then
+   * fails over.
    */
   regenerate(session: PlaybackSession, media: MediaSummary, seekMs: number): Promise<PlaybackSession> {
     return this.resolver
@@ -180,16 +146,10 @@ export class ClusterPlaybackApi {
   }
 
   /**
-   * A PATCH that names its choices.
-   *
-   * A session begun as Direct named no streams, and the server holds a PATCH to
-   * the same choices as a create. Unnamed, a change into Remux or Transcode on
-   * a file with several audio streams is refused `choice_required`, and core's
-   * resolver retries with the node's first container and the file's first
-   * audio stream, not this device's container or the default-flagged stream.
-   * Core's `preparePlaybackPatch` names the device's segment container and the
-   * streams, restating the ones already playing. It is what the coordinator
-   * does on its own updates, and it leaves a seek-only update untouched.
+   * A PATCH that names its container and streams via core's
+   * `preparePlaybackPatch`. Otherwise a mode change on a multi-audio file is
+   * refused `choice_required` and core's retry picks the node's defaults, not
+   * this device's. Seek-only updates pass through untouched.
    */
   update(
     session: PlaybackSession,
@@ -206,10 +166,9 @@ export class ClusterPlaybackApi {
   }
 
   /**
-   * The best rate any node has measured for transcoding this kind of picture,
-   * or undefined until a transcode of a minute or more has
-   * finished somewhere. Passed to `playbackVersions` so automatic play skips
-   * a file no node converts at real speed. An arrow, so it can be handed on.
+   * Best measured transcode rate for this kind of picture on any node, or
+   * undefined until one has been measured. Lets automatic play skip files no
+   * node transcodes in real time. An arrow so it can be passed around.
    */
   readonly transcodeRate: NonNullable<TranscodeRate> = (source) => this.resolver.transcodeRate(source);
 
@@ -217,10 +176,7 @@ export class ClusterPlaybackApi {
     return this.stopById(session.sessionId);
   }
 
-  /**
-   * Close a session by id alone — including one from a previous process,
-   * which core closes by recovering the node from the id.
-   */
+  /** Close a session by id alone, including one from a previous process. */
   async stopById(sessionId: string): Promise<void> {
     await this.resolver.stop(sessionId);
     this.ledger?.forget(sessionId);

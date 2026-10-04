@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaSummary } from '@machafoundation/core';
 
-/**
- * The file system is a collaborator here, not an environment fact: what is
- * under test is what the manager asks of it. A transfer resolves only when
- * it is cancelled, like a large film still arriving.
- */
+/** Mocked file system: a transfer resolves only when cancelled, like a large film still arriving. */
 const transfer = vi.hoisted(() => ({
   started: undefined as undefined | (() => void),
   cancelAsync: undefined as undefined | ReturnType<typeof vi.fn>,
@@ -53,8 +49,6 @@ describe('DownloadManager.cancel', () => {
     transfer.cancelAsync = undefined;
   });
 
-  // Setting a flag the transfer reads only when it finishes is not enough: a
-  // cancelled film would keep arriving.
   it('stops a transfer in flight and hands back its session', async () => {
     const api = playbackApi();
     const manager = new DownloadManager(new DownloadStore('test-cancel'), api as never, {} as never);
@@ -72,9 +66,7 @@ describe('DownloadManager.cancel', () => {
 });
 
 describe('DownloadManager, a file this device cannot play', () => {
-  // A file that cannot be played locally cannot be downloaded. An album's
-  // Download queues every track without asking, so
-  // the manager refuses too, before any session or byte.
+  // An album's Download queues every track without a chooser, so the manager checks too.
   it('fails it as not available here, with no session and no transfer', async () => {
     const api = playbackApi();
     const dts = { index: 1, type: 'audio' as const, codec: 'dts', profile: '', language: 'eng', default: true, forced: false };

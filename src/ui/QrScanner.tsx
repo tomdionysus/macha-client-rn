@@ -6,14 +6,8 @@ import { Button } from './controls';
 import { colors, radius, space, type as typography } from './theme';
 
 /**
- * How long the same payload is ignored after it has been handed over.
- *
- * `onBarcodeScanned` fires per frame while a code is in view, so a code held
- * steady for a second arrives dozens of times. A one-shot latch would be
- * simpler, but it also ends the scan: when a code turns out to be the wrong
- * one, the viewer's next move is to point the camera at a different code, and
- * a latched scanner would sit there dead while they did it. Deduplicating on
- * the payload instead means a repeat is quiet and a different code is instant.
+ * How long a repeated payload is ignored. `onBarcodeScanned` fires every frame;
+ * deduplicating by payload rather than latching lets a different code through at once.
  */
 const REPEAT_INTERVAL_MS = 2_000;
 
@@ -26,11 +20,7 @@ interface QrScannerProps {
   message?: string;
 }
 
-/**
- * The camera, a viewfinder and nothing else. It reports payloads and holds no
- * opinion about what they mean: the connect screen reads node addresses out of
- * them, and whatever pairs a user to this client will read something else.
- */
+/** Camera and viewfinder that reports raw QR payloads; callers interpret them. */
 export function QrScanner({ onScan, onCancel, instruction, message }: QrScannerProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -46,9 +36,7 @@ export function QrScanner({ onScan, onCancel, instruction, message }: QrScannerP
     [onScan],
   );
 
-  // Null means the permission state has not been read back yet, which is a
-  // frame or two at startup. Rendering the prompt through it would flash a
-  // request at someone who has already granted it.
+  // Permission not read yet; avoid flashing the prompt at someone who granted it.
   if (!permission) return <View style={styles.root} />;
 
   if (!permission.granted) {
@@ -131,8 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
-  // A plain square rather than a mask: the scanner reads the whole frame, so a
-  // cut-out implying otherwise would be telling the viewer something untrue.
+  // A plain square, not a mask: the scanner reads the whole frame.
   viewfinder: {
     width: 232,
     height: 232,

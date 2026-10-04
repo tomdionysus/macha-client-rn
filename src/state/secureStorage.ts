@@ -2,23 +2,13 @@ import * as SecureStore from 'expo-secure-store';
 import type { StorageLike } from '@machafoundation/core';
 
 /**
- * Core's `secureStorage`, on the Android Keystore and the iOS Keychain.
+ * Core's `secureStorage` (where it keeps the session token), on the Android
+ * Keystore and iOS Keychain; without it core would use plain AsyncStorage.
+ * `configureAndroidBackup` in app config keeps it out of Android Auto Backup.
  *
- * **Why.** Core keeps the session token here, and falls back to plain
- * `storage` (AsyncStorage) when a host supplies none. That token lives for up
- * to 30 days, in plaintext, readable on a rooted device or in a backup. The
- * app's config plugin sets `configureAndroidBackup`, which keeps this store
- * out of Android Auto Backup.
- *
- * **Removal overwrites, synchronously.** SecureStore can only delete
- * asynchronously, and core expects `removeItem` to take effect at once. A
- * fire-and-forget delete issued by a logout could land after the login that
- * followed it and erase the new token. Writing `''` is synchronous and
- * removes the secret at once, and `getItem`
- * reads `''` as absent. The key itself stays, holding nothing.
- *
- * Keys must be alphanumeric plus `.`, `-` and `_`. Core's one key here is
- * `macha.session.v1`.
+ * `removeItem` writes `''` (read back as absent) because SecureStore deletes
+ * only asynchronously, and a late delete could erase the token of a login
+ * that followed. Keys: alphanumerics plus `.`, `-`, `_`.
  */
 export const secureStorage: StorageLike = {
   getItem(key) {

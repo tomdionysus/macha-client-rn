@@ -22,11 +22,7 @@ const DESTINATIONS: Destination[] = [
   { href: '/search', label: 'Search', Icon: SearchIcon, owns: ['/search'] },
 ];
 
-/**
- * The primary navigation, docked at the bottom where a thumb reaches. It sits
- * above the safe-area inset rather than inside it, so the gesture bar never
- * overlaps a target.
- */
+/** Primary navigation, docked above the bottom safe-area inset so the gesture bar never overlaps it. */
 export function BottomNav() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();

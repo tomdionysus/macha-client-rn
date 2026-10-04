@@ -26,9 +26,8 @@ import type { MediaSummary } from '../types';
 const DEBOUNCE_MS = 280;
 
 /**
- * The line for a query that found nothing — including one made only of words
- * that are never searched on, or with every category off. The same wording on
- * every client.
+ * Shown when a query finds nothing, including stop-word-only queries or every
+ * category off. Same wording on every client.
  */
 const NOTHING_FOUND = 'Nothing found. Try different search terms or filters.';
 
