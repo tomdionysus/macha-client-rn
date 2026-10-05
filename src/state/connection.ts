@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import { machaStorageKeyClientId } from '@machafoundation/core';
 import { coerceEndpointUrl } from '../api/http';
 import { clientStore, readValidatedJson, writeJson } from './storage';
 
@@ -45,17 +46,13 @@ export function getClientId(): string {
   return id;
 }
 
-/** Key prefixes of the per-client stores, each followed by the client id. */
-const PER_CLIENT_PREFIXES = [
-  'macha.continueWatching.v1.',
-  'macha-client-progress:',
-  'macha.progress.v1:',
-  'macha.downloads.v1.',
-  'macha.playbackQueue.v1.',
-  'macha.playlists.v1.',
-  'macha.musicPlaylist.v1.',
-  'macha.musicLibrary.v1.',
-];
+/** This client's own per-client key prefixes, each followed by the client id. Core reads its own. */
+const OWN_PER_CLIENT_PREFIXES = ['macha.progress.v1:', 'macha.downloads.v1.', 'macha.musicLibrary.v1.'];
+
+function clientIdOf(key: string): string | undefined {
+  const prefix = OWN_PER_CLIENT_PREFIXES.find((candidate) => key.startsWith(candidate));
+  return prefix ? key.slice(prefix.length) : machaStorageKeyClientId(key);
+}
 
 /**
  * The client id to adopt back after a failed startup read minted a new one
@@ -65,8 +62,7 @@ const PER_CLIENT_PREFIXES = [
 export function orphanedClientId(keys: readonly string[], current: string | null): string | undefined {
   const owners = new Set<string>();
   for (const key of keys) {
-    const prefix = PER_CLIENT_PREFIXES.find((candidate) => key.startsWith(candidate));
-    const id = prefix ? key.slice(prefix.length) : '';
+    const id = clientIdOf(key);
     if (id && id !== 'anonymous') owners.add(id);
   }
   if (current && owners.has(current)) return undefined;

@@ -31,6 +31,16 @@ describe('orphanedClientId', () => {
     expect(orphanedClientId(['macha.playbackQueue.v1.anonymous'], 'minted')).toBeUndefined();
   });
 
+  it('counts a playlist row, `<clientId>.<playlistId>`, as its client id', () => {
+    const rows = [...keys, `macha.playlists.v1.${old}.p1`, `macha.playlists.v1.${old}.p2`];
+    expect(orphanedClientId(rows, 'minted')).toBe(old);
+  });
+
+  it("reads core's current keys, `macha.core.client.<clientId>.<store>`", () => {
+    expect(orphanedClientId([`macha.core.client.${old}.continueWatching`], 'minted')).toBe(old);
+    expect(orphanedClientId([`macha.core.client.${old}.playlists.p1`, `macha.downloads.v1.${old}`], 'minted')).toBe(old);
+  });
+
   it('reads the older Continue Watching keys too', () => {
     expect(orphanedClientId([`macha-client-progress:${old}`], 'minted')).toBe(old);
     expect(orphanedClientId([`macha.progress.v1:${old}`], 'minted')).toBe(old);

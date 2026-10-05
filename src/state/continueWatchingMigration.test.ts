@@ -24,7 +24,10 @@ const legacyKey = (clientId: string) => `macha.progress.v1:${clientId}`;
 describe('adoptLegacyContinueWatching', () => {
   beforeEach(() => {
     for (const key of ['client', 'anonymous']) clientStore.removeItem(legacyKey(key));
-    clientStore.removeItem('macha.continueWatching.v1.client');
+    // Core's store, wherever its current key convention puts it.
+    for (const key of clientStore.keys()) {
+      if (key.startsWith('macha.core.client.') || key.startsWith('macha.continueWatching.v1.')) clientStore.removeItem(key);
+    }
   });
 
   it('carries pre-rename resume positions into core’s store', () => {

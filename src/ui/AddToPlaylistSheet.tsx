@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MachaSavedRowLimitError } from '@machafoundation/core';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlaylists } from '../hooks/usePlaylists';
@@ -26,7 +27,15 @@ export function AddToPlaylistSheet({ visible, items, onClose }: Props) {
 
   const addTo = (id: string, playlistName: string) => {
     const before = playlists.get(id)?.items.length ?? 0;
-    const after = playlists.add(id, items)?.items.length ?? before;
+    let after: number;
+    try {
+      after = playlists.add(id, items)?.items.length ?? before;
+    } catch (error) {
+      if (!(error instanceof MachaSavedRowLimitError)) throw error;
+      // The sheet stays open so the viewer can start another playlist from it.
+      Alert.alert('Playlist full', `${playlistName} cannot hold any more tracks. Start a new playlist for these.`);
+      return;
+    }
     const added = after - before;
     onClose();
     // Report "already there" too; silence would read as a bug.
@@ -39,7 +48,14 @@ export function AddToPlaylistSheet({ visible, items, onClose }: Props) {
   };
 
   const createAndAdd = () => {
-    const created = playlists.create(name, items);
+    let created;
+    try {
+      created = playlists.create(name, items);
+    } catch (error) {
+      if (!(error instanceof MachaSavedRowLimitError)) throw error;
+      Alert.alert('Too many tracks', 'That is more than one playlist can hold. Add them in smaller groups.');
+      return;
+    }
     setName('');
     onClose();
     Alert.alert('Playlist created', `${created.name} · ${pluralize(created.items.length, 'track')}.`);
