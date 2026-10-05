@@ -28,6 +28,7 @@ function owned(key: string): boolean {
 class ClientStore {
   private cache = new Map<string, string>();
   private hydrated = false;
+  private lostRows = false;
   private writes = Promise.resolve();
 
   async hydrate(): Promise<void> {
@@ -35,6 +36,11 @@ class ClientStore {
     let keys: string[] = [];
     try {
       keys = (await AsyncStorage.getAllKeys()).filter(owned);
+    } catch (error) {
+      this.lostRows = true;
+      console.warn('[macha] [storage] unreadable-keys', { error: String(error) });
+    }
+    try {
       const entries = await AsyncStorage.multiGet(keys);
       for (const [key, value] of entries) if (value !== null) this.cache.set(key, value);
     } catch {
@@ -45,6 +51,7 @@ class ClientStore {
           const value = await AsyncStorage.getItem(key);
           if (value !== null) this.cache.set(key, value);
         } catch (error) {
+          this.lostRows = true;
           console.warn('[macha] [storage] unreadable-key', { key, error: String(error) });
         }
       }
@@ -54,6 +61,11 @@ class ClientStore {
 
   get isHydrated(): boolean {
     return this.hydrated;
+  }
+
+  /** Hydrated with every row: an absent key really is absent, not lost. */
+  get readEverything(): boolean {
+    return this.hydrated && !this.lostRows;
   }
 
   getItem(key: string): string | null {

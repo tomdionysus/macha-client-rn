@@ -7,7 +7,7 @@ import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabil
 import { fileToPlay } from '../playback/policy';
 import { NOT_AVAILABLE_HERE, downloadTarget, playableHere } from './choice';
 import { type TransferObservation, throughputSample } from './throughputSample';
-import type { DownloadRecord, DownloadStore } from '../state/downloads';
+import { referencedDownloadFiles, type DownloadRecord, type DownloadStore } from '../state/downloads';
 import type { MediaSummary } from '../types';
 
 const MEDIA_DIR = `${FileSystem.documentDirectory}macha/media/`;
@@ -53,6 +53,8 @@ export class DownloadManager {
   private readonly live = new Map<string, LiveProgress>();
   private lastNotifyAt = 0;
   private lastPersistAt = 0;
+  /** The startup sweep; a download must not start while it could delete that download's file. */
+  private swept: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly store: DownloadStore,
@@ -133,8 +135,13 @@ export class DownloadManager {
     return queued;
   }
 
-  /** Called at startup: anything interrupted mid-flight goes back on the queue. */
+  /**
+   * Called at startup: deletes files no record names, then puts anything
+   * interrupted mid-flight back on the queue. Downloads wait for the sweep.
+   */
   resumeInterrupted(): void {
+    // A running transfer's partial is named by no record yet, so sweep only when idle.
+    if (!this.running) this.swept = this.sweepOrphans();
     for (const record of this.store.all()) {
       if (record.state === 'downloading') this.store.patch(record.mediaId, { state: 'queued', error: undefined });
     }
@@ -185,6 +192,7 @@ export class DownloadManager {
     if (this.running) return;
     this.running = true;
     try {
+      await this.swept;
       // Strictly sequential; `CONCURRENCY` documents the intent.
       void CONCURRENCY;
       for (;;) {
@@ -317,6 +325,18 @@ export class DownloadManager {
     const sample = throughputSample(observed);
     if (!sample) return;
     this.registry.recordTransferByUrl(session.source.url, sample.bytes, sample.durationMs);
+  }
+
+  /** Partials left by failed, cancelled or removed downloads; nothing when storage was not fully read. */
+  private async sweepOrphans(): Promise<void> {
+    const keep = referencedDownloadFiles();
+    if (!keep) return;
+    for (const dir of [MEDIA_DIR, ARTWORK_DIR]) {
+      const names = await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[]);
+      for (const name of names) {
+        if (!keep.has(name)) await FileSystem.deleteAsync(`${dir}${name}`, { idempotent: true }).catch(() => undefined);
+      }
+    }
   }
 
   /** Stores the cover next to the media; failure here does not fail the download. */

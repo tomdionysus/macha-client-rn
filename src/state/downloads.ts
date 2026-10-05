@@ -1,5 +1,5 @@
 import type { MediaSummary } from '../types';
-import { readValidatedJson, writeJson } from './storage';
+import { clientStore, readValidatedJson, writeJson } from './storage';
 
 export type DownloadState = 'queued' | 'downloading' | 'complete' | 'failed';
 
@@ -28,6 +28,7 @@ interface DownloadFile {
   records: Record<string, DownloadRecord>;
 }
 
+const KEY_PREFIX = 'macha.downloads.v1.';
 const EMPTY: DownloadFile = { version: 1, records: {} };
 
 function validFile(value: unknown): value is DownloadFile {
@@ -49,7 +50,7 @@ export class DownloadStore {
   private readonly key: string;
 
   constructor(clientId: string) {
-    this.key = `macha.downloads.v1.${clientId}`;
+    this.key = `${KEY_PREFIX}${clientId}`;
   }
 
   private read(): DownloadFile {
@@ -137,4 +138,24 @@ export function offlineMedia(record: DownloadRecord): MediaSummary {
       ? { ...record.media.musicContext, artwork: local }
       : undefined,
   };
+}
+
+/**
+ * File names any download record points at, under every client id (a re-minted
+ * id leaves the real records under the old one). Undefined when storage was not
+ * fully read or a record file is invalid, since a lost record cannot then be
+ * told from a missing one.
+ */
+export function referencedDownloadFiles(): Set<string> | undefined {
+  if (!clientStore.readEverything) return undefined;
+  const names = new Set<string>();
+  for (const key of clientStore.keys()) {
+    if (!key.startsWith(KEY_PREFIX)) continue;
+    const file = readValidatedJson(key, validFile);
+    if (!file) return undefined;
+    for (const record of Object.values(file.records)) {
+      for (const uri of [record.localUri, record.artworkUri]) if (uri) names.add(uri.slice(uri.lastIndexOf('/') + 1));
+    }
+  }
+  return names;
 }

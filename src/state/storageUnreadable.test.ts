@@ -19,5 +19,7 @@ describe('ClientStore.hydrate with a row too big to read', () => {
     expect(clientStore.getItem('macha.endpoints.v1')).toBe('{"version":1,"urls":["https://node"]}');
     expect(clientStore.getItem('macha.clientId.v1')).toBe('client-1');
     expect(clientStore.getItem('macha.playbackQueue.v1.client-1')).toBeNull();
+    // So nothing may treat an absent key as never written, e.g. the download sweep.
+    expect(clientStore.readEverything).toBe(false);
   });
 });
