@@ -8,6 +8,47 @@ Newest first.
 
 ---
 
+## 2026-10-04 — Documentation pass, cleanup, orphaned download sweep
+
+- **Docs and comments** (`f734464`, pushed): README and AGENTS.md cut to
+  current rules and reasons; comments across 138 source files lost dates,
+  rulings and incident history. Proved comment-only by compiling every file
+  with comments stripped against `bf3b968`: no difference.
+- **Cleanup:** 39 dead default `React` imports (the JSX runtime is
+  automatic) and seven other unused symbols removed; `noUnusedLocals` is now
+  on in `tsconfig.json`. The "Could not reach the server" sentence is
+  `UNREACHABLE_TEXT` in `api/errors.ts`, shared by `policy.ts` and
+  `failureMessages.ts`. `preparingUpdate` replaces eight copies of the
+  `preparing`/`startProgress` reset. Vitest's `fsModuleCache` is on: its key
+  includes file content, so a rebuilt core through the link invalidates it;
+  a warm run went from ~17 s to ~5 s.
+- **Orphaned download files:** `DownloadManager.resumeInterrupted` now
+  deletes files in `macha/media/` and `macha/artwork/` that no download
+  record names, before any download starts. Guards: nothing is deleted
+  unless `clientStore.readEverything` (no row lost at hydration) and every
+  download record file parses; records under **every** client id count, since
+  a re-minted id leaves the real ones under the old id; and it never runs
+  while a transfer is in flight. Each guard's test was shown failing with the
+  guard removed. Not yet seen on a device.
+- **Core's slim playlists** (core `347afd2`, checked against its source):
+  one row per playlist at `macha.playlists.v1.<clientId>.<playlistId>`. That
+  broke `orphanedClientId`, which read `<clientId>.<playlistId>` as a second
+  owner and so would never recover a lost client id once a playlist existed;
+  it now takes the id up to the next dot (test failed first). The hydration
+  filter is a prefix match and needed nothing. `AddToPlaylistSheet` catches
+  `MachaSavedRowLimitError` from `add`/`create` and says so, leaving the
+  sheet open to start another playlist. No playlist view draws a synopsis.
+- **Core's single key convention** (core `a237296`, exported in `cb55882`):
+  core's keys moved under `macha.core.client.<clientId>.<store>`, adopted
+  from the old ones on first read. `orphanedClientId` now reads core's keys
+  through core's `machaStorageKeyClientId` and parses only this client's
+  own three prefixes (`macha.progress.v1:`, `macha.downloads.v1.`,
+  `macha.musicLibrary.v1.`); the test with only a new-style key failed
+  first. Four `continueWatchingMigration` tests leaked state once core
+  removed the old key on adoption; their cleanup now clears both.
+
+---
+
 ## 2026-10-02 to 04 — Comments rewritten, availability shown, 0.13.1 on the A85
 
 All on `experiment/object-ledger`, not on `develop` or `main` (Tom: "Stay on

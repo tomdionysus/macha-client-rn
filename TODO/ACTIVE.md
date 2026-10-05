@@ -91,19 +91,15 @@ against what this client reads.
    is live: a partial and an unavailable title on cards, rows, the detail
    poster and Continue Watching; an unavailable one greyed and refusing a
    tap; a downloaded one unmarked; a queue stepping over an unavailable one.
-3. **Tom's questions, open:**
-   - AV1 is claimed for HLS (`capabilities.ts`: `hlsVideoCodecs:
-     claimedVideo`), where a since-removed comment said it was deliberately
-     not. Which is intended?
-   - The mobile-data default is core's 720p, not a ruling; and the secure
-     store's backup side effect (AsyncStorage leaves Android Auto Backup with
-     the token).
-   - **Ruled, do not reopen:** Direct on a file whose audio the device cannot
-     decode stays available but is never the default; a downloaded title is
-     complete for availability.
-4. **Cleanup, offered and not done** (P2 *Left over from the comment
-   pass*): unused imports, the duplicated "Could not reach the server"
-   sentence, vitest's `fsModuleCache`, the repeated `preparing` reset.
+3. **Tom's questions, open:** AV1 is claimed for HLS (`capabilities.ts`:
+   `hlsVideoCodecs: claimedVideo`), so an AV1-capable phone asks the node to
+   copy AV1 into HLS rather than transcode it. Explained to Tom 2026-10-04;
+   recommended keeping the claim and playing one AV1 title on the A85.
+   **Ruled, do not reopen:** the mobile-data default stays core's 720p; the
+   token in Android Auto Backup is accepted (both Tom, 2026-10-04); Direct on
+   a file whose audio the device cannot decode stays available but is never
+   the default; a downloaded title is complete for availability.
+4. **Cleanup: done 2026-10-04** (COMPLETED).
 5. **The seek's remaining edges** (P2 *The seek control*): repaint while
    paused, the first touch after the chrome hides, local seeks that go to
    the node, `toggle` while buffering.
@@ -116,12 +112,16 @@ against what this client reads.
    Galaxy, by hand); the login-lapse notices; whether a too-slow transcode
    reaches the failover at all; the start-progress line on a slow fi-1
    start. **Not built:** the proactive half of the reaped-session recovery.
-7. **Downloads, still open:** orphaned partial files are never deleted (a
-   startup sweep of files no record names would clear them), and a film has
-   not been downloaded to completion and played off the disk. Files this
-   device cannot decode are greyed in the chooser (`b4d2c1b`); check whether
-   that settles Tom's question about offering them before asking it.
-8. **The media3 segment-500 contradiction** (P1 below), and the rest of the
+7. **Downloads, still open:** a film has not been downloaded to completion
+   and played off the disk (Tom: do it). The orphan sweep is built and
+   unit-tested, not yet seen on a device. Files this device cannot decode
+   are greyed in the chooser (`b4d2c1b`); check whether that settles Tom's
+   question about offering them before asking it.
+8. **Core's facts retry does not reach this client** (core `0b9b108`):
+   the coordinator now retries a failed facts lookup within a start; this
+   client calls `facts` itself in `PlaybackProvider`, once. Mirroring it is
+   a new mirror (memory *core-convergence-and-mirror-rule*); Tom to decide.
+9. **The media3 segment-500 contradiction** (P1 below), and the rest of the
    P2s.
 
 ---
@@ -400,11 +400,6 @@ against the previous commit). What it surfaced, not acted on:
 - **AV1 in `hlsVideoCodecs`** is Tom's question (*Open, in order*).
 - **Test names still carry history** ("the A85 was measured unable to
   decode", "(server 0.70.0)"): strings, so outside a comments-only pass.
-- **Cleanup offered and not yet done:** 38 unused `React` imports and seven
-  other unused symbols (`tsc --noUnusedLocals`); the "Could not reach the
-  server" sentence written twice (`policy.ts`, `failureMessages.ts`);
-  vitest's `fsModuleCache` (74% of a run is re-transforming); the repeated
-  `preparing`/`startProgress` reset in `PlaybackProvider`.
 
 ---
 
