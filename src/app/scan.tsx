@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { readScannedEndpoint } from '../scan/endpoint';
 import { QrScanner } from '../ui/QrScanner';
 

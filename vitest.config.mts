@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Keyed on file content, so a rebuilt core through the link invalidates it.
+    fsModuleCache: true,
   },
   resolve: {
     // Array form so a regex can catch the codec probe's relative imports.

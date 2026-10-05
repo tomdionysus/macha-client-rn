@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { albumLabel, playlistName } from '../../ui/labels';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { newestCatalogueFirst } from '../../api/media';
 import { useAsync } from '../../hooks/useAsync';

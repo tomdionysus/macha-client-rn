@@ -9,13 +9,11 @@ import {
   degradeInstruction,
   playbackVersions,
   resumePreferences,
-  restatePreferencesClearedByMode,
   technicalProfileFromCatalogue,
   type PlaybackInstruction,
   type PlaybackMediaFacts,
   type PlaybackStartProgress,
   type PlaybackVersions,
-  type StreamInstruction,
   type VersionStep,
 } from '@machafoundation/core';
 import { automaticStart, deviceQualityCeiling, offerAll, versionStart, versionUpdate } from '../playback/quality';
@@ -156,7 +154,6 @@ const SUPERSEDED_FAILURE_MESSAGE =
 /** Restarting an item that has barely begun is more useful than resuming it. */
 const RESUME_FLOOR_MS = 10_000;
 
-
 const IDLE: PlaybackState = {
   status: 'idle',
   positionMs: 0,
@@ -169,6 +166,11 @@ const IDLE: PlaybackState = {
   shuffle: false,
   repeat: 'off',
 };
+
+/** Enters or leaves preparing; either way the last start's progress no longer applies. */
+function preparingUpdate(preparing: boolean, extra: Partial<PlaybackState> = {}) {
+  return (current: PlaybackState): PlaybackState => ({ ...current, ...extra, preparing, startProgress: undefined });
+}
 
 /**
  * App-scoped playback runtime: sole owner of the platform player and the active
@@ -827,7 +829,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         const started = pendingSupersedeRef.current?.startedAtMs;
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) {
-          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+          setState(preparingUpdate(false));
         }
       }
     },
@@ -907,7 +909,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         ++generationRef.current;
       }
       clearTimeout(seekDebounceRef.current);
-      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
+      setState(preparingUpdate(true, { buffering: true, error: undefined }));
       seekDebounceRef.current = setTimeout(() => {
         seekDebounceRef.current = undefined;
         void repositionTo();
@@ -932,7 +934,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const myGeneration = ++generationRef.current;
       const resumeMs = positionRef.current;
       lastRegenerationPositionRef.current = resumeMs;
-      setState((current) => ({ ...current, preparing: true, startProgress: undefined }));
+      setState(preparingUpdate(true));
       console.log('[macha] [playback] regenerate-attempt', { on: session.endpoint?.baseUrl, resumeMs });
       try {
         const next = await playbackApi.regenerate(session, media, resumeMs);
@@ -952,7 +954,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         failoverInFlightRef.current = false;
         if (generationRef.current === myGeneration) {
           setBusy(false);
-          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+          setState(preparingUpdate(false));
         }
       }
     },
@@ -1074,7 +1076,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       attempt: failoverAttemptsRef.current,
       resumeMs,
     });
-    setState((current) => ({ ...current, preparing: true, startProgress: undefined }));
+    setState(preparingUpdate(true));
     try {
       const next = await playbackApi.failover(session, media, resumeMs, reportStartProgress(myGeneration));
       console.log('[macha] [playback] failover-result', { to: next.endpoint?.baseUrl });
@@ -1113,7 +1115,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       // A superseded recovery must not clear the flag under whatever replaced it.
       if (generationRef.current === myGeneration) {
         setBusy(false);
-        setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+        setState(preparingUpdate(false));
       }
     }
   }, [mediaApi, player, playbackApi, regenerateSource, reportIfStillFailed, reportStartProgress]);
@@ -1136,7 +1138,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       const myGeneration = ++generationRef.current;
       const resumeMs = positionRef.current;
       setBusy(true);
-      setState((current) => ({ ...current, buffering: true, error: undefined, preparing: true, startProgress: undefined }));
+      setState(preparingUpdate(true, { buffering: true, error: undefined }));
       // From here the old generation's fragments may answer 410; that is our
       // doing and must not fail over.
       pendingSupersedeRef.current = { startedAtMs: Date.now() };
@@ -1183,7 +1185,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         if (started !== undefined) pendingSupersedeRef.current = { startedAtMs: started, settledAtMs: Date.now() };
         if (generationRef.current === myGeneration) {
           setBusy(false);
-          setState((current) => ({ ...current, preparing: false, startProgress: undefined }));
+          setState(preparingUpdate(false));
         }
       }
     },

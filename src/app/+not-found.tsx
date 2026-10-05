@@ -1,5 +1,4 @@
 import { Redirect } from 'expo-router';
-import React from 'react';
 import { usePlayback } from '../providers/PlaybackProvider';
 
 /** Fallback for unmatched links: the player while something is playing, otherwise Home. */

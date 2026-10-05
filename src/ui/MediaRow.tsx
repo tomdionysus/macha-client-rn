@@ -1,4 +1,3 @@
-import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { MediaSummary, PlaybackProgress } from '../types';
 import { ChevronRightIcon } from './Icons';

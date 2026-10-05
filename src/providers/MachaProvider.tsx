@@ -23,7 +23,6 @@ import { describeMediaAccess, mayRequestMedia, type MediaAccess } from '../accou
 import { describeProblems, type Problem } from '../state/problems';
 import { ClusterPlaybackApi } from '../api/playback';
 import { ClusterStatusRouter } from '../api/status';
-import { MachaConnectionError } from '../api/errors';
 import { SessionManager, type AuthenticatedFetch, type SessionCredentials } from '../api/session';
 import {
   getClientId,

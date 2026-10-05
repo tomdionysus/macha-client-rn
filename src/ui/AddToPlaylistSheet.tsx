@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMacha } from '../providers/MachaProvider';
 import { usePlaylists } from '../hooks/usePlaylists';

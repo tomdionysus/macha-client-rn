@@ -1,4 +1,3 @@
-import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { useCurrentAvailability } from '../hooks/useCurrentAvailability';

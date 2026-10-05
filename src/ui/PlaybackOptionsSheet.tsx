@@ -1,4 +1,4 @@
-import React, { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { Text } from 'react-native';
 import { sessionNodeName } from '../api/nodeNames';
 import type { PlaybackSession, PlaybackStreamInfo, PlaybackTransform } from '../api/playback';

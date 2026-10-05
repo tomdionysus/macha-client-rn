@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { playbackVersions, type PlaybackMediaFacts, type VersionStep } from '@machafoundation/core';
 import { useAsync, type AsyncResult } from '../hooks/useAsync';
 import { deviceCapabilities, devicePlaybackOverrides } from '../playback/capabilities';
@@ -18,7 +18,7 @@ import type { MediaSummary } from '../types';
 import { PlayIcon } from './Icons';
 import { Button } from './controls';
 import { formatDuration } from './format';
-import { colors, space, type as typography } from './theme';
+import { colors, type as typography } from './theme';
 
 interface Props {
   /** The item to play, and the queue it should play within. */

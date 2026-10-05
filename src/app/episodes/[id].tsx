@@ -1,5 +1,4 @@
 import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
 import { useAsync } from '../../hooks/useAsync';
 import { useMacha } from '../../providers/MachaProvider';
 import type { Episode } from '../../types';

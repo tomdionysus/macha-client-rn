@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { MediaSummary } from '../types';
 import { availabilityMarker, mayPlay } from '../playback/availability';

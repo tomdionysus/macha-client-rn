@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { DEFAULT_LIBRARY_SORT, LIBRARY_SORTS, orderMedia, type MediaSortKey } from '@machafoundation/core';
 import type { MediaSummary } from '../types';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { CatalogueMediaProfile } from '../api/catalogue';
 import { useAsync } from '../hooks/useAsync';

@@ -1,5 +1,4 @@
 import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
 import { View } from 'react-native';
 import { useAsync } from '../../hooks/useAsync';
 import { useMacha } from '../../providers/MachaProvider';

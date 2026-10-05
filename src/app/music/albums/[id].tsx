@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AvailabilityBadge, heldBack } from '../../../ui/AvailabilityBadge';
 import { useAsync } from '../../../hooks/useAsync';

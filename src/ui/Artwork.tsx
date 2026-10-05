@@ -1,5 +1,5 @@
 import { Image, type ImageContentFit } from 'expo-image';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { ImageStyle } from 'expo-image';
 import { useAuthHeaders, useMacha } from '../providers/MachaProvider';

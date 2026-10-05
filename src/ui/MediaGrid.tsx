@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { MediaSummary } from '../types';
 import { MediaCard, shapeFor, type CardShape } from './MediaCard';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { statusNodeName } from '../api/nodeNames';
 import type { ByteUsage, ClusterHealth, ClusterNodeStatus } from '../api/status';

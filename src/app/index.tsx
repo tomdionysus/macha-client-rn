@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { newestCatalogueFirst } from '../api/media';
 import { useAsync } from '../hooks/useAsync';

@@ -1,4 +1,4 @@
-import { NO_NODE_ANSWERED_TEXT, noNodeAnswered } from '../api/errors';
+import { NO_NODE_ANSWERED_TEXT, noNodeAnswered, UNREACHABLE_TEXT } from '../api/errors';
 import { deviceCapabilities } from './capabilities';
 import {
   chooseAmongFiles,
@@ -247,7 +247,7 @@ export function createFailureMessage(error: unknown): string {
   if (status !== undefined && status >= 500) return quoted('The server could not start this stream. Try again in a moment.');
   if (noNodeAnswered(error)) return NO_NODE_ANSWERED_TEXT;
   if (status === undefined && playbackFailureCode(error) === undefined && unreachableEndpointFailure(error)) {
-    return 'Could not reach the server. Check your connection and try again.';
+    return UNREACHABLE_TEXT;
   }
   return quoted('This title could not be started. Try again.');
 }

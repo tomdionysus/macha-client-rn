@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMacha } from '../../../providers/MachaProvider';
 import { useCurrentAvailability } from '../../../hooks/useCurrentAvailability';

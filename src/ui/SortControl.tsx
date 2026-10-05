@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import type { MediaSort, MediaSortKey } from '@machafoundation/core';
 import { sortChoiceLabel } from './labels';

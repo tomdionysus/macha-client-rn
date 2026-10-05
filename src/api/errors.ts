@@ -44,6 +44,9 @@ export function noNodeAnswered(error: unknown): boolean {
   return error instanceof MachaClusterRouteError && error.unreachable;
 }
 
+/** A transport failure while browsing or playing; the connect screen says `SERVER_UNREACHABLE_MESSAGE`. */
+export const UNREACHABLE_TEXT = 'Could not reach the server. Check your connection and try again.';
+
 /** Usually a passing slowness, so "try again" comes first. Matches the web client. */
 export const NO_NODE_ANSWERED_TEXT =
   'No Macha server answered. Try again in a moment; if it keeps happening, check that the servers are running.';
