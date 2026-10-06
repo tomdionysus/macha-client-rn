@@ -1585,7 +1585,7 @@ function applySource(
 /** The lock-screen second line: a track's artist and album, or an episode's series. */
 function nowPlayingArtist(media: MediaSummary): string {
   const music = media.musicContext;
-  if (music) return [music.artist?.title, music.album.title].filter(Boolean).join(' — ') || 'Macha';
+  if (music) return [music.artist?.title, music.album.title].filter(Boolean).join(' · ') || 'Macha';
   return media.playbackContext?.series.title ?? 'Macha';
 }
 

@@ -12,7 +12,7 @@ export class Connectivity {
     return this.offline;
   }
 
-  /** When the state last flipped — used to avoid re-probing a node too eagerly. */
+  /** When the state last flipped, used to avoid re-probing a node too eagerly. */
   get changedAt(): number {
     return this.lastChangedAt;
   }

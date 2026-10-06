@@ -108,4 +108,4 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log(`${pkg.version} (versionCode ${app.android.versionCode})${tag ? `, tagged ${tag}` : ''} — consistent`);
+console.log(`${pkg.version} (versionCode ${app.android.versionCode})${tag ? `, tagged ${tag}` : ''}: consistent`);

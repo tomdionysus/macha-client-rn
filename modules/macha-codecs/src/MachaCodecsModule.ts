@@ -11,7 +11,7 @@ declare class MachaCodecsModule extends NativeModule<{}> {
   /**
    * HDR types the display can present, as `Display.HdrCapabilities`
    * constants: 1 Dolby Vision, 2 HDR10, 3 HLG, 4 HDR10+. `null` when the
-   * platform could not be asked — distinct from `[]`, an SDR panel.
+   * platform could not be asked, which is distinct from `[]`, an SDR panel.
    */
   displayHdrTypes(): number[] | null;
 

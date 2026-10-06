@@ -21,10 +21,10 @@ import { colors, radius, space, type as typography, TOUCH_TARGET } from './theme
 
 interface ScreenProps {
   title?: string;
-  /** Small line above the title — the parent series, artist, or section. */
+  /** Small line above the title: the parent series, artist, or section. */
   eyebrow?: string;
   showBack?: boolean;
-  /** Rendered before the title — the Macha mark on top-level screens. */
+  /** Rendered before the title: the Macha mark on top-level screens. */
   leading?: React.ReactNode;
   headerRight?: React.ReactNode;
   onRefresh?: () => void;

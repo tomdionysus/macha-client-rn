@@ -16,7 +16,7 @@ interface QrScannerProps {
   onScan(data: string): void;
   onCancel(): void;
   instruction: string;
-  /** Shown under the viewfinder — a rejected code, usually. */
+  /** Shown under the viewfinder, usually a rejected code. */
   message?: string;
 }
 

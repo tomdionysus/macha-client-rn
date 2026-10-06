@@ -44,8 +44,8 @@ describe('what to tell a viewer whose title has not started yet', () => {
   });
 
   it('names what is being waited for, and how long it has been', () => {
-    expect(startWaitNotice(true, 5_000)).toBe('Waiting for the node to start the stream — 5s');
-    expect(startWaitNotice(true, 12_400)).toBe('Waiting for the node to start the stream — 12s');
+    expect(startWaitNotice(true, 5_000)).toBe('Waiting for the node to start the stream (5s)');
+    expect(startWaitNotice(true, 12_400)).toBe('Waiting for the node to start the stream (12s)');
   });
 
   it('says nothing about a rebuffer', () => {
@@ -54,7 +54,7 @@ describe('what to tell a viewer whose title has not started yet', () => {
 
   it('says what the node reports it is doing, when it reports that, after the same delay', () => {
     expect(startWaitNotice(true, 4_999, 'Starting the stream: 60%')).toBeUndefined();
-    expect(startWaitNotice(true, 9_200, 'Starting the stream: 60%')).toBe('Starting the stream: 60% — 9s');
+    expect(startWaitNotice(true, 9_200, 'Starting the stream: 60%')).toBe('Starting the stream: 60% (9s)');
   });
 });
 

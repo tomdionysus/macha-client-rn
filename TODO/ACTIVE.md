@@ -120,7 +120,7 @@ deleted. Work on `develop`; `main` only for a release, at Tom's word.
 ### The habit that paid, and the one that did not
 
 **Five claims were retracted on 2026-09-21 and every one was caught by opening
-the file** — not by argument, and not by anybody's confidence. The `delay_moov`
+the file**, not by argument, and not by anybody's confidence. The `delay_moov`
 mechanism, a codec census read mid-write, "remux is broken", a recommendation
 built on an unverifiable hardware claim, and a causal story of mine about
 which objection was transcoding ten-bit HEVC. They are struck through in place
@@ -137,19 +137,19 @@ Sessions are addressed **by name** (`ListAgents` lists them): **`Macha
 Client Core`**, **`Macha Server`**, **`Macha Client`** (the web client) and
 **`Macha Android TV RN Client`**. Socket paths change every run; reply to a
 message by copying its `from` address. **Relayed rulings are confirmed with
-Tom before building** — two hops is where a claim stops being checked.
+Tom before building**: two hops is where a claim stops being checked.
 Rulings core says Tom gave it *directly* have been accepted, and one (the
 music lines) was still asked about because it changed work already done.
 **Do not edit another session's repo while it is live**: send the brief and
 let the owner do it by meaning (the laws renumbering, 2026-09-24).
 
-### Releasing — run end to end three times now, and none of it optional
+### Releasing: run end to end three times now, and none of it optional
 
 0. **Leaving the link needs the ranged install; returning needs nothing
    special.** `npm install @machafoundation/core@^x.y.z` replaces the symlink
    and rewrites the lockfile entry to a registry tarball in one step. A
    `package.json` edit plus plain `npm install` does **not**, and neither does
-   deleting `node_modules/@machafoundation` first — npm restores the link from
+   deleting `node_modules/@machafoundation` first: npm restores the link from
    the lockfile entry. Coming back, `package.json` to `file:../macha-ts` and a
    plain `npm install` restores the link and
    `{"resolved": "../macha-ts", "link": true}`. Measured for 0.7.0, 0.8.0 and
@@ -188,7 +188,7 @@ let the owner do it by meaning (the laws renumbering, 2026-09-24).
 link an APK carries whatever `../macha-ts/dist` held when Gradle ran: record
 the core SHA and `npm run dist:hash` beside any device measurement. A release
 build from `main` carries the registry tarball, whose integrity hash is in the
-lockfile — a better identity. COMPLETED's 0.8.0 and 0.9.0 entries record
+lockfile: a better identity. COMPLETED's 0.8.0 and 0.9.0 entries record
 theirs.
 
 ### What is verified on hardware, which is the useful half of knowing
@@ -214,7 +214,7 @@ live. It is the cheapest instrument this client has. **Always read it with
 `-v UTC`** (Tom's Zulu ruling): our log lines carry no timestamp of their
 own, so logcat's is the only one, and it is device-local by default.
 
-### Driving the phone — read this before sending a single tap
+### Driving the phone: read this before sending a single tap
 
 **Twice in one session blind taps landed outside the app**: once starting a
 timer in the Clock app, once opening a private WhatsApp conversation. Nothing
@@ -229,13 +229,13 @@ invocation, and abandoning the sequence if it fails.** An install, a
 relaunch, or an incoming notification is enough to lose it.
 
 Two more device facts: wireless debugging is the only route and **its port
-rotates** (`41931`, then `35737` in one evening) — rediscover with `adb mdns
+rotates** (`41931`, then `35737` in one evening); rediscover with `adb mdns
 services`; and **two televisions also answer ADB**, so every command needs an
 explicit `-s`.
 
 **A secure lock screen is a wall.** `KEYCODE_WAKEUP` and `wm dismiss-keyguard`
 wake the screen and clear a swipe keyguard; they do not clear a PIN or a
-pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK` —
+pattern, and neither does `cmd statusbar collapse` or `KEYCODE_BACK`:
 `mCurrentFocus` reads `NotificationShade` throughout. Measured 2026-09-21
 23:32. **Do not attempt a PIN.** Ask Tom to unlock it, and treat anything
 "observed" while it was locked as not observed.
@@ -259,7 +259,7 @@ and `strings` it for a string only the new code has.
   rotates on every enable (`34471`, `43777`, `41479` on 2026-09-27 alone),
   so rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
-  succeeds. It drops when the phone sleeps — a screenshot of a sleeping phone
+  succeeds. It drops when the phone sleeps: a screenshot of a sleeping phone
   is solid black; check `dumpsys power` for `mWakefulness` and send
   `KEYCODE_WAKEUP` before believing a blank capture. **It has a secure lock
   screen** that no ADB command here clears. It has **both** a remote TLS
@@ -276,8 +276,8 @@ and `strings` it for a string only the new code has.
   0.12.0); no endpoints are known to be configured on it, so it will want
   nodes and a sign-in before it plays anything.
 - **Samsung SM-G996B** (Galaxy S21+), serial `RFCRA0JJN6B`, Android 15. Has
-  **0.4.0** and **no endpoints configured**, so it opens on the connect screen
-  — the right device for first-run and QR in one pass.
+  **0.4.0** and **no endpoints configured**, so it opens on the connect screen:
+  the right device for first-run and QR in one pass.
 - **Two televisions answer ADB and neither is a test target.**
   `10.34.1.115:5555` (`Smart_TV`, product `G07_4K_GB_NF`) and
   `10.35.1.133:5555` (`Smart_TV`, product `G10_4K_GB_NF_32BIT`) were both
@@ -291,7 +291,7 @@ and abort if it is not `foundation.macha.client`.
 
 ---
 
-## P1 — The client re-implements core (audit, 2026-10-05)
+## P1: The client re-implements core (audit, 2026-10-05)
 
 Three read-only agent audits of `src/` against core `cb55882`. Each row was
 read on both sides by the agent; **not yet re-checked by hand**. Root cause:
@@ -361,7 +361,7 @@ OS transport channel), or switch piecemeal to exports as core adds them.
 
 ---
 
-## P1 — media3's bytecode says a segment 500 is retried; our device said it is fatal
+## P1: media3's bytecode says a segment 500 is retried; our device said it is fatal
 
 **Unresolved contradiction, found 2026-09-20 while answering a question from
 core.** It matters because both P1s around it reason about what the player
@@ -373,12 +373,12 @@ and 1.9.0**:
 
 - `isEligibleForFallback` returns true for an `InvalidResponseCodeException`
   whose status is one of **403, 404, 410, 416, 500, 503**. That governs
-  *fallback* — switching track or location — not retry.
+  *fallback*, switching track or location, not retry.
 - `getRetryDelayMsFor` returns `C.TIME_UNSET` (do not retry) only for
   `ParserException`, `FileNotFoundException`, `CleartextNotPermittedException`,
   `UnexpectedLoaderException` and a position-out-of-range cause. **An HTTP
   status error is in none of those**, so it falls through to
-  `min(errorCount * 1000, 5000)` — a retry with backoff.
+  `min(errorCount * 1000, 5000)`: a retry with backoff.
 
 **What this repo measured.** COMPLETED's 0.5.1 entry records, from the A85
 against a real node on 2026-09-13, that a segment `500` was **fatal on first
@@ -390,14 +390,14 @@ half the argument for `seekRequiresReposition`.
 path reaches the loader through `HlsChunkSource.onChunkLoadError` and a
 fallback that is unavailable with a single variant, so something above the
 policy goes terminal before the retry delay is consulted. **That is a guess
-and must not be recorded as anything else** — it is precisely the shape of
+and must not be recorded as anything else**: it is precisely the shape of
 explanation this project keeps being caught by.
 
 **Why P1 rather than a curiosity.** Nothing that cites it is wrong because of
 it, but three things now do. If a segment 500 *is* retried, the seek-reposition
 fix is protecting against something with a different mechanism than recorded,
-and `SEEK_HOLD_MARGIN_MS` — 2_000 ms above the node's hold, shipped 2026-09-21
-— is too small, because the hold would then be spent more than once before the
+and `SEEK_HOLD_MARGIN_MS` (2_000 ms above the node's hold, shipped 2026-09-21)
+is too small, because the hold would then be spent more than once before the
 player gives up. The margin was written not sized on this deliberately; settling
 it is what says whether that was generous enough.
 
@@ -417,16 +417,16 @@ default above is what runs.
 
 ---
 
-## P2 — What the route cutover left open
+## P2: What the route cutover left open
 
-The cutover itself is done and on hardware — COMPLETED, 2026-09-21, *Playback
+The cutover itself is done and on hardware: COMPLETED, 2026-09-21, *Playback
 sessions as a REST resource*. Three things from it are still open:
 
 - **The account cap has never fired for real.** `max_sessions: 8` node-wide
   refuses before `max_sessions_per_account: 32` can (`reserve_session_slot`,
   `playback.cpp:1404` then `:1409`), so every branch of
   `classifyCreateRefusal` and `spendsFailoverBudget` for
-  `account_session_limit` — create path and failover path — has run only
+  `account_session_limit` (create path and failover path) has run only
   against constructed errors. The first genuine one will be the first real run.
   Until the node limits are raised, the only 429 observable from here is the
   node-scoped `resource_limit`, which `classifyCreateRefusal` calls `fatal` on
@@ -436,24 +436,24 @@ sessions as a REST resource*. Three things from it are still open:
   `PlayerError` is `{ message }`; expo-video builds its `OkHttpDataSource`
   internally with no injection point. The mode-switch case is closed without
   seeing one (`selfSupersededGeneration`); a 410 this client did **not** cause
-  is not, and the only route that covers it is the television's — a native
+  is not, and the only route that covers it is the television's: a native
   media3 module feeding `httpStatus` into core's classifier. A build, not a
   patch; not started.
-- **`GET /api/v1/playback/sessions` adoption listing** — not built; nobody
+- **`GET /api/v1/playback/sessions` adoption listing**: not built; nobody
   needs it. Node-local by design, so provenance is free when it is.
 
 Standing condition on all of it: **`source.url` stays absolute and
-server-supplied** — core's stated commitment — and every consumer here feeds a
+server-supplied** (core's stated commitment) and every consumer here feeds a
 native player or a downloader rather than a fetch, so a relative URL would
 break at once and silently. Worth a test if core ever reworks the session shape.
 
-**And failover on mobile does not work — Tom, 2026-09-21.** Anything above
+**And failover on mobile does not work (Tom, 2026-09-21).** Anything above
 whose value is "failover behaves better" is worth less than it reads until that
 changes; see *Deferred by Tom*.
 
 ---
 
-## P2 — Left over from the comment pass (2026-10-02)
+## P2: Left over from the comment pass (2026-10-02)
 
 Comments only were changed (proved by printing every file without comments
 against the previous commit). What it surfaced, not acted on:
@@ -464,7 +464,7 @@ against the previous commit). What it surfaced, not acted on:
 
 ---
 
-## P2 — The seek control: what is left after the web-matching rework
+## P2: The seek control: what is left after the web-matching rework
 
 The rework is in COMPLETED 2026-10-02, proven on the A85. Still open from
 the 2026-09-21 notes, not re-checked since: **a seek while paused may not
@@ -476,9 +476,9 @@ buffering.
 
 ---
 
-## P2 — Honour `seekOffsetMs`; the cluster is already past the floor
+## P2: Honour `seekOffsetMs`; the cluster is already past the floor
 
-**New in core 0.14.0, and no longer latent — the live node is on `0.47.0`,
+**New in core 0.14.0, and no longer latent: the live node is on `0.47.0`,
 measured 2026-09-20.** This file previously said it would stay dormant until
 the cluster moved past 0.40.0. It has.
 
@@ -498,13 +498,13 @@ report that as the position.~~
 
 **That proposed fix was wrong, and core said so on 2026-09-21 before it was
 built.** Core's `docs/choosing-playback.md` states *"the core consumes these; a
-host must not"* — the coordinator converts between the two timelines, and a
+host must not"*; the coordinator converts between the two timelines, and a
 host that also corrects by the offset double-corrects into something
 "self-consistent and wrong". **And the offset would have corrected nothing
 anyway:** it is `0` on transcode and direct, which is precisely the case
 measured, and on remux the remainder is already inside `seekRequestedMs`.
 
-**What was actually missing is `seekMs`, the generation's origin** — and the
+**What was actually missing is `seekMs`, the generation's origin**, and the
 reason nobody was adding it is that this client drives
 `ClusterPlaybackResolver` directly and constructs no `PlaybackCoordinator`, so
 the conversion core's rule assumes simply was not happening. Core named this
@@ -530,23 +530,23 @@ remaining remux-only gap is wrong in one known direction, not two.
 
 ---
 
-## P2 — 544 MPEG-4 Part 2 files, 15% of the library, and this client claims no `mpeg4`
+## P2: 544 MPEG-4 Part 2 files, 15% of the library, and this client claims no `mpeg4`
 
-The complete census, 2026-09-21: **3,553 files — hevc 2,054 (1,872 of them
+The complete census, 2026-09-21: **3,553 files: hevc 2,054 (1,872 of them
 `yuv420p10le`), h264 954, mpeg4 544, av1 1.** This client's declared video list
 is `h264, hevc, vp9` plus whatever `withProbedAdditions` adds from the probe,
-and `mpeg4` is not among them — while the A85 lists a `video/mp4v-es` decoder.
+and `mpeg4` is not among them, while the A85 lists a `video/mp4v-es` decoder.
 That is 544 titles transcoding against one for AV1. Before claiming it: check
-which containers those files are in (`avi` is not claimed — see the
+which containers those files are in (`avi` is not claimed; see the
 capabilities item below), and that software decode at their resolutions is
 acceptable. Not started.
 
 ---
 
-## P2 — AV1 ten-bit SDR is unverified
+## P2: AV1 ten-bit SDR is unverified
 
-The A85's AV1 decoder advertises profiles `[1, 4096, 8192]` — `Main8`,
-`Main10HDR10`, `Main10HDRPlus` — and **plain `AV1ProfileMain10` (2) is
+The A85's AV1 decoder advertises profiles `[1, 4096, 8192]` (`Main8`,
+`Main10HDR10`, `Main10HDRPlus`) and **plain `AV1ProfileMain10` (2) is
 absent**. `TEN_BIT_PROFILES` in `codecProbe.ts` reads the two HDR10 entries as
 evidence of ten-bit decode, the usual reading since HDR10 *is* Main10 plus
 metadata, but *The Cannonball Run* is AV1 `yuv420p10le` and almost certainly
@@ -558,7 +558,7 @@ catching.
 extents, and both nodes refuse it (`read media: extent unavailable`), so it
 cannot be the test until the server restores it or another ten-bit AV1 file
 exists. **The test, when it can run:** force **Direct play** on it from the
-options sheet — its Opus audio is decodable, so only the video question remains. Three
+options sheet: its Opus audio is decodable, so only the video question remains. Three
 attempts to open the sheet failed on 2026-09-21: the chrome does not auto-hide
 while paused, a "reveal" tap dismisses it, and the layers icon eats the next
 tap. Tap the icon with the chrome already visible and verify the sheet opened
@@ -566,30 +566,30 @@ before tapping a row.
 
 ---
 
-## P2 — What `deviceCapabilities()` still asserts rather than measures
+## P2: What `deviceCapabilities()` still asserts rather than measures
 
 The probe (`modules/macha-codecs` + `codecProbe.ts`) settles `videoCodecs`,
 `audioCodecs`, `videoBitDepth`, `hdr`, `dolbyVision` and the HLS delivery
 lists on Android. Left over from the 2026-09-21 audit (COMPLETED):
 
-- **`containers`** — a fixed list. `MediaCodecList` says nothing about
+- **`containers`**: a fixed list. `MediaCodecList` says nothing about
   containers and ExoPlayer's extractors are fixed at build time. Asserted with
   reasoning, **and missing `avi`**, which the television claims and which the
   MPEG-4 item above needs settled.
-- **`hlsFmp4`, `hlsTs`** — unconditional. media3 facts, never checked against
+- **`hlsFmp4`, `hlsTs`**: unconditional. media3 facts, never checked against
   the media3 version actually linked.
-- **`dash: true`** — inherited without reasoning, and **dead**: core reads
+- **`dash: true`**: inherited without reasoning, and **dead**: core reads
   `capabilities.dash` nowhere. **It cannot be deleted from here**, checked
   2026-09-24: `dash: boolean` is a required field of core's
   `DeviceCapabilities` (`types.ts:210`). Dropping it is core's change; ask
   when next talking to core rather than setting it to `false` to look tidy.
-- **The whole iOS and web branches** — asserted end to end, no probe, no
+- **The whole iOS and web branches**: asserted end to end, no probe, no
   device. iOS `videoBitDepth: 8` is very likely wrong (iPhones decode ten-bit
   HEVC), and `ac3`/`eac3` are still claimed unconditionally there.
 
 ---
 
-## P2 — Two defects left in the access gate deliberately
+## P2: Two defects left in the access gate deliberately
 
 Both raised, both declined at the time, both still true.
 
@@ -613,12 +613,12 @@ Both raised, both declined at the time, both still true.
 - **One node's 401 stands for the whole cluster.** `isAuthRefusal` in
   `MediaApi.serve` (which could not fire at all before `d5a7273`) collapses to the local library without trying another node,
   and the router will not walk on a 4xx. Usually right, because sessions and
-  roles are replicated — but during a rolling upgrade an older build's session
+  roles are replicated, but during a rolling upgrade an older build's session
   carries a role vocabulary the newer one refuses.
 
 ---
 
-## P2 — Verify the container restatement reaches the wire
+## P2: Verify the container restatement reaches the wire
 
 **Status: fixed in core (`withServedSegmentContainer`, present in the installed
 `dist`); verification outstanding.** Needs a node stopped mid-playback, so it
@@ -628,8 +628,8 @@ happens on Tom's next run rather than on demand.
 PATCHing one, and the server starts a create from a default-constructed
 `PlaybackPreferences` whose container is `"fmp4"`. So a replacement generation
 was fMP4 whatever the original had been. Latent on this device only because
-`deviceCapabilities()` claims both `hlsFmp4` and `hlsTs`. Where it bites — the
-web client's measured Samsung case — the replacement prepares, playback never
+`deviceCapabilities()` claims both `hlsFmp4` and `hlsTs`. Where it bites (the
+web client's measured Samsung case) the replacement prepares, playback never
 starts, nothing is fetched, and about fifteen seconds later the cluster is
 exhausted with healthy nodes in it.
 
@@ -647,7 +647,7 @@ not be scheduled as though a stopped node would produce it.
 
 ---
 
-## P2 — Nothing anywhere knows about speaker layout
+## P2: Nothing anywhere knows about speaker layout
 
 **Status:** putative for this client, live elsewhere.
 
@@ -655,24 +655,24 @@ Core's `choosePlaybackInstruction` decides audio purely on codec and never
 reads `channels`. Since 2026-09-21 `ac3` and `eac3` are probe-gated on Android
 and absent on the A85, so it cannot arise there; on an Android device that
 *does* decode them, and on iOS where both are still claimed unconditionally, a
-5.1 track can be Direct Played to two speakers with no channel awareness. Whether media3 downmixes transparently is **unverified** —
+5.1 track can be Direct Played to two speakers with no channel awareness. Whether media3 downmixes transparently is **unverified**:
 that is the measurement that decides whether this is a phone problem or only a
 television one.
 
 **Related, checked while here:** `hlsVideoCodecs`/`hlsAudioCodecs` are set
 explicitly on android and ios, narrower than the direct lists. Leaving them
 unset makes core fall back to the *direct* lists silently, which would claim
-E-AC-3 in fMP4 — an independent black-picture path. The `web` fallback branch
+E-AC-3 in fMP4: an independent black-picture path. The `web` fallback branch
 does leave them unset: dead code on a device, but recorded rather than trusted.
 
 ---
 
-## P2 — Stall detection, if it is ever wired
+## P2: Stall detection, if it is ever wired
 
 **Status:** deliberately not started.
 
 Core has `MediaStartWatchdog` / `MediaStallWatchdog`, deliberately *not* wired
-into `PlaybackCoordinator` — each host wires its own. Since 0.14.0 the stall
+into `PlaybackCoordinator`; each host wires its own. Since 0.14.0 the stall
 watchdog takes its budget from the serving node (`useSourceBudgets(source)`,
 `mediaStallTimeoutMs(source)`), which removes the calibration argument that
 used to be the hard part. Three things are already known and must not be
@@ -685,7 +685,7 @@ rediscovered:
   publishes a position and nothing trustworthy about buffered ranges. A
   fabricated zero reads as evidence about the node. And a stall reported
   without a buffer figure must not record endpoint health.
-- **Any timeout must be calibrated against the node's hold and say so** — now
+- **Any timeout must be calibrated against the node's hold and say so**: now
   `budgets.segmentHoldMs`, not a constant.
 
 Adopting `PlaybackCoordinator` itself is a much larger move and wants its own
@@ -695,11 +695,11 @@ once cited as a reason against it has been retracted.
 
 ---
 
-## P3 — Throughput is browse-driven, and downloads are the only other source
+## P3: Throughput is browse-driven, and downloads are the only other source
 
 **Migrated to core 0.12.0 on 2026-09-15, measured abstaining on 2026-09-16.**
 Core owns the recorder; this client hand-builds its services, so
-`MachaProvider` attaches its own bandwidth store — and **must**, because
+`MachaProvider` attaches its own bandwidth store, and **must**, because
 `recordTransferByUrl` is a silent no-op when nothing is attached. The client id
 is a function guarded on `clientStore.isHydrated`, pinned by
 `state/clientId.test.ts`.
@@ -768,13 +768,13 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
 - **Core wants two things from this client, neither urgent:** this platform's
   own readings of expo-video and media3 (it holds only the television's and
   will not assume they transfer), and whether the player here does a source
-  handover. Answered 2026-09-20: it does not — one `expo-video` player,
+  handover. Answered 2026-09-20: it does not; one `expo-video` player,
   `player.replace(source)`, a visible reload, no join point computed; the two
   priming attempts are in COMPLETED. The expo-video readings core needs are
   the native-player-error-opacity note (COMPLETED, 2026-09-08) and the ducking
   entry (2026-09-10); both were read from this tree.
 - **`view_status` gates the diagnostic routes only**, never liveness. A
-  role-less session learns no cluster membership and — new with 0.14.0 — no
+  role-less session learns no cluster membership and (new with 0.14.0) no
   node budgets, so the failover pool stays at the bootstrap list and the
   published floors apply until someone signs in. **Tom has ruled that correct;
   do not build around it.**
@@ -785,16 +785,16 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
 - **`ClusterUsersApi.list()` is broken in core and cannot bite us.** The server
   writes `body["users"]` while core reads `response.items`. This client never
   calls `list()`.
-- **Standby dead on arrival — retracted as a core defect.** The explanation
+- **Standby dead on arrival: retracted as a core defect.** The explanation
   was wrong (see COMPLETED). The Android TV client is the first that can
   promote a standby and will report what actually happens. **Do not re-file
   without that result.**
 - **Core `0.21.0` is the newest on npm** and 0.12.0 pins it; 0.10.0 and
   0.11.0 pinned `0.20.0`, 0.9.0 pinned `0.19.0`. Before them, `0.18.0` (2026-09-21T19:31Z) was pinned by 0.8.0. `0.15.0`
   and `0.16.0` were superseded and will never be published; `0.17.0` was
-  tagged and overtaken. Everything they carried — the walk fix, the bounded
+  tagged and overtaken. Everything they carried (the walk fix, the bounded
   recovery, the encoder-speed reading, the three accessors, and the breaking
-  `hlsWalkTargets` → `HlsManifestUnavailableError` change — arrived with
+  `hlsWalkTargets` → `HlsManifestUnavailableError` change) arrived with
   0.18.0. **No caller here** for the break: `hlsWalk|HlsManifestUnavailable|walkTargets`
   is empty across `src`, re-checked 2026-09-23.
 - **The television session owes two answers**, both asked directly on
@@ -823,7 +823,7 @@ core; no parse failure has been seen on the A85 runs of 2026-09-25 and 27.
 is under consideration, so pipeline reclaim at 60 s frees the slot and a
 resuming session re-acquires it. **Since 2026-09-23 this client closes what a
 killed process left at its next launch** (COMPLETED), so the hole left for
-the server is the phone that is not opened again inside thirty minutes —
+the server is the phone that is not opened again inside thirty minutes,
 smaller than "no client can", not gone. It is **client-visible**: a session could be
 *refused on resume* where today admission is guaranteed for its lifetime. That
 is a new state this client would have to handle rather than treat as an error.
@@ -837,26 +837,26 @@ session says which way it goes.
 
 - **Subtitles: ignore for now, on every client.** Tom, 2026-09-21, relayed by
   the web client session: *"Tell the other clients and the core to ignore
-  subtitle issues FOR NOW."* The hole is the web client's — the server's
+  subtitle issues FOR NOW."* The hole is the web client's: the server's
   subtitle manifest carries durations only, no names and no URLs, so that
   client composes `segment-${index}.vtt` against the manifest URL, and core has
   never heard of the manifest type and is not taking it or a URL builder. **The
   reason it can wait is that there is exactly one copy of that convention**, so
   the instruction here is negative and this client is already compliant:
   checked 2026-09-21, `.vtt` appears nowhere in `src` and there is no segmented
-  subtitle path — only track *selection* in `PlaybackOptionsSheet.tsx` and the
+  subtitle path: only track *selection* in `PlaybackOptionsSheet.tsx` and the
   provider, which is unaffected. **Do not grow one and do not copy the naming.**
   If subtitles come up in the joint test, note it and move on.
 
-- **Seamless failover. Failover on mobile does not work at all — Tom,
-  2026-09-21**, superseding the 2026-09-08 device note that recorded it working
+- **Seamless failover. Failover on mobile does not work at all (Tom,
+  2026-09-21)**, superseding the 2026-09-08 device note that recorded it working
   but not seamless. So this is no longer a polish item waiting on a transport:
   the recovery it was going to make seamless is not there to smooth. The
   seamlessness gap, when it matters again, is
   transport, not player: expo-video builds its `OkHttpDataSource` internally
   with no injection point. The routes that would work are a native media3
   module with a failover `DataSource`, or TLS on the cluster. Two attempts were
-  made and reverted — see COMPLETED for what they measured. Core 0.14.0's
+  made and reverted; see COMPLETED for what they measured. Core 0.14.0's
   `continue`/`relocate` transition is the coordinator-side half of the same
   idea and confirms the framing: whether a swap can be hidden is a property of
   the two sources, and this client has no second managed presentation to cut
@@ -872,7 +872,7 @@ Recorded so they are not re-raised.
 - **0.9.0 compiles and passes 290 tests against published core 0.19.0**,
   including from a fresh clone with no `../macha-ts` (2026-09-24). **The
   tree compiled against published core 0.18.0 and against the link at
-  `a3b40ca`** with no edits — both on 2026-09-21 during the release — and
+  `a3b40ca`** with no edits (both on 2026-09-21 during the release) and
   against 0.14.0 and core's then-`develop` on 2026-09-20 by pointing `tsc` at
   each `dist` in turn.
 - **No storage key changed between core 0.12.0 and `develop`**, by grep of the

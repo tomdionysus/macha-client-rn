@@ -23,7 +23,7 @@ export function formatRuntime(ms: number): string | undefined {
 }
 
 export function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let value = bytes;
   let unit = 0;

@@ -84,7 +84,7 @@ export default function ConnectScreen() {
         <MachaLogo size={96} opacity={0.9} style={styles.logo} />
         <Text style={styles.title}>Macha</Text>
         <Text style={styles.lede}>
-          Your own media, on your own machines. Enter the address of any node in your cluster — the rest of the
+          Your own media, on your own machines. Enter the address of any node in your cluster; the rest of the
           cluster is discovered from there.
         </Text>
 
@@ -123,7 +123,7 @@ export default function ConnectScreen() {
           style={styles.add}
         />
         <Text style={styles.hint}>
-          Seed as many nodes as you like — the rest of the cluster is discovered from whichever answers first.
+          Seed as many nodes as you like; the rest of the cluster is discovered from whichever answers first.
           Pasting a list into any field spreads it across fields. Plain HTTP on port 7438 is assumed.
         </Text>
 

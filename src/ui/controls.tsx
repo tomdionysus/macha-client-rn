@@ -87,7 +87,7 @@ interface RowProps {
   active?: boolean;
 }
 
-/** A single tappable list line — tracks, episodes, seasons, settings entries. */
+/** A single tappable list line: tracks, episodes, seasons, settings entries. */
 export function ListRow({ title, detail, detailLines = 2, leading, trailing, onPress, active, disabled }: RowProps) {
   const content = (
     <>

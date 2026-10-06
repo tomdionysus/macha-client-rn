@@ -17,7 +17,7 @@ export interface Problem {
   kind: ProblemKind;
   /** One line, in the viewer's terms. */
   title: string;
-  /** What it means for them now — including what still works. */
+  /** What it means for them now, including what still works. */
   detail: string;
 }
 
@@ -55,7 +55,7 @@ const PROBLEMS: Record<ProblemKind, Omit<Problem, 'kind'>> = {
   // No roles at all: the remedy is signing in, not asking for a role.
   'account-no-roles': {
     title: 'This session cannot do anything',
-    detail: 'Log in again to see the library — this session was granted no permissions. Your downloads still play.',
+    detail: 'Log in again to see the library: this session was granted no permissions. Your downloads still play.',
   },
 };
 

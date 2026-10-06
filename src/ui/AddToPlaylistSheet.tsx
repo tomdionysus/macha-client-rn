@@ -12,7 +12,7 @@ import { colors, radius, space, type as typography } from './theme';
 
 interface Props {
   visible: boolean;
-  /** The tracks to add — one track, or a whole album's worth. */
+  /** The tracks to add: one track, or a whole album's worth. */
   items: readonly MediaSummary[];
   onClose(): void;
 }
