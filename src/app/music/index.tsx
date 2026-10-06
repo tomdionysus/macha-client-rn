@@ -1,3 +1,4 @@
+import { DEFAULT_LIBRARY_SORT, LIBRARY_SORTS, orderMedia } from '@machafoundation/core';
 import { useRouter } from 'expo-router';
 import { albumLabel, playlistName } from '../../ui/labels';
 import { useCallback, useState } from 'react';
@@ -60,8 +61,9 @@ export default function MusicScreen() {
   );
 
   const tracks = ((): MediaSummary[] => {
-    const all = library.value ?? [];
     if (view !== 'tracks') return [];
+    // The server lists in key order, so title order is ours to impose.
+    const all = orderMedia(library.value ?? [], DEFAULT_LIBRARY_SORT, LIBRARY_SORTS);
     switch (filter) {
       case 'favourites': {
         const favourites = new Set(musicLibrary.favourites());
