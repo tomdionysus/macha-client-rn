@@ -6,18 +6,18 @@ import { fileLines, wrapBetweenFields } from './mediaLines';
 import { colors, space, type as typography } from './theme';
 
 /**
- * One technical line per `macha:` file (see `mediaLines.ts`). Advisory only: a
- * profile that fails, is pending (202) or missing (404) is just left out.
+ * One technical line per file with a profile (see `mediaLines.ts`). Advisory
+ * only: core answers nothing for a non-`macha:` id, and a profile that fails, is
+ * pending (202) or missing (404) is just left out.
  */
 export function MediaLines({ mediaIds }: { mediaIds: readonly string[] }) {
   const { media, generation } = useMacha();
-  const files = mediaIds.filter((mediaId) => mediaId.startsWith('macha:'));
   const profiles = useAsync<CatalogueMediaProfile[]>(
     async (signal) =>
-      (await Promise.all(files.map((mediaId) => media.mediaProfile(mediaId, signal).catch(() => undefined)))).filter(
+      (await Promise.all(mediaIds.map((mediaId) => media.mediaProfile(mediaId, signal).catch(() => undefined)))).filter(
         (profile): profile is CatalogueMediaProfile => profile !== undefined,
       ),
-    [media, generation, files.join(' ')],
+    [media, generation, mediaIds.join(' ')],
   );
   const lines = profiles.value ? fileLines(profiles.value) : [];
   if (lines.length === 0) return null;

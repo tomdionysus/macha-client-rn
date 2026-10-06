@@ -8,6 +8,23 @@ Newest first.
 
 ---
 
+## 2026-10-05 to 06 — Facts retry in core, duplicates audited, two folded
+
+- **Facts retry** (Tom: retry like core, then fall back, playback and
+  downloads alike; and never in this client): core `cf4343a` retries inside
+  `ClusterPlaybackFactsApi.facts` (250 ms, 1 s). The phone's start and
+  `DownloadManager` both call it through `api/playback.ts`, so they get it
+  with no client code. A client-side copy was written and reverted first.
+- **Duplicate audit**: see ACTIVE P1 *The client re-implements core*. Of the
+  ten core already exports, Tom chose to fold only the unnoticeable ones:
+  the redundant `macha:` filter in `ui/MediaProfile.tsx` (core skips those
+  ids itself) and `resume.ts`, now through core's `progressFor` (the
+  existing tests pass unchanged). The generation-position and save-timing
+  pairs were not folded: a partial switch would mix two rules, and core's
+  save rule is a different policy, not a smaller copy.
+
+---
+
 ## 2026-10-04 — Documentation pass, cleanup, orphaned download sweep
 
 - **Docs and comments** (`f734464`, pushed): README and AGENTS.md cut to

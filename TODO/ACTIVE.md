@@ -17,21 +17,16 @@ availability).
 
 ## Start here
 
-### Work only on `experiment/object-ledger` (Tom)
+### Work on `develop`
 
-**Every change goes on `experiment/object-ledger`.** Tom set it on
-2026-10-01 and restated it on 2026-10-02 ("Stay on the experimental
-branch") when 0.13.1 was cut there instead of on `main`. **Do not commit to,
-merge into or push `develop` or `main` unless Tom asks in that message**;
-0.13.0 was the one exception, at his word. It matches the server's
-experiment of the same name; the server and core announce API changes on
-that line to every client before shipping them, and each is checked here
-against what this client reads.
+The object-ledger experiment closed on 2026-10-06 (Tom, across every
+project): `experiment/object-ledger` was fast-forwarded into `develop` and
+deleted. Work on `develop`; `main` only for a release, at Tom's word.
 
 ### Resume here, after a `/clear`
 
 1. Read *Start here*, then *Open, in order*.
-2. `git branch --show-current` is `experiment/object-ledger`; `git status
+2. `git branch --show-current` is `develop`; `git status
    --short` shows only `.claude/settings.json`, `CLAUDE.local.md` and
    `basemind.toml`, none of which are this work.
 3. `test -L node_modules/@machafoundation/core` succeeds (the branch is on
@@ -49,11 +44,11 @@ against what this client reads.
    in the same parallel batch (memory *never-guess-commit-ids*; broken twice
    on 2026-10-03/04).
 7. **Push only when Tom says "push" in that message** (memory *never-push*);
-   otherwise hand him `git push origin experiment/object-ledger`.
+   otherwise hand him `git push origin develop`.
 
 ### Where things stand (checked 2026-10-04)
 
-- **`experiment/object-ledger`**: the last code commit is `55b7552`.
+- **`develop`** (was `experiment/object-ledger`): the last code commit is `55b7552`.
   Everything after `origin/experiment/object-ledger` (`4bc1943`) is local:
   the availability markers and the TODO records. Version 0.13.1
   (`versionCode 1301`), untagged, on the core link. Typecheck clean, **410
@@ -117,11 +112,7 @@ against what this client reads.
    unit-tested, not yet seen on a device. Files this device cannot decode
    are greyed in the chooser (`b4d2c1b`); check whether that settles Tom's
    question about offering them before asking it.
-8. **Core's facts retry does not reach this client** (core `0b9b108`):
-   the coordinator now retries a failed facts lookup within a start; this
-   client calls `facts` itself in `PlaybackProvider`, once. Mirroring it is
-   a new mirror (memory *core-convergence-and-mirror-rule*); Tom to decide.
-9. **The media3 segment-500 contradiction** (P1 below), and the rest of the
+8. **The media3 segment-500 contradiction** (P1 below), and the rest of the
    P2s.
 
 ---
@@ -297,6 +288,76 @@ and `strings` it for a string only the new code has.
 **Check the foreground before driving the phone.** Blind `adb input` chains have
 landed in another app mid-sequence. `dumpsys window | grep mCurrentFocus` first,
 and abort if it is not `foundation.macha.client`.
+
+---
+
+## P1 — The client re-implements core (audit, 2026-10-05)
+
+Three read-only agent audits of `src/` against core `cb55882`. Each row was
+read on both sides by the agent; **not yet re-checked by hand**. Root cause:
+the phone does not use core's `PlaybackCoordinator`, so most of its start,
+change, seek and recovery logic is copied into `PlaybackProvider`,
+`policy.ts`, `quality.ts`, `seekIntent.ts`, `tooSlow.ts` and `resume.ts`.
+
+**Copies that now behave differently (viewer-visible), worst first:**
+- Facts fetched once, then decide without them: playback start, downloads,
+  `PlayActions`, `DownloadButton`. Core retries (asked to move it into the
+  lookup). Knock-on: later quality switches and the too-slow step-down lose
+  their file list.
+- No-facts start: core transcodes and names the first file; the phone may
+  pick direct/remux and name no file on a multi-file title.
+- Refusal degrade: core steps down once, never over the viewer's mode, with
+  a notice; the phone loops silently, also on `choice_required`.
+- Failover/regenerate turns a remux-with-video-copied into a full transcode
+  (`transformFor` from `session.preferences`).
+- Retry drops a mode the viewer chose mid-play.
+- A premature end (truncated stream) marks the title finished; core recovers
+  (`isPrematurePlaybackEnd`, exported).
+- Next episode stops at the season end; core's `episodeNeighbours` crosses
+  seasons.
+- Greyed modes, "what is playing", container, node name and codec labels in
+  the options sheet differ from core's `offeredModes` /
+  `describePlaybackSession` / `codecLabel`.
+- Remembered nodes saved before they ever answered; core saves only nodes
+  that answered (`EndpointHealthMonitor`).
+- Client config (id, endpoints) re-implemented under different keys from
+  core's `MachaClientConfiguration`.
+- Roles from a separate whoami fetch; core's arrive with every token.
+- Two writers of "cluster reachable" (`MediaApi.serve` and core).
+- Download records store full titles in one unbounded row; core's saved
+  titles are slim and size-checked.
+- Missing entirely: core's 15 s session liveness check and its transcode
+  fallback when the player cannot decode a copied stream.
+
+**Core exports it already: checked by hand 2026-10-05, none is a drop-in.**
+Only `describePlaybackSession`'s "name no streams when all copied" rule is
+identical. The rest differ: `resumeStateFrom` (falls back to the requested
+stream, lowercases the container); `generationLocalPosition` (direct by mode
+not manifest, clamps to duration, one direction only); `isPrematurePlaybackEnd`
+(the phone has no check; the recovery is coordinator-only);
+`progressWriteDue`/`nextWatermark` (phone throttles 5 s and also saves the
+queue position); queue `insertNext`/`append` (core keeps duplicates, drops
+unplayables; phone the reverse); `episodeNeighbours` (prev/next across
+seasons vs the phone's one-season queue); container, node name and mode in
+the readout (core trims/falls back to format, uses the stream origin,
+reports what was delivered); `codecLabel`/`qualityLabel` ("H.264", "4K" vs
+"H264", "2160p"); `offeredModes` (whole chooser incl. audio and node
+operations: it would grey Direct for undecodable audio, **against Tom's
+ruling that Direct stays available**). Each switch changes behaviour and
+needs Tom's word.
+
+**Core has it only privately** (core must export or move): facts retry,
+no-facts fallback, refusal rule, viewer-mode start, transform restating,
+`retriedCarriage`, automatic start/version update/`qualityPlaying`, too-slow,
+seek pinning and debounce, `sourceHoldMs`, node-name helper,
+`sessionNotStarted`, transfer recorder wiring.
+
+**Core bug patched locally:** core classes a refused write (401/403) as a
+transport failure; `api/errors.ts` `isUnreachable` guards it. Fix in core.
+
+**Decision for Tom:** adopt core's `PlaybackCoordinator` (the structural fix;
+recorded blockers: one player per `createPlayer()`, imperative `attach`, no
+OS transport channel), or switch piecemeal to exports as core adds them.
 
 ---
 
