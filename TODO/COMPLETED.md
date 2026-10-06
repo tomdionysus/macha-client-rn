@@ -8,6 +8,22 @@ Newest first.
 
 ---
 
+## 2026-10-06 — 0.14.0 released on core 0.22.0
+
+Tom's go in this session, after core published 0.22.0 (npm `latest`,
+gitHead `6e78168`, checked here). `develop` fast-forwarded into `main`;
+`npm install @machafoundation/core@^0.22.0` replaced the link (lockfile
+`resolved` a registry tarball, `test -L` failing); 0.14.0 / versionCode 1400
+in `package.json`, `app.json` and the README; prebuild, `version:check`,
+typecheck, 414 tests and `expo export` green. Release commit `f5211a0`,
+annotated tag `0.14.0`, both pushed. Proven standalone: the tag cloned with
+no `../macha-ts` beside it, `npm ci`, typecheck and tests green. `develop`
+then took the release commit and returned to `file:../macha-ts` (link
+restored, green against core `e34c22a`). **Not done:** `assembleRelease`
+and an install on the A85 (procedure step 6).
+
+---
+
 ## 2026-10-05 to 06 — Facts retry in core, duplicates audited, two folded
 
 - **Facts retry** (Tom: retry like core, then fall back, playback and
