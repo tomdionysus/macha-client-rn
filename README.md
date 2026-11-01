@@ -1,6 +1,6 @@
 # Macha Client (React Native)
 
-*v0.14.0*
+*v0.14.1*
 
 A phone client for [Macha](https://github.com/tomdionysus/macha), a C++ media
 server for large, mostly immutable video and music libraries. It browses a
