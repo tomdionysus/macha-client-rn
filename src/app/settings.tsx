@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState, useSyncExternalStore } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import { offersLogin } from '../account/marker';
 import { useAccount, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { useAsync } from '../hooks/useAsync';
@@ -122,10 +123,14 @@ export default function SettingsScreen() {
               leading={<UserIcon size={20} color={colors.textDim} />}
             />
           ) : null}
-          {account.kind === 'anonymous' ? (
+          {offersLogin(account) ? (
             <ListRow
               title="Log in"
-              detail="Browsing as a guest. Signing in reaches everything your account allows."
+              detail={
+                account.kind === 'required'
+                  ? 'This cluster needs an account to show its library.'
+                  : 'Browsing as a guest. Signing in reaches everything your account allows.'
+              }
               leading={<UserIcon size={20} color={colors.textDim} />}
               trailing={<ChevronRightIcon size={18} color={colors.textFaint} />}
               onPress={() => router.navigate('/login')}

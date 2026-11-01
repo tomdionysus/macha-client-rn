@@ -85,6 +85,13 @@ export function describeProblems(facts: ProblemFacts): Problem[] {
   return problems;
 }
 
+const LOGIN_REMEDIES: ReadonlySet<ProblemKind> = new Set(['account-required', 'account-cannot-view', 'account-no-roles']);
+
+/** Whether logging in is a remedy for any current problem. */
+export function loginRemedies(problems: readonly Problem[]): boolean {
+  return problems.some((problem) => LOGIN_REMEDIES.has(problem.kind));
+}
+
 /** Whether cluster media is unusable right now, by outage or by refusal. */
 export function clusterMediaUnavailable(problems: readonly Problem[]): boolean {
   return problems.length > 0;

@@ -3,19 +3,21 @@ import { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { signInFailureMessage } from '../api/failureMessages';
-import { useMacha } from '../providers/MachaProvider';
+import { useAccount, useMacha } from '../providers/MachaProvider';
 import { usePlayback } from '../providers/PlaybackProvider';
 import { Button } from '../ui/controls';
 import { MachaLogo } from '../ui/Logo';
 import { colors, radius, space, type as typography } from '../ui/theme';
 
 /**
- * Sign in as a named user. Every viewer already holds a session (empty
- * credentials authenticate `anonymous`), so this swaps it for a named one, and
- * is reached from the header and Settings rather than gating the app.
+ * Sign in as a named user. Empty credentials authenticate `anonymous`, so this
+ * usually swaps a guest session for a named one; on a cluster that refuses
+ * guests it is the only way in. Reached from the header, Settings and the
+ * problem sheet rather than gating the app.
  */
 export default function LoginScreen() {
   const { signIn } = useMacha();
+  const guestsRefused = useAccount().display.kind === 'required';
   const { stop } = usePlayback();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -57,8 +59,9 @@ export default function LoginScreen() {
         <MachaLogo size={72} opacity={0.9} style={styles.logo} />
         <Text style={styles.title}>Log in</Text>
         <Text style={styles.lede}>
-          Sign in to reach everything your account allows. Browsing without one is a supported way to use Macha, not a
-          lesser one.
+          {guestsRefused
+            ? 'This cluster needs an account to show its library. Your downloads still play without one.'
+            : 'Sign in to reach everything your account allows. Browsing without one is a supported way to use Macha, not a lesser one.'}
         </Text>
 
         <Text style={styles.label}>Username</Text>
@@ -94,7 +97,7 @@ export default function LoginScreen() {
         {message ? <Text style={styles.error}>{message}</Text> : null}
 
         <Button label="Log in" onPress={() => void submit()} busy={busy} disabled={!ready} style={styles.submit} />
-        <Button label="Continue as guest" variant="quiet" onPress={() => router.back()} />
+        <Button label={guestsRefused ? 'Not now' : 'Continue as guest'} variant="quiet" onPress={() => router.back()} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

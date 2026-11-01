@@ -13,7 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertIcon, ChevronLeftIcon } from './Icons';
 import { useProblems } from '../providers/MachaProvider';
-import type { Problem } from '../state/problems';
+import { loginRemedies, type Problem } from '../state/problems';
+import { Button } from './controls';
 import { Sheet } from './Sheet';
 import { Watermark } from './Logo';
 import { useBottomChromeInset } from './chrome';
@@ -194,6 +195,7 @@ function ProblemSheet({
   visible: boolean;
   onClose(): void;
 }) {
+  const router = useRouter();
   // Closes itself when every problem clears.
   if (problems.length === 0) return null;
 
@@ -205,6 +207,16 @@ function ProblemSheet({
           <Text style={problemStyles.explanationDetail}>{problem.detail}</Text>
         </View>
       ))}
+      {loginRemedies(problems) ? (
+        <Button
+          label="Log in"
+          onPress={() => {
+            onClose();
+            router.navigate('/login');
+          }}
+          style={problemStyles.login}
+        />
+      ) : null}
     </Sheet>
   );
 }
@@ -239,6 +251,10 @@ const problemStyles = StyleSheet.create({
   explanationDetail: {
     ...typography.body,
     color: colors.textDim,
+  },
+  login: {
+    marginHorizontal: space.lg,
+    marginVertical: space.md,
   },
 });
 

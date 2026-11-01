@@ -255,7 +255,9 @@ kept). Either way, check the bundle's time against the last source change
 and `strings` it for a string only the new code has.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
-  Tom's phone. Has **0.13.1** from `55b7552` (*Where things stand*). The wireless ADB port
+  Tom's phone. Has an uncommitted build on 0.14.0 (2026-11-01 16:33) with the
+  login fix for clusters that refuse guests. Seen at `10.44.1.127` that day,
+  and re-paired then. The wireless ADB port
   rotates on every enable (`34471`, `43777`, `41479` on 2026-09-27 alone),
   so rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second
@@ -326,6 +328,11 @@ change, seek and recovery logic is copied into `PlaybackProvider`,
 - Two writers of "cluster reachable" (`MediaApi.serve` and core).
 - Download records store full titles in one unbounded row; core's saved
   titles are slim and size-checked.
+- Mode switch mid-play (core `3d81053`, Tom's report that a switch showed
+  no sign of happening): core pauses at the press, names the target mode
+  and resumes once the new source presents. The phone keeps the old stream
+  playing under "Preparing new stream on <node>…". Tom to decide; not to be
+  mirrored.
 - Missing entirely: core's 15 s session liveness check and its transcode
   fallback when the player cannot decode a copied stream.
 

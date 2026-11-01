@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeAccount } from './marker';
+import { describeAccount, offersLogin } from './marker';
 import type { CurrentSession } from '@machafoundation/core';
 
 const session = (fields: Partial<CurrentSession>): CurrentSession => ({
@@ -19,6 +19,23 @@ describe('describeAccount', () => {
     expect(describeAccount({ known: true, session: session({}) })).toEqual({ kind: 'unstated' });
     expect(describeAccount({ known: true, session: session({ username: '   ' }) })).toEqual({ kind: 'unstated' });
     expect(describeAccount({ known: true, session: session({ username: 'anonymous' }) })).toEqual({ kind: 'anonymous' });
+  });
+
+  // `allow_anonymous: false`: the mint is refused, so no whoami ever answers.
+  it('offers a login when the cluster refused a guest session', () => {
+    const refused = { kind: 'denied', reason: 'no-session' } as const;
+    expect(describeAccount({ known: false }, refused)).toEqual({ kind: 'required' });
+    expect(describeAccount({ known: true, session: session({ username: 'anonymous' }) }, refused)).toEqual({ kind: 'required' });
+    expect(offersLogin(describeAccount({ known: false }, refused))).toBe(true);
+    // Only a refusal of the session itself; an unknown answer stays silent.
+    expect(describeAccount({ known: false }, { kind: 'unknown' })).toEqual({ kind: 'unknown' });
+    expect(describeAccount({ known: true, session: session({ username: 'anonymous' }) }, { kind: 'denied', reason: 'no-roles' })).toEqual({ kind: 'anonymous' });
+  });
+
+  it('keeps a named session over a refused mint', () => {
+    expect(
+      describeAccount({ known: true, session: session({ username: 'tom' }) }, { kind: 'denied', reason: 'no-session' }),
+    ).toMatchObject({ kind: 'signedIn' });
   });
 
   it('reads a signed-in account and its badge letter', () => {

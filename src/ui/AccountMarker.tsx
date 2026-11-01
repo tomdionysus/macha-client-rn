@@ -6,8 +6,9 @@ import { colors, radius, type as typography, TOUCH_TARGET } from './theme';
 
 /**
  * Header account marker: the user's initial (Macha has no avatars), or a glyph
- * when anonymous. Renders nothing until the cluster has answered whoami, so an
- * unanswered call is never drawn as "signed out".
+ * leading to the login screen when anonymous or when the cluster refused a guest
+ * session. Renders nothing until the cluster has answered, so an unanswered call
+ * is never drawn as "signed out".
  */
 export function AccountMarker() {
   const router = useRouter();

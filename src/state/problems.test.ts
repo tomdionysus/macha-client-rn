@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterMediaUnavailable, describeEmptyLibrary, describeProblems, type ProblemFacts } from './problems';
+import { clusterMediaUnavailable, describeEmptyLibrary, describeProblems, loginRemedies, type ProblemFacts } from './problems';
 
 const facts = (overrides: Partial<ProblemFacts> = {}): ProblemFacts => ({
   endpointsConfigured: true,
@@ -12,6 +12,13 @@ const facts = (overrides: Partial<ProblemFacts> = {}): ProblemFacts => ({
 const kinds = (f: ProblemFacts) => describeProblems(f).map((problem) => problem.kind);
 
 describe('describeProblems', () => {
+  it('offers a login for every account refusal and for nothing else', () => {
+    for (const reason of ['no-session', 'no-role', 'no-roles'] as const) {
+      expect(loginRemedies(describeProblems(facts({ access: { kind: 'denied', reason } })))).toBe(true);
+    }
+    expect(loginRemedies(describeProblems(facts({ networkDown: true, clusterUnreachable: true })))).toBe(false);
+  });
+
   it('says nothing when nothing is wrong', () => {
     expect(describeProblems(facts())).toEqual([]);
   });

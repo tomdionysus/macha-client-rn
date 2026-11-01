@@ -489,8 +489,8 @@ export function useAuthHeaders(): Record<string, string> | undefined {
 
 /** The account marker's view of the session; `display` is the four-state reading. */
 export function useAccount(): { display: AccountDisplay; session?: CurrentSession; known: boolean; refresh(): void } {
-  const { account, refreshAccount } = useMacha();
-  const display = useMemo(() => describeAccount(account), [account]);
+  const { account, access, refreshAccount } = useMacha();
+  const display = useMemo(() => describeAccount(account, access), [account, access]);
   return { display, session: account.session, known: account.known, refresh: refreshAccount };
 }
 
