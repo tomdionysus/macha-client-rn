@@ -255,9 +255,9 @@ kept). Either way, check the bundle's time against the last source change
 and `strings` it for a string only the new code has.
 
 - **Blackview A85**, serial `A85EEA0000005410`, Android 12, panel 720x1612.
-  Tom's phone. Has an uncommitted build on 0.14.0 (2026-11-01 16:33) with the
-  login fix for clusters that refuse guests. Seen at `10.44.1.127` that day,
-  and re-paired then. The wireless ADB port
+  Tom's phone. Has a build of `f6db5ed` labelled 0.14.0 (2026-11-01 16:33),
+  the same code as 0.14.1 but not the release build. Seen at `10.44.1.127`
+  that day, and re-paired then. The wireless ADB port
   rotates on every enable (`34471`, `43777`, `41479` on 2026-09-27 alone),
   so rediscover with `adb mdns services` (`_adb-tls-connect._tcp`), then `adb
   connect <host>:<port>`; the first connect sometimes times out and the second

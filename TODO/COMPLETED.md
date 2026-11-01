@@ -8,6 +8,32 @@ Newest first.
 
 ---
 
+## 2026-11-01: 0.14.1, a login on clusters that refuse guest sessions
+
+**The bug (Tom):** on a cluster with anonymous sessions off (macnessa from
+server 0.91.1: `POST /api/v1/session` without credentials answers 403
+`anonymous_disabled`), there was no way to log in. No token meant no whoami,
+so the account read as `unknown`; the header marker rendered nothing,
+Settings said "The cluster has not said who this session belongs to.", and
+the problem sheet said "Log in" with no button. **The fix** (`f6db5ed`): a
+refused mint reads as a `required` account in `describeAccount`, which the
+marker and Settings offer a login for; the problem sheet has a Log in button
+for every account refusal (`loginRemedies`); the login screen drops "Continue
+as guest" for "Not now" there. The new marker test fails with the refusal
+check removed. **On hardware:** installed on the A85 (`...5410`) at 16:33 as
+an unversioned build of `f6db5ed`'s code; against macnessa the header icon
+appeared and opened the login screen with the new text.
+
+**Released:** core 0.22.0 is still npm `latest`. `develop` took the ranged
+install (lockfile `resolved` a registry tarball, `test -L` failing), 0.14.1 /
+versionCode 1401; prebuild, `version:check`, typecheck, 417 tests and `expo
+export` green. Release commit `991a4c9`, `main` fast-forwarded, annotated
+tag `0.14.1`; all three pushed. Proven standalone (tag cloned alone, `npm ci`,
+typecheck, 417 tests). `develop` then returned to `file:../macha-ts`, green.
+**Not done:** step 6, a release build from `main` installed on the A85.
+
+---
+
 ## 2026-10-06: 0.14.0 released on core 0.22.0
 
 Tom's go in this session, after core published 0.22.0 (npm `latest`,
